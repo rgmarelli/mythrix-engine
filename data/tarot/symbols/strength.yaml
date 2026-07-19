@@ -1,0 +1,23 @@
+symbol:
+  name: "Strength"
+  type: major-arcana
+
+interpretations:
+  - tradition: rider-waite
+    display_name: "Strength"
+    summary: >
+      A woman, the same sign of life brooding over her head as in the
+      Magician, gently closes the jaws of a lion with her bare hands. Her
+      fortitude has already subdued the beast, which is led by a chain of
+      flowers rather than restrained by force.
+    keywords: [lion, chain of flowers, bare hands]
+    cites: "Waite, Pictorial Key to the Tarot, Part II: The Doctrine Behind the Veil, VIII. Strength, or Fortitude"
+    attributes:
+      - key: number
+        value: "8" # Waite reversed Justice (8) and Strength (11)
+        value_type: integer
+        retrievable: false
+    corresponds_to:
+      - to: "Kaph"
+        relationship: hebrew_letter
+        according_to: "marelli"

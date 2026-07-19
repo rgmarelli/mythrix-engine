@@ -1,0 +1,23 @@
+symbol:
+  name: "The Sun"
+  type: major-arcana
+
+interpretations:
+  - tradition: rider-waite
+    display_name: "The Sun"
+    summary: >
+      A naked child, mounted on a white horse, displays a great red standard
+      beneath a radiant sun — the transit from the manifest light of this
+      world to the light of the world to come, typified by the heart of a
+      child.
+    keywords: [naked child, white horse, red standard, radiant sun]
+    cites: "Waite, Pictorial Key to the Tarot, Part II: The Doctrine Behind the Veil, XIX. The Sun"
+    attributes:
+      - key: number
+        value: "19"
+        value_type: integer
+        retrievable: false
+    corresponds_to:
+      - to: "Qoph"
+        relationship: hebrew_letter
+        according_to: "marelli"

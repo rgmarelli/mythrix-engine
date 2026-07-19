@@ -1,0 +1,24 @@
+symbol:
+  name: "The Hierophant"
+  type: major-arcana
+
+interpretations:
+  - tradition: rider-waite
+    display_name: "The Hierophant"
+    summary: >
+      A figure wearing the triple crown sits enthroned between two pillars,
+      holding a sceptre terminating in a triple cross in his left hand while
+      his right hand gives an ecclesiastical sign distinguishing the manifest
+      from the concealed part of doctrine. Crossed keys lie at his feet, and
+      two priestly ministers kneel before him.
+    keywords: [triple crown, triple cross sceptre, crossed keys, kneeling ministers]
+    cites: "Waite, Pictorial Key to the Tarot, Part II: The Doctrine Behind the Veil, V. The Hierophant"
+    attributes:
+      - key: number
+        value: "5"
+        value_type: integer
+        retrievable: false
+    corresponds_to:
+      - to: "Heh"
+        relationship: hebrew_letter
+        according_to: "marelli"

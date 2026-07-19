@@ -1,0 +1,23 @@
+symbol:
+  name: "Resh"
+  type: hebrew-letter
+  properties:
+    - key: numeric_value
+      value: "200"
+      value_type: integer
+    - key: letter_type
+      value: double
+    - key: meaning
+      value: "Head"
+
+interpretations:
+  - tradition: sepher-yetzirah-gra
+    display_name: "Resh"
+    attributes:
+      - key: foundation
+        value: Peace
+      - key: transpose
+        value: War
+      - key: planet
+        value: Saturn
+    cites: "Sepher Yetzirah"

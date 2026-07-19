@@ -1,0 +1,24 @@
+symbol:
+  name: "The Lovers"
+  type: major-arcana
+
+interpretations:
+  - tradition: rider-waite
+    display_name: "The Lovers"
+    summary: >
+      The sun shines at the zenith while a great winged figure above pours
+      down influence upon a man and woman standing unveiled before each
+      other, as Adam and Eve in the earthly paradise. Behind the man stands
+      the Tree of Life bearing twelve fruits; behind the woman, the Tree of
+      the Knowledge of Good and Evil, with a serpent twining round it.
+    keywords: [winged figure, sun at zenith, Tree of Life, serpent]
+    cites: "Waite, Pictorial Key to the Tarot, Part II: The Doctrine Behind the Veil, VI. The Lovers"
+    attributes:
+      - key: number
+        value: "6"
+        value_type: integer
+        retrievable: false
+    corresponds_to:
+      - to: "Vav"
+        relationship: hebrew_letter
+        according_to: "marelli"

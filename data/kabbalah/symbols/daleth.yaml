@@ -1,0 +1,23 @@
+symbol:
+  name: "Daleth"
+  type: hebrew-letter
+  properties:
+    - key: numeric_value
+      value: "4"
+      value_type: integer
+    - key: letter_type
+      value: double
+    - key: meaning
+      value: "Door, poor man"
+
+interpretations:
+  - tradition: sepher-yetzirah-gra
+    display_name: "Daleth"
+    attributes:
+      - key: foundation
+        value: Seed
+      - key: transpose
+        value: Desolation
+      - key: planet
+        value: Sun
+    cites: "Sepher Yetzirah"

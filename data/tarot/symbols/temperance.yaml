@@ -1,0 +1,24 @@
+symbol:
+  name: "Temperance"
+  type: major-arcana
+
+interpretations:
+  - tradition: rider-waite
+    display_name: "Temperance"
+    summary: >
+      A winged angel, bearing the sign of the sun on its forehead and the
+      square and triangle of the septenary on its breast, pours the essences
+      of life from one chalice to another. One foot rests on the earth and
+      the other upon water, and a path climbs toward distant heights where a
+      crown glimmers in a great light.
+    keywords: [winged angel, two chalices, one foot on water, distant crown]
+    cites: "Waite, Pictorial Key to the Tarot, Part II: The Doctrine Behind the Veil, XIV. Temperance"
+    attributes:
+      - key: number
+        value: "14"
+        value_type: integer
+        retrievable: false
+    corresponds_to:
+      - to: "Nun"
+        relationship: hebrew_letter
+        according_to: "marelli"

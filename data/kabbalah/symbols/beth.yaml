@@ -1,0 +1,23 @@
+symbol:
+  name: "Beth"
+  type: hebrew-letter
+  properties:
+    - key: numeric_value
+      value: "2"
+      value_type: integer
+    - key: letter_type
+      value: double
+    - key: meaning
+      value: "House"
+
+interpretations:
+  - tradition: sepher-yetzirah-gra
+    display_name: "Beth"
+    attributes:
+      - key: foundation
+        value: Wisdom
+      - key: transpose
+        value: Folly
+      - key: planet
+        value: Moon
+    cites: "Sepher Yetzirah"

@@ -1,0 +1,21 @@
+symbol:
+  name: "Nun"
+  type: hebrew-letter
+  properties:
+    - key: numeric_value
+      value: "50"
+      value_type: integer
+    - key: letter_type
+      value: simple
+    - key: meaning
+      value: "Fish, kingdom"
+
+interpretations:
+  - tradition: sepher-yetzirah-gra
+    display_name: "Nun"
+    attributes:
+      - key: foundation
+        value: smell
+      - key: constellation
+        value: Scorpio
+    cites: "Sepher Yetzirah"

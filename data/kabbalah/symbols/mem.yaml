@@ -1,0 +1,19 @@
+symbol:
+  name: "Mem"
+  type: hebrew-letter
+  properties:
+    - key: numeric_value
+      value: "40"
+      value_type: integer
+    - key: letter_type
+      value: mother
+    - key: meaning
+      value: "Water, imperfection, stain"
+
+interpretations:
+  - tradition: sepher-yetzirah-gra
+    display_name: "Mem"
+    attributes:
+      - key: foundation
+        value: "Earth, Water"
+    cites: "Sepher Yetzirah"

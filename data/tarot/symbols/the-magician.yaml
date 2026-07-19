@@ -1,0 +1,24 @@
+symbol:
+  name: "The Magician"
+  type: major-arcana
+
+interpretations:
+  - tradition: rider-waite
+    display_name: "The Magician"
+    summary: >
+      A youthful figure in a magician's robe stands before an altar-like
+      table bearing the four suit symbols. A lemniscate hovers above his
+      head and a serpent-cincture, devouring its own tail, encircles his
+      waist. His right hand raises a wand toward heaven while his left hand
+      points to the earth. Roses and lilies grow around his feet.
+    keywords: [lemniscate, serpent belt, wand raised, four suit symbols]
+    cites: "Waite, Pictorial Key to the Tarot, Part II: The Doctrine Behind the Veil, I. The Magician"
+    attributes:
+      - key: number
+        value: "1"
+        value_type: integer
+        retrievable: false
+    corresponds_to:
+      - to: "Aleph"
+        relationship: hebrew_letter
+        according_to: "marelli"

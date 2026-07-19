@@ -1,0 +1,17 @@
+symbol:
+  name: "Shin"
+  type: hebrew-letter
+  properties:
+    - key: numeric_value
+      value: "300"
+      value_type: integer
+    - key: letter_type
+      value: mother
+
+interpretations:
+  - tradition: sepher-yetzirah-gra
+    display_name: "Shin"
+    attributes:
+      - key: foundation
+        value: "Heaven, Fire"
+    cites: "Sepher Yetzirah"

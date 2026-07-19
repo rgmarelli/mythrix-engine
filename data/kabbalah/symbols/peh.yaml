@@ -1,0 +1,23 @@
+symbol:
+  name: "Peh"
+  type: hebrew-letter
+  properties:
+    - key: numeric_value
+      value: "80"
+      value_type: integer
+    - key: letter_type
+      value: double
+    - key: meaning
+      value: "Mouth"
+
+interpretations:
+  - tradition: sepher-yetzirah-gra
+    display_name: "Peh"
+    attributes:
+      - key: foundation
+        value: Dominance
+      - key: transpose
+        value: Subjugation
+      - key: planet
+        value: Mercury
+    cites: "Sepher Yetzirah"

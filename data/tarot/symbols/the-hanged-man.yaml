@@ -1,0 +1,23 @@
+symbol:
+  name: "The Hanged Man"
+  type: major-arcana
+
+interpretations:
+  - tradition: rider-waite
+    display_name: "The Hanged Man"
+    summary: >
+      A figure hangs suspended by one foot from a gallows of living wood
+      that forms a Tau cross, his legs crossed to form a fylfot cross and a
+      nimbus about his head. His face expresses deep entrancement rather
+      than suffering — life in suspension, but life and not death.
+    keywords: [Tau cross, inverted figure, nimbus, entranced expression]
+    cites: "Waite, Pictorial Key to the Tarot, Part II: The Doctrine Behind the Veil, XII. The Hanged Man"
+    attributes:
+      - key: number
+        value: "12"
+        value_type: integer
+        retrievable: false
+    corresponds_to:
+      - to: "Lamed"
+        relationship: hebrew_letter
+        according_to: "marelli"

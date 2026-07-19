@@ -1,0 +1,21 @@
+symbol:
+  name: "Heh"
+  type: hebrew-letter
+  properties:
+    - key: numeric_value
+      value: "5"
+      value_type: integer
+    - key: letter_type
+      value: simple
+    - key: meaning
+      value: "To sow, contemplation"
+
+interpretations:
+  - tradition: sepher-yetzirah-gra
+    display_name: "Heh"
+    attributes:
+      - key: foundation
+        value: speech
+      - key: constellation
+        value: Aries
+    cites: "Sepher Yetzirah"

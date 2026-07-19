@@ -1,0 +1,25 @@
+symbol:
+  name: "The Tower"
+  type: major-arcana
+
+interpretations:
+  - tradition: rider-waite
+    display_name: "The Tower"
+    summary: >
+      A tall gray tower stands atop a rocky mountain peak, its crenellated
+      crown struck by a jagged bolt of lightning against a dark sky. Flames
+      burst from two windows near the top. The lightning has knocked the
+      tower's crown loose, and it tumbles through the air alongside two human
+      figures falling headfirst toward the rocks below. Rays resembling
+      Hebrew yods fall from the clouds on either side of the tower.
+    keywords: [lightning, crown, flames, falling figures]
+    cites: "Waite, Pictorial Key to the Tarot, Part II: The Doctrine Behind the Veil, XVI. The Tower"
+    attributes:
+      - key: number
+        value: "16"
+        value_type: integer
+        retrievable: false
+    corresponds_to:
+      - to: "Ayin"
+        relationship: hebrew_letter
+        according_to: "marelli"

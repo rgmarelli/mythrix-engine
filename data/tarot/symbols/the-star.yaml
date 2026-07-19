@@ -1,0 +1,23 @@
+symbol:
+  name: "The Star"
+  type: major-arcana
+
+interpretations:
+  - tradition: rider-waite
+    display_name: "The Star"
+    summary: >
+      A great, radiant eight-rayed star is surrounded by seven lesser stars.
+      Below, an entirely naked woman kneels with one knee on the land and
+      one foot on the water, pouring the Water of Life from two great ewers
+      to irrigate sea and land alike, while a bird alights on a nearby tree.
+    keywords: [eight-rayed star, two ewers, kneeling figure, bird in tree]
+    cites: "Waite, Pictorial Key to the Tarot, Part II: The Doctrine Behind the Veil, XVII. The Star"
+    attributes:
+      - key: number
+        value: "17"
+        value_type: integer
+        retrievable: false
+    corresponds_to:
+      - to: "Peh"
+        relationship: hebrew_letter
+        according_to: "marelli"

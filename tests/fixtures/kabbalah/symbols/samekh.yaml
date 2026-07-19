@@ -1,0 +1,21 @@
+symbol:
+  name: "Samekh"
+  type: hebrew-letter
+  properties:
+    - {key: alphabet_position, value: "15"}
+    - {key: numeric_value, value: "60"}
+
+interpretations:
+  - tradition: golden-dawn-kabbalah
+    display_name: "Samekh (ס)"
+    summary: "Support and protection; the serpent encircling the initiate."
+    corresponds_to:
+      - to: "Path: Tiphareth-Yesod"
+        relationship: tree_of_life_path
+        according_to: "Golden Dawn"
+      - to: "Tiphareth"
+        relationship: sephirah
+        according_to: "Golden Dawn"
+      - to: "Yesod"
+        relationship: sephirah
+        according_to: "Golden Dawn"

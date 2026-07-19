@@ -1,0 +1,24 @@
+symbol:
+  name: "The High Priestess"
+  type: major-arcana
+
+interpretations:
+  - tradition: rider-waite
+    display_name: "The High Priestess"
+    summary: >
+      A seated woman is enthroned between a black pillar marked B and a white
+      pillar marked J, a veil embroidered with palms and pomegranates hanging
+      behind her. A lunar crescent rests at her feet, a horned diadem with a
+      globe crowns her head, and a solar cross lies on her breast. She holds
+      a partly-veiled scroll inscribed TORA.
+    keywords: [black and white pillars, veiled scroll, lunar crescent, horned diadem]
+    cites: "Waite, Pictorial Key to the Tarot, Part II: The Doctrine Behind the Veil, II. The High Priestess"
+    attributes:
+      - key: number
+        value: "2"
+        value_type: integer
+        retrievable: false
+    corresponds_to:
+      - to: "Beth"
+        relationship: hebrew_letter
+        according_to: "marelli"

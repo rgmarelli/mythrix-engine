@@ -1,0 +1,25 @@
+symbol:
+  name: "The Fool"
+  type: major-arcana
+
+interpretations:
+  - tradition: rider-waite
+    display_name: "The Fool"
+    summary: >
+      A young man in bright, flowing vestments walks with a light step toward
+      the edge of a precipice, gazing up at the sky rather than the drop
+      before him. A small white dog bounds at his heels. He carries a white
+      rose in one hand and, over his shoulder on a wand, a curiously
+      embroidered wallet. The sun shines behind him from a mountainous
+      landscape.
+    keywords: [precipice, white dog, rose, wallet on a wand]
+    cites: "Waite, Pictorial Key to the Tarot, Part II: The Doctrine Behind the Veil, Zero. The Fool"
+    attributes:
+      - key: number
+        value: "22"
+        value_type: integer
+        retrievable: false
+    corresponds_to:
+      - to: "Tav"
+        relationship: hebrew_letter
+        according_to: "marelli"

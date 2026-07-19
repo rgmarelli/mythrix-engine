@@ -1,0 +1,21 @@
+symbol:
+  name: "Ayin"
+  type: hebrew-letter
+  properties:
+    - key: numeric_value
+      value: "70"
+      value_type: integer
+    - key: letter_type
+      value: simple
+    - key: meaning
+      value: "Eye"
+
+interpretations:
+  - tradition: sepher-yetzirah-gra
+    display_name: "Ayin"
+    attributes:
+      - key: foundation
+        value: anger
+      - key: constellation
+        value: Capricorn
+    cites: "Sepher Yetzirah"

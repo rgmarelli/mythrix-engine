@@ -1,0 +1,23 @@
+symbol:
+  name: "Justice"
+  type: major-arcana
+
+interpretations:
+  - tradition: rider-waite
+    display_name: "Justice"
+    summary: >
+      A crowned figure sits enthroned between two pillars, as the High
+      Priestess is seated, holding an upright sword in one hand and a
+      balanced pair of scales in the other — the moral principle that deals
+      to every man according to his works.
+    keywords: [scales, upright sword, pillars]
+    cites: "Waite, Pictorial Key to the Tarot, Part II: The Doctrine Behind the Veil, XI. Justice"
+    attributes:
+      - key: number
+        value: "11" # Waite reversed Justice (8) and Strength (11)
+        value_type: integer
+        retrievable: false
+    corresponds_to:
+      - to: "Cheth"
+        relationship: hebrew_letter
+        according_to: "marelli"

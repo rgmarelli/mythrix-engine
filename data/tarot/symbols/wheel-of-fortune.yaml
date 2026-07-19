@@ -1,0 +1,24 @@
+symbol:
+  name: "Wheel of Fortune"
+  type: major-arcana
+
+interpretations:
+  - tradition: rider-waite
+    display_name: "Wheel of Fortune"
+    summary: >
+      A great wheel is inscribed with the letters TARO counterchanged with
+      the letters of the Divine Name. A sphinx, the equilibrium of the
+      scene, sits atop the wheel, while the four Living Creatures of
+      Ezekiel's vision occupy the angles of the card — the perpetual motion
+      of a fluidic universe and the flux of human life.
+    keywords: [wheel, sphinx, four living creatures, Divine Name]
+    cites: "Waite, Pictorial Key to the Tarot, Part II: The Doctrine Behind the Veil, X. Wheel of Fortune"
+    attributes:
+      - key: number
+        value: "10"
+        value_type: integer
+        retrievable: false
+    corresponds_to:
+      - to: "Yod"
+        relationship: hebrew_letter
+        according_to: "marelli"

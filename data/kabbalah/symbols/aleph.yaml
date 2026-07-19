@@ -1,0 +1,19 @@
+symbol:
+  name: "Aleph"
+  type: hebrew-letter
+  properties:
+    - key: numeric_value
+      value: "1"
+      value_type: integer
+    - key: letter_type
+      value: mother
+    - key: meaning
+      value: "Ox, teaching, master"
+
+interpretations:
+  - tradition: sepher-yetzirah-gra
+    display_name: "Aleph"
+    attributes:
+      - key: foundation
+        value: "Air, Breath"
+    cites: "Sepher Yetzirah"

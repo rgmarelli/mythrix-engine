@@ -1,0 +1,21 @@
+symbol:
+  name: "Yod"
+  type: hebrew-letter
+  properties:
+    - key: numeric_value
+      value: "10"
+      value_type: integer
+    - key: letter_type
+      value: simple
+    - key: meaning
+      value: "Hand, to push"
+
+interpretations:
+  - tradition: sepher-yetzirah-gra
+    display_name: "Yod"
+    attributes:
+      - key: foundation
+        value: action
+      - key: constellation
+        value: Virgo
+    cites: "Sepher Yetzirah"

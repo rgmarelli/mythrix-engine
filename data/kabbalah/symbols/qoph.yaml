@@ -1,0 +1,21 @@
+symbol:
+  name: "Qoph"
+  type: hebrew-letter
+  properties:
+    - key: numeric_value
+      value: "100"
+      value_type: integer
+    - key: letter_type
+      value: simple
+    - key: meaning
+      value: "Monkey, eye of the needle"
+
+interpretations:
+  - tradition: sepher-yetzirah-gra
+    display_name: "Qoph"
+    attributes:
+      - key: foundation
+        value: laughter
+      - key: constellation
+        value: Pisces
+    cites: "Sepher Yetzirah"

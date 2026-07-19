@@ -1,0 +1,21 @@
+symbol:
+  name: "Tzaddi"
+  type: hebrew-letter
+  properties:
+    - key: numeric_value
+      value: "90"
+      value_type: integer
+    - key: letter_type
+      value: simple
+    - key: meaning
+      value: "To hunt, fishhook"
+
+interpretations:
+  - tradition: sepher-yetzirah-gra
+    display_name: "Tzaddi"
+    attributes:
+      - key: foundation
+        value: taste
+      - key: constellation
+        value: Aquarius
+    cites: "Sepher Yetzirah"

@@ -1,0 +1,23 @@
+symbol:
+  name: "The Hermit"
+  type: major-arcana
+
+interpretations:
+  - tradition: rider-waite
+    display_name: "The Hermit"
+    summary: >
+      A robed figure stands alone on a snowy height, holding aloft a lantern
+      in which a six-pointed star shines. He blends the idea of the Ancient
+      of Days with the Light of the World, his beacon raised as a card of
+      attainment.
+    keywords: [lantern, six-pointed star, snowy height]
+    cites: "Waite, Pictorial Key to the Tarot, Part II: The Doctrine Behind the Veil, IX. The Hermit"
+    attributes:
+      - key: number
+        value: "9"
+        value_type: integer
+        retrievable: false
+    corresponds_to:
+      - to: "Teth"
+        relationship: hebrew_letter
+        according_to: "marelli"

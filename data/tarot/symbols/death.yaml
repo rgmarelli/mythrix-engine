@@ -1,0 +1,23 @@
+symbol:
+  name: "Death"
+  type: major-arcana
+
+interpretations:
+  - tradition: rider-waite
+    display_name: "Death"
+    summary: >
+      A mysterious armoured horseman rides slowly, bearing a black banner
+      emblazoned with the Mystic Rose. A king, a child, and a maiden fall
+      before him, while a prelate awaits his end with clasped hands. Between
+      two distant pillars the sun of immortality shines.
+    keywords: [horseman, black banner, mystic rose, fallen king]
+    cites: "Waite, Pictorial Key to the Tarot, Part II: The Doctrine Behind the Veil, XIII. Death"
+    attributes:
+      - key: number
+        value: "13"
+        value_type: integer
+        retrievable: false
+    corresponds_to:
+      - to: "Mem"
+        relationship: hebrew_letter
+        according_to: "marelli"

@@ -1,0 +1,24 @@
+symbol:
+  name: "The Devil"
+  type: major-arcana
+
+interpretations:
+  - tradition: rider-waite
+    display_name: "The Devil"
+    summary: >
+      A horned, bat-winged goat-figure — the sign of Mercury at its stomach
+      and a reversed pentagram on its forehead — stands on an altar, right
+      hand upraised and a great flaming torch inverted in its left. A man
+      and a woman, tailed to signify the animal nature, stand chained by the
+      neck to the altar below.
+    keywords: [horned figure, bat wings, inverted torch, chained figures]
+    cites: "Waite, Pictorial Key to the Tarot, Part II: The Doctrine Behind the Veil, XV. The Devil"
+    attributes:
+      - key: number
+        value: "15"
+        value_type: integer
+        retrievable: false
+    corresponds_to:
+      - to: "Samekh"
+        relationship: hebrew_letter
+        according_to: "marelli"

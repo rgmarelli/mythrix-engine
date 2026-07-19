@@ -1,0 +1,21 @@
+symbol:
+  name: "Vav"
+  type: hebrew-letter
+  properties:
+    - key: numeric_value
+      value: "6"
+      value_type: integer
+    - key: letter_type
+      value: simple
+    - key: meaning
+      value: "Hook"
+
+interpretations:
+  - tradition: sepher-yetzirah-gra
+    display_name: "Vav"
+    attributes:
+      - key: foundation
+        value: thought
+      - key: constellation
+        value: Taurus
+    cites: "Sepher Yetzirah"

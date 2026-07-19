@@ -1,0 +1,21 @@
+symbol:
+  name: "Cheth"
+  type: hebrew-letter
+  properties:
+    - key: numeric_value
+      value: "8"
+      value_type: integer
+    - key: letter_type
+      value: simple
+    - key: meaning
+      value: "Fear, life"
+
+interpretations:
+  - tradition: sepher-yetzirah-gra
+    display_name: "Cheth"
+    attributes:
+      - key: foundation
+        value: sight
+      - key: constellation
+        value: Cancer
+    cites: "Sepher Yetzirah"

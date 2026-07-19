@@ -1,0 +1,23 @@
+symbol:
+  name: "The Chariot"
+  type: major-arcana
+
+interpretations:
+  - tradition: rider-waite
+    display_name: "The Chariot"
+    summary: >
+      An erect, princely figure stands in a chariot bearing a drawn sword,
+      the Urim and Thummim upon his shoulders. Two sphinxes, one black and
+      one white, draw the chariot beneath a starry canopy — the figure of
+      conquest and triumph on every plane.
+    keywords: [drawn sword, two sphinxes, starry canopy]
+    cites: "Waite, Pictorial Key to the Tarot, Part II: The Doctrine Behind the Veil, VII. The Chariot"
+    attributes:
+      - key: number
+        value: "7"
+        value_type: integer
+        retrievable: false
+    corresponds_to:
+      - to: "Zayin"
+        relationship: hebrew_letter
+        according_to: "marelli"

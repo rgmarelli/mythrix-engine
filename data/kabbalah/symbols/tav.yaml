@@ -1,0 +1,23 @@
+symbol:
+  name: "Tav"
+  type: hebrew-letter
+  properties:
+    - key: numeric_value
+      value: "400"
+      value_type: integer
+    - key: letter_type
+      value: double
+    - key: meaning
+      value: "Mark, cross, signature"
+
+interpretations:
+  - tradition: sepher-yetzirah-gra
+    display_name: "Tav"
+    attributes:
+      - key: foundation
+        value: Grace
+      - key: transpose
+        value: Ugliness
+      - key: planet
+        value: Jupiter
+    cites: "Sepher Yetzirah"
