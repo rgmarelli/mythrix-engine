@@ -22,3 +22,21 @@ interpretations:
       - to: "Nun"
         relationship: hebrew_letter
         according_to: "marelli"
+
+  - tradition: marseille
+    display_name: "Tempérance"
+    summary: >
+      The genius of the Sun pours the fluid of Life from a golden vase
+      into a silver one, the essence passing from one vase to the other
+      without a single drop being spilt.
+    keywords: [golden vase, silver vase, pouring]
+    cites: "Papus, Le Tarot des Bohémiens, Temperance"
+    attributes:
+      - key: number
+        value: "14"
+        value_type: integer
+        retrievable: false
+    corresponds_to:
+      - to: "Nun"
+        relationship: hebrew_letter
+        according_to: "marelli"

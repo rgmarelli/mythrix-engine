@@ -22,3 +22,23 @@ interpretations:
       - to: "Samekh"
         relationship: hebrew_letter
         according_to: "marelli"
+
+  - tradition: marseille
+    display_name: "Le Diable"
+    summary: >
+      The Devil raises his right hand into the air while his left points
+      to the earth, holding a lighted torch in place of the Juggler's
+      wand. Two six-pointed horns rise from his head, and he stands upon a
+      cube placed upon a sphere. Two smaller chained figures stand beside
+      him.
+    keywords: [torch, horns, cube, sphere, chained figures]
+    cites: "Papus, Le Tarot des Bohémiens, The Devil"
+    attributes:
+      - key: number
+        value: "15"
+        value_type: integer
+        retrievable: false
+    corresponds_to:
+      - to: "Samekh"
+        relationship: hebrew_letter
+        according_to: "marelli"
