@@ -75,11 +75,41 @@ def test_render_facts_human_reports_no_candidates_for_an_empty_context() -> None
 def test_render_facts_json_is_valid_and_grouped_by_concept() -> None:
     payload = json.loads(render_facts_json(CONTEXT))
 
-    assert payload["graph_facts"]["markers"]["G1"]
+    assert payload["graph_facts"]["symbol"]["canonical_name"] == "The Tower"
+    assert payload["graph_facts"]["interpretation"]["tradition_id"] == "rider-waite"
     concept_payload = payload["concept_candidates"]["element"]
-    assert concept_payload["markers"]["S1"] == PASSAGE.text
-    assert concept_payload["items"][0]["chunk_id"] == "waite::0"
-    assert concept_payload["items"][0]["char_start"] == 0
+    assert concept_payload[0]["text"] == PASSAGE.text
+    assert concept_payload[0]["chunk_id"] == "waite::0"
+    assert concept_payload[0]["char_start"] == 0
+    assert concept_payload[0]["source_id"] == "waite"
+    assert concept_payload[0]["tradition_id"] == "rider-waite"
+
+
+def test_render_facts_json_lists_referenced_sources_and_traditions_once() -> None:
+    payload = json.loads(render_facts_json(CONTEXT))
+
+    assert payload["sources"]["waite"]["title"] == "The Pictorial Key to the Tarot"
+    assert payload["sources"]["waite"]["author"] == "A. E. Waite"
+    assert payload["traditions"]["rider-waite"]["name"] == "Rider-Waite-Smith"
+
+
+def test_render_facts_json_deduplicates_a_source_cited_by_both_a_concept_and_a_pair_candidate() -> None:
+    """A source cited by a concept candidate and again by a pair candidate
+    (as can happen for any tradition, which every passage in a query shares)
+    appears exactly once in `sources`/`traditions`, not once per citing
+    passage."""
+    merged_candidate = MergedCandidate(passage=PASSAGE, matches=(ConceptMatchScore(concept="element", score=0.9),))
+    pair = ConceptPairCandidates(concepts=("element", "upheaval"), candidates=(merged_candidate,))
+    context = RetrievalContext(
+        graph_facts=GRAPH_FACTS,
+        concept_candidates=(ConceptCandidates(concept="element", passages=(PASSAGE,)),),
+        pair_candidates=(pair,),
+    )
+
+    payload = json.loads(render_facts_json(context))
+
+    assert list(payload["sources"].keys()) == ["waite"]
+    assert list(payload["traditions"].keys()) == ["rider-waite"]
 
 
 def test_render_facts_json_includes_an_empty_pair_candidates_list_by_default() -> None:
@@ -149,6 +179,8 @@ def test_render_facts_json_includes_pair_candidates_with_matches_and_passage() -
     assert {m["concept"] for m in candidate["matches"]} == {"laughter", "child"}
     assert all(m["exact_value"] is False for m in candidate["matches"])
     assert candidate["passage"]["chunk_id"] == "douay::genesis-21-5"
+    assert candidate["passage"]["source_id"] == "douay"
+    assert payload["sources"]["douay"]["title"] == "The Holy Bible, Douay-Rheims"
 
 
 def test_render_facts_human_reports_no_pair_candidates_for_an_empty_pair() -> None:
