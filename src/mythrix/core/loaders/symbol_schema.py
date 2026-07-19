@@ -59,6 +59,21 @@ class PropertyEntry(LoaderModel):
     value_type: str = "string"
     retrievable: bool = True
 
+    @field_validator("value", mode="before")
+    @classmethod
+    def _join_list_value(cls, value: object) -> object:
+        """A value listing several distinct concepts under one key (e.g. a
+        Hebrew letter's `meaning`, "Ox, teaching, master") is a vector of
+        atomic concepts, not one phrase — `retrieval.pipeline._atomic_values`
+        already treats it that way, splitting a comma-separated string back
+        into one query per concept. Authoring it as a punctuated string is
+        just an artifact of `Attribute.value` being a plain `str`; a curator
+        may write the more honest `value: [Ox, teaching, master]` instead,
+        normalized to the same internal comma-joined string right here so no
+        downstream consumer (the graph schema, the retrieval pipeline) needs
+        to learn a second representation."""
+        return ", ".join(str(item) for item in value) if isinstance(value, list) else value
+
 
 class CorrespondsToEntry(LoaderModel):
     """One inline correspondence (FR19) — `to`/`according_to` are human-readable

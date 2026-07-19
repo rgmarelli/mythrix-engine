@@ -7,13 +7,14 @@ symbol:
       value_type: integer
     - key: letter_type
       value: mother
+      retrievable: false
     - key: meaning
-      value: "Ox, teaching, master"
+      value: [Ox, teaching, master]
 
 interpretations:
   - tradition: sepher-yetzirah-gra
     display_name: "Aleph"
     attributes:
       - key: foundation
-        value: "Air, Breath"
+        value: [Air, Breath]
     cites: "Sepher Yetzirah"

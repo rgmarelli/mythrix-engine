@@ -7,8 +7,9 @@ symbol:
       value_type: integer
     - key: letter_type
       value: simple
+      retrievable: false
     - key: meaning
-      value: "Monkey, eye of the needle"
+      value: [Monkey, eye of the needle]
 
 interpretations:
   - tradition: sepher-yetzirah-gra

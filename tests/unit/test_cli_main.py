@@ -19,11 +19,16 @@ def test_root_help_lists_all_three_commands() -> None:
 
 
 def test_query_help_lists_expected_options() -> None:
+    """--facts-only and --strict are gone (FR29 — every query is now
+    facts-only in shape, and there's no generated citation to be strict
+    about); --match-pool is new (FR27)."""
     result = runner.invoke(app, ["query", "--help"])
 
     assert result.exit_code == 0
-    for option in ("--symbol", "--tradition", "--top-k", "--facts-only", "--json", "--strict"):
+    for option in ("--symbol", "--tradition", "--top-k", "--match-pool", "--json"):
         assert option in result.output
+    for removed_option in ("--facts-only", "--strict"):
+        assert removed_option not in result.output
 
 
 def test_load_symbols_help_lists_expected_options() -> None:

@@ -58,8 +58,11 @@ class IngestValidationError(MythrixError):
 
 
 class CitationValidationError(MythrixError):
-    """Raised (in --strict mode) when synthesized output contains a citation marker
-    that doesn't refer to material present in the retrieved context (FR12, FR15)."""
+    """Raised when generated text contains a citation marker that doesn't refer
+    to material present in the retrieved context (FR12). Not raised by the
+    `query` path, which invokes no generation model (FR29) — retained for the
+    planned conversational agent loop, which will need the same guarantee
+    over its own output."""
 
     def __init__(self, invalid_markers: tuple[str, ...]) -> None:
         self.invalid_markers = invalid_markers

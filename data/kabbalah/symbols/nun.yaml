@@ -7,8 +7,9 @@ symbol:
       value_type: integer
     - key: letter_type
       value: simple
+      retrievable: false
     - key: meaning
-      value: "Fish, kingdom"
+      value: [Fish, kingdom]
 
 interpretations:
   - tradition: sepher-yetzirah-gra

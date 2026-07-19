@@ -7,8 +7,9 @@ symbol:
       value_type: integer
     - key: letter_type
       value: simple
+      retrievable: false
     - key: meaning
-      value: "Hand, to push"
+      value: [Hand, to push]
 
 interpretations:
   - tradition: sepher-yetzirah-gra

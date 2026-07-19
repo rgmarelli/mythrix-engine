@@ -7,11 +7,12 @@ symbol:
       value_type: integer
     - key: letter_type
       value: mother
+      retrievable: false
 
 interpretations:
   - tradition: sepher-yetzirah-gra
     display_name: "Shin"
     attributes:
       - key: foundation
-        value: "Heaven, Fire"
+        value: [Heaven, Fire]
     cites: "Sepher Yetzirah"

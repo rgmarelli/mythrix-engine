@@ -7,8 +7,9 @@ symbol:
       value_type: integer
     - key: letter_type
       value: double
+      retrievable: false
     - key: meaning
-      value: "Camel, bridge, benevolence"
+      value: [Camel, bridge, benevolence]
 
 interpretations:
   - tradition: sepher-yetzirah-gra

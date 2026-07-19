@@ -7,8 +7,9 @@ symbol:
       value_type: integer
     - key: letter_type
       value: double
+      retrievable: false
     - key: meaning
-      value: "Door, poor man"
+      value: [Door, poor man]
 
 interpretations:
   - tradition: sepher-yetzirah-gra

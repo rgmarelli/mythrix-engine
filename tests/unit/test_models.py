@@ -7,9 +7,12 @@ import pytest
 from mythrix.core.models import (
     Attribute,
     Citation,
+    ConceptCandidates,
+    ConceptMatchScore,
+    ConceptPairCandidates,
     GraphFacts,
     Interpretation,
-    InterpretationResult,
+    MergedCandidate,
     RelationshipFact,
     RetrievalContext,
     RetrievedPassage,
@@ -137,11 +140,66 @@ def test_symbol_relationships_round_trip(
     assert restored.relationships[0].target_symbol.slug == "hebrew-letter-peh"
 
 
-def test_interpretation_result_round_trip(
+def test_concept_candidates_round_trip_and_flatten_via_all_passages(
     rider_waite: Tradition,
     waite_source: Source,
     the_tower_symbol: Symbol,
 ) -> None:
+    """`ConceptCandidates` groups passages by concept (FR24) rather than one
+    flat list — `RetrievalContext.all_passages` flattens across every concept
+    for callers that only need a corpus-wide view."""
+    interpretation = Interpretation(
+        id="the-tower::rider-waite",
+        symbol_id="the-tower",
+        tradition=rider_waite,
+        display_name="The Tower",
+        summary="Sudden upheaval; the collapse of false structures.",
+        created_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    passage_fire = RetrievedPassage(
+        chunk_id="chunk-12",
+        source=waite_source,
+        tradition=rider_waite,
+        text="The Tower: This card represents sudden upheaval and the collapse of false structures.",
+        locator="p. 143",
+        score=0.87,
+        chunk_index=12,
+        embedding_model="nomic-embed-text",
+    )
+    passage_ruin = RetrievedPassage(
+        chunk_id="chunk-13",
+        source=waite_source,
+        tradition=rider_waite,
+        text="Ruin comes suddenly, as if by a bolt from the blue.",
+        score=0.61,
+        chunk_index=13,
+        embedding_model="nomic-embed-text",
+    )
+    context = RetrievalContext(
+        graph_facts=GraphFacts(symbol=the_tower_symbol, interpretation=interpretation),
+        concept_candidates=(
+            ConceptCandidates(concept="Fire", passages=(passage_fire,)),
+            ConceptCandidates(concept="ruin", passages=(passage_ruin,)),
+        ),
+    )
+
+    dumped = context.model_dump(mode="json")
+    restored = RetrievalContext.model_validate(dumped)
+
+    assert restored == context
+    assert restored.concept_candidates[0].concept == "Fire"
+    assert restored.all_passages == (passage_fire, passage_ruin)
+
+
+def test_concept_pair_candidates_round_trip(
+    rider_waite: Tradition,
+    waite_source: Source,
+    the_tower_symbol: Symbol,
+) -> None:
+    """FR27/FR28: a `ConceptPairCandidates` group carries the two concepts it
+    converges on, and each candidate carries its per-concept match scores —
+    including an exact-value match (FR28), which carries no score of its
+    own, only a `document_contains`-guaranteed membership."""
     interpretation = Interpretation(
         id="the-tower::rider-waite",
         symbol_id="the-tower",
@@ -154,30 +212,35 @@ def test_interpretation_result_round_trip(
         chunk_id="chunk-12",
         source=waite_source,
         tradition=rider_waite,
-        text="The Tower: This card represents sudden upheaval and the collapse of false structures.",
-        locator="p. 143",
-        score=0.87,
+        text="And Abraham was a hundred years old, when Isaac his son was born to him.",
+        locator="Genesis 21:5",
+        score=0.61,
         chunk_index=12,
         embedding_model="nomic-embed-text",
     )
+    merged_candidate = MergedCandidate(
+        passage=passage,
+        matches=(
+            ConceptMatchScore(concept="child", score=0.55),
+            ConceptMatchScore(concept="100", score=0.0, exact_value=True),
+        ),
+        combined_score=0.55,
+    )
+    pair_candidates = ConceptPairCandidates(concepts=("child", "100"), candidates=(merged_candidate,))
     context = RetrievalContext(
         graph_facts=GraphFacts(symbol=the_tower_symbol, interpretation=interpretation),
-        passages=(passage,),
-    )
-    result = InterpretationResult(
-        context=context,
-        narrative="The Tower represents sudden upheaval [G1]. Waite associates it with catastrophe [S1].",
-        generation_model="llama3.1",
-        embedding_model="nomic-embed-text",
-        citation_markers_valid=True,
-        generated_at=datetime(2026, 1, 1, tzinfo=UTC),
+        pair_candidates=(pair_candidates,),
     )
 
-    dumped = result.model_dump(mode="json")
-    restored = InterpretationResult.model_validate(dumped)
+    dumped = context.model_dump(mode="json")
+    restored = RetrievalContext.model_validate(dumped)
 
-    assert restored == result
-    assert restored.context.passages[0].text == passage.text
+    assert restored == context
+    assert restored.pair_candidates[0].concepts == ("child", "100")
+    assert restored.pair_candidates[0].candidates[0].matches[1].exact_value is True
+    # `all_passages` deliberately doesn't include pair-only convergences — see
+    # its docstring on why `pair_candidates` isn't a strict subset.
+    assert context.all_passages == ()
 
 
 def test_models_are_frozen(rider_waite: Tradition) -> None:
@@ -185,7 +248,7 @@ def test_models_are_frozen(rider_waite: Tradition) -> None:
         rider_waite.name = "Something Else"
 
 
-def test_interpretation_result_derived_update_uses_model_copy(
+def test_retrieval_context_derived_update_uses_model_copy(
     rider_waite: Tradition,
     the_tower_symbol: Symbol,
 ) -> None:
@@ -198,18 +261,8 @@ def test_interpretation_result_derived_update_uses_model_copy(
         created_at=datetime(2026, 1, 1, tzinfo=UTC),
     )
     context = RetrievalContext(graph_facts=GraphFacts(symbol=the_tower_symbol, interpretation=interpretation))
-    result = InterpretationResult(
-        context=context,
-        narrative="Draft narrative [S9].",
-        generation_model="llama3.1",
-        embedding_model="nomic-embed-text",
-        citation_markers_valid=False,
-        invalid_markers=("[S9]",),
-        generated_at=datetime(2026, 1, 1, tzinfo=UTC),
-    )
 
-    validated = result.model_copy(update={"citation_markers_valid": True, "invalid_markers": ()})
+    updated = context.model_copy(update={"pair_candidates": (ConceptPairCandidates(concepts=("a", "b")),)})
 
-    assert result.citation_markers_valid is False
-    assert validated.citation_markers_valid is True
-    assert validated.invalid_markers == ()
+    assert context.pair_candidates == ()
+    assert updated.pair_candidates[0].concepts == ("a", "b")

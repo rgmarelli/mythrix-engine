@@ -7,8 +7,9 @@ symbol:
       value_type: integer
     - key: letter_type
       value: simple
+      retrievable: false
     - key: meaning
-      value: "To hunt, fishhook"
+      value: [To hunt, fishhook]
 
 interpretations:
   - tradition: sepher-yetzirah-gra

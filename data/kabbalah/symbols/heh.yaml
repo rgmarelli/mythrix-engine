@@ -7,8 +7,9 @@ symbol:
       value_type: integer
     - key: letter_type
       value: simple
+      retrievable: false
     - key: meaning
-      value: "To sow, contemplation"
+      value: [To sow, contemplation]
 
 interpretations:
   - tradition: sepher-yetzirah-gra

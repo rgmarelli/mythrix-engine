@@ -1,13 +1,20 @@
-"""Unit tests for CLI output rendering (T19)."""
+"""Unit tests for CLI output rendering (T19, reduced by T38): graph facts,
+per-concept candidates (FR24), and concept-pair convergence (FR27). The
+result renderers this file used to test (`render_result_human`/`_json`) are
+retired along with concept-scoped synthesis — every query is now facts-only
+in shape (FR29)."""
 
 import json
 from datetime import UTC, datetime
 
-from mythrix.cli.formatting import render_facts_human, render_facts_json, render_result_human, render_result_json
+from mythrix.cli.formatting import render_facts_human, render_facts_json
 from mythrix.core.models import (
+    ConceptCandidates,
+    ConceptMatchScore,
+    ConceptPairCandidates,
     GraphFacts,
     Interpretation,
-    InterpretationResult,
+    MergedCandidate,
     RetrievalContext,
     RetrievedPassage,
     Source,
@@ -30,71 +37,124 @@ PASSAGE = RetrievedPassage(
     chunk_id="waite::0",
     source=Source(id="waite", title="The Pictorial Key to the Tarot", author="A. E. Waite"),
     tradition=RIDER_WAITE,
-    text="Sudden upheaval; the collapse of false structures.",
+    text="Catastrophe strikes without warning.",
     locator="p. 143",
     score=0.9,
 )
-CONTEXT = RetrievalContext(graph_facts=GRAPH_FACTS, passages=(PASSAGE,))
-RESULT = InterpretationResult(
-    context=CONTEXT,
-    narrative="The Tower [G1] represents sudden upheaval, per the source [S1].",
-    generation_model="llama3.2",
-    embedding_model="nomic-embed-text",
-    citation_markers_valid=True,
-    generated_at=datetime(2026, 1, 2, tzinfo=UTC),
+GENESIS_PASSAGE = RetrievedPassage(
+    chunk_id="douay::genesis-21-5",
+    source=Source(id="douay", title="The Holy Bible, Douay-Rheims", author="Various"),
+    tradition=RIDER_WAITE,
+    text="And Abraham was a hundred years old, when Isaac his son was born to him.",
+    locator="Genesis 21:5",
+    score=0.61,
+)
+CONTEXT = RetrievalContext(
+    graph_facts=GRAPH_FACTS, concept_candidates=(ConceptCandidates(concept="element", passages=(PASSAGE,)),)
 )
 
 
-def test_render_facts_human_includes_graph_facts_and_passages() -> None:
+def test_render_facts_human_includes_graph_facts_and_concept_candidates() -> None:
     output = render_facts_human(CONTEXT)
 
     assert "GRAPH FACTS" in output
     assert "[G1]" in output
-    assert "PASSAGES" in output
+    assert 'CANDIDATES — "element"' in output
     assert "[S1]" in output
-    assert "Sudden upheaval; the collapse of false structures." in output
+    assert "Catastrophe strikes without warning." in output
 
 
-def test_render_facts_json_is_valid_and_contains_markers_and_raw_fields() -> None:
+def test_render_facts_human_reports_no_candidates_for_an_empty_context() -> None:
+    empty_context = RetrievalContext(graph_facts=GRAPH_FACTS)
+
+    output = render_facts_human(empty_context)
+
+    assert "CANDIDATES\n(none retrieved)" in output
+
+
+def test_render_facts_json_is_valid_and_grouped_by_concept() -> None:
     payload = json.loads(render_facts_json(CONTEXT))
 
     assert payload["graph_facts"]["markers"]["G1"]
-    assert payload["passages"]["markers"]["S1"] == PASSAGE.text
-    assert payload["passages"]["items"][0]["chunk_id"] == "waite::0"
-    assert payload["passages"]["items"][0]["char_start"] == 0
+    concept_payload = payload["concept_candidates"]["element"]
+    assert concept_payload["markers"]["S1"] == PASSAGE.text
+    assert concept_payload["items"][0]["chunk_id"] == "waite::0"
+    assert concept_payload["items"][0]["char_start"] == 0
 
 
-def test_render_result_human_includes_narrative_references_and_model_info() -> None:
-    output = render_result_human(RESULT)
+def test_render_facts_json_includes_an_empty_pair_candidates_list_by_default() -> None:
+    payload = json.loads(render_facts_json(CONTEXT))
 
-    assert "The Tower [G1] represents sudden upheaval, per the source [S1]." in output
-    assert "References:" in output
-    assert "Sudden upheaval; the collapse of false structures." in output
-    assert "A. E. Waite" in output
-    assert "p. 143" in output
-    assert "llama3.2" in output
-    assert "nomic-embed-text" in output
-    assert "2026-01-02" in output
-    assert "Citations valid: yes" in output
+    assert payload["pair_candidates"] == []
 
 
-def test_render_result_human_flags_invalid_citations() -> None:
-    invalid_result = RESULT.model_copy(update={"citation_markers_valid": False, "invalid_markers": ("S9",)})
+def _context_with_a_pair() -> RetrievalContext:
+    merged_candidate = MergedCandidate(
+        passage=GENESIS_PASSAGE,
+        matches=(
+            ConceptMatchScore(concept="laughter", score=0.61),
+            ConceptMatchScore(concept="child", score=0.55),
+        ),
+        combined_score=0.58,
+    )
+    pair = ConceptPairCandidates(concepts=("laughter", "child"), candidates=(merged_candidate,))
+    return RetrievalContext(graph_facts=GRAPH_FACTS, pair_candidates=(pair,))
 
-    output = render_result_human(invalid_result)
 
-    assert "Citations valid: NO" in output
-    assert "S9" in output
+def test_render_facts_human_includes_a_pair_group_with_combined_and_component_scores() -> None:
+    """FR27: a pair group is headed by its members and shows the combined
+    score alongside each concept's own component — the verdict and its
+    inputs together (see cli/formatting.py)."""
+    output = render_facts_human(_context_with_a_pair())
+
+    assert "CANDIDATES — [laughter, child]" in output
+    assert "Symbols: laughter, child" in output
+    assert "0.58" in output  # combined score
+    assert "laughter 0.61" in output
+    assert "child 0.55" in output
+    assert "And Abraham was a hundred years old" in output
+    assert "Genesis 21:5" in output
 
 
-def test_render_result_json_contains_full_evidentiary_chain() -> None:
-    payload = json.loads(render_result_json(RESULT))
+def test_render_facts_human_shows_an_exact_value_match_without_a_score() -> None:
+    """FR28: an exact-value member (e.g. "100") carries no similarity score —
+    it's shown by name alone, not as "100 0.00", which would misrepresent a
+    guarantee of containment as a similarity judgment."""
+    merged_candidate = MergedCandidate(
+        passage=GENESIS_PASSAGE,
+        matches=(
+            ConceptMatchScore(concept="child", score=0.55),
+            ConceptMatchScore(concept="100", score=0.0, exact_value=True),
+        ),
+        combined_score=0.55,
+    )
+    pair = ConceptPairCandidates(concepts=("child", "100"), candidates=(merged_candidate,))
+    context = RetrievalContext(graph_facts=GRAPH_FACTS, pair_candidates=(pair,))
 
-    assert payload["narrative"] == RESULT.narrative
-    assert payload["generation_model"] == "llama3.2"
-    assert payload["embedding_model"] == "nomic-embed-text"
-    assert payload["citation_markers_valid"] is True
-    assert payload["invalid_markers"] == []
-    assert payload["generated_at"] == "2026-01-02T00:00:00+00:00"
-    assert payload["graph_facts"]["markers"]["G1"]
-    assert payload["passages"]["items"][0]["text"] == PASSAGE.text
+    output = render_facts_human(context)
+
+    assert "CANDIDATES — [child, 100]" in output
+    assert "child 0.55" in output
+    assert "0.55  (child 0.55 · 100)" in output
+
+
+def test_render_facts_json_includes_pair_candidates_with_matches_and_passage() -> None:
+    payload = json.loads(render_facts_json(_context_with_a_pair()))
+
+    pairs = payload["pair_candidates"]
+    assert len(pairs) == 1
+    assert pairs[0]["concepts"] == ["laughter", "child"]
+    candidate = pairs[0]["candidates"][0]
+    assert candidate["combined_score"] == 0.58
+    assert {m["concept"] for m in candidate["matches"]} == {"laughter", "child"}
+    assert all(m["exact_value"] is False for m in candidate["matches"])
+    assert candidate["passage"]["chunk_id"] == "douay::genesis-21-5"
+
+
+def test_render_facts_human_reports_no_pair_candidates_for_an_empty_pair() -> None:
+    pair = ConceptPairCandidates(concepts=("laughter", "child"))
+    context = RetrievalContext(graph_facts=GRAPH_FACTS, pair_candidates=(pair,))
+
+    output = render_facts_human(context)
+
+    assert "CANDIDATES — [laughter, child]\n(none retrieved)" in output

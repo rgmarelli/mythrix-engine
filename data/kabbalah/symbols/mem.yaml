@@ -7,13 +7,14 @@ symbol:
       value_type: integer
     - key: letter_type
       value: mother
+      retrievable: false
     - key: meaning
-      value: "Water, imperfection, stain"
+      value: [Water, imperfection, stain]
 
 interpretations:
   - tradition: sepher-yetzirah-gra
     display_name: "Mem"
     attributes:
       - key: foundation
-        value: "Earth, Water"
+        value: [Earth, Water]
     cites: "Sepher Yetzirah"

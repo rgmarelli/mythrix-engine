@@ -41,14 +41,22 @@ why it's not resolved yet.
   scored higher than bare `"laughter"` even at the same query length). RRF
   fixed that specific unfairness but introduced a different trade-off: a
   fact that appears strongly in exactly *one* query can lose to a fact that
-  appears moderately in *several* queries. Concrete example still open: for
+  appears moderately in *several* queries. ~~Concrete example still open: for
   The Sun (→ Qoph → `foundation: laughter`), Genesis 21 ranks #4 within the
   `laughter` query alone (RRF contribution 0.0156) but the 6th-place cutoff
-  needs 0.0164 — a margin of ~0.0008, likely closeable by raising the
-  per-query `top_k` (more candidates enter the fused pool) or lowering
-  `_RRF_K` (steeper rank decay, rewards strong single hits more). Not tuned
-  because the marginal gain was judged not worth chasing one example further
-  without seeing how the current settings behave across other cards first.
+  needs 0.0164 — a margin of ~0.0008~~ **Superseded by a Phase 11 finding:**
+  verifying concept-pair convergence (T39) against the real corpus with the
+  currently-pulled `nomic-embed-text` found Genesis 21:5-6 does not appear at
+  all in any of The Sun's concepts' top-30 matching pools anymore, even
+  though `laughter`, `child`, and `100` all correctly converge with each
+  other on *other* Genesis passages (Genesis 20, adjacent to 21, among them).
+  The number above is therefore stale relative to whatever model version or
+  chunking produced it — not reproduced, not actively investigated further,
+  since T39's test was rewritten to assert the convergence *mechanism* (real
+  pairs form, backed by real passages) rather than that specific verse. Worth
+  revisiting if someone wants to chase why 21:5-6 dropped out of the pool —
+  candidates include an Ollama `nomic-embed-text` version change, or the
+  document loader's chunk boundaries shifting.
 
 - **Every symbol is now represented by short, atomic queries only** — no
   combined descriptive-identity query (canonical name + display name +
@@ -63,16 +71,15 @@ why it's not resolved yet.
 
 ## Reference dataset / data model
 
-- **`spec.md`'s own worked example is invalid against the real schema.**
-  The "Structured-data authoring format" section shows
-  `properties: [{key: alphabet_position, value: 15}, ...]` with a bare
-  integer `value`, but `PropertyEntry.value` (`symbol_schema.py`) is a
-  strict `str` — pydantic rejects a bare int at validation time (verified
-  directly against the loader, not just read from the model). Every real
-  YAML file in `data/` already uses quoted string values
-  (`value: "15"`), so this only affects the spec's own illustrative example,
-  not real data. Fix either the model (accept int/float and coerce) or the
-  spec's example (quote the value) — flagged, not yet decided which.
+- ~~**`spec.md`'s own worked example is invalid against the real schema.**~~
+  **Fixed (2026-07-19).** The "Structured-data authoring format" section
+  showed `properties: [{key: alphabet_position, value: 15}, ...]` with a
+  bare integer `value`, but `PropertyEntry.value` (`symbol_schema.py`) is a
+  strict `str` — pydantic rejects a bare int at validation time (confirmed
+  directly against the loader before fixing, not just read from the model).
+  Every real YAML file in `data/` already used quoted string values, so the
+  example (in both `spec.md` and `plan.md`, which duplicates it) was quoted
+  to match rather than changing the model — no code/loader behavior changed.
 
 - **Cross-tradition interpretive blending is unaddressed** (not silently
   solved). Retrieval searches the full corpus unscoped by tradition (FR7),
@@ -94,53 +101,80 @@ why it's not resolved yet.
   future entailment/faithfulness check (e.g. an NLI model or a second LLM
   pass) is natural v2 work, explicitly out of v1 scope. *(`plan.md` Risks)*
 
-- **`Citations valid: yes` is vacuously true when zero citations are used.**
-  The validator only checks that markers *present* are real — a narrative
-  with no `[G#]`/`[S#]` markers at all still reports "valid." Flagged during
-  a real query where the model's narrative never cited anything; not fixed,
-  since changing what counts as "valid" would change `--strict`'s exit-code
-  behavior and needs a decision on desired semantics first (e.g. a distinct
-  "no citations used" signal, separate from "invalid marker present").
+- **`Citations valid: yes` is vacuously true when zero citations are used —
+  dormant, not fixed.** The validator only checks that markers *present* are
+  real — a narrative with no `[G#]`/`[S#]` markers at all still reports
+  "valid." Flagged during a real query where the model's narrative never
+  cited anything. As of Phase 11 (FR29) the `query` path produces no
+  narrative to validate at all, so this doesn't currently surface anywhere —
+  but the underlying ambiguity is still unresolved in `synthesis/citations.py`
+  and will resurface the moment the planned agent loop starts generating text
+  worth validating. Needs a decision on desired semantics first (e.g. a
+  distinct "no citations used" signal, separate from "invalid marker
+  present") before that happens.
 
-## Synthesis / output structure (future)
+## Synthesis / output structure
 
-- **Per-concept summary → general summary → sentiment analysis, instead of one
-  flat merged passage list.** Today `RetrievalPipeline.retrieve()` merges every
-  query's hits (14 for a card with a numeric fact, after the boost fix below)
-  into one shared pool and cuts to a single final `top_k`. Verified this has a
-  real cost: for The Sun, the Genesis 21 passage (Isaac born, "a hundred years
-  old", "God hath made a laughter for me") ranked #1 within its own
-  `laughter`+`"hundred"`-filtered query, but was cut from the merged result at
-  `top_k=8` — it only survived once `top_k` was raised to 15 — because 14
-  queries (several low-signal, e.g. `naked child`, `white horse`) now compete
-  for one small shared budget of final slots. Proposed restructuring instead
-  of raising `top_k` as a blunt fix: candidates per concept (already boosted
-  by the exact-number filter) → one summary per concept → one general summary
-  rolling those up → a sentiment-analysis pass over the general summary. Each
-  concept gets its own retrieval+summary budget instead of competing for a
-  shared cutoff, which also reads more naturally as the explainable trail the
-  project is meant to produce ("references to `white horse` are these 3, my
-  summary of them is X; references to `laughter` are these, my summary is Y;
-  general summary: Z"). Trade-off: multiplies LLM calls from 1 per query to
-  N concepts + 1 (general) + 1 (sentiment), and citation validation
-  (`synthesis/citations.py`) needs to hold at two levels — a concept summary
-  citing only its own real passages, and the general summary citing only real
-  concept summaries — to keep the "every conclusion traceable" guarantee
-  intact. This is an architecture change plus a genuinely new capability
-  (sentiment analysis isn't in `spec.md` at all today), not a bugfix — per
-  this repo's SDD process, needs `spec.md`/`plan.md` updates before
-  implementation, not an ad-hoc addition to the current pipeline.
+- ~~**Per-concept summary → general summary.**~~ **Implemented (T26–T33), then
+  reversed (Phase 11).** The two-level trail landed exactly as designed and
+  worked structurally — but a real run against the reference dataset showed
+  the generated prose was the least useful part of the output: the general
+  summary restated the concept summaries without adding a reading of the
+  card, and a concept summary once concluded there was "no direct connection"
+  between the very passages it had correctly found and the symbol being
+  queried. FR25 is retired; FR24's per-concept retrieval survives as the
+  foundation for concept-pair convergence below. See `spec.md`'s FR25 note
+  and `plan.md`'s "Concept-pair convergence" section.
+
+- **Concept-pair convergence (FR27, FR28) — implemented (T34–T39), replacing
+  the synthesized narrative above.** When two independently-derived concepts
+  retrieve the same passage, that convergence is now surfaced as its own
+  result — additively, alongside each concept's own group, never instead of
+  it. Ranked by the geometric mean of the pair's semantic component scores
+  (see `pipeline.py`'s module docstring for why geometric, not arithmetic).
+  Open items this introduces:
+  - **Pair-group count is unbounded and grows quadratically.** No cap exists
+    on how many pair groups a query can produce (`N` concepts → up to
+    `N*(N-1)/2` groups); mitigated only by strongest-first ordering and
+    `min_score`. See `plan.md`'s Risks.
+  - **The `_RRF_K`/per-query `top_k` tuning question above is now compounded
+    by `retrieval_match_pool_size`** (default 30) — a third knob affecting how
+    many lopsided, low-signal pairs get generated. Not yet measured against
+    the full reference dataset at scale.
+
+- **The query path invokes no generation model (FR29).** `--facts-only` and
+  `--strict` are removed — every query is facts-only in shape now, so there
+  was nothing left for those flags to distinguish. `synthesis/chain.py`,
+  `prompts.py`, and `citations.py` are trimmed to a minimal Ollama chat
+  client, marker rendering, and single-level citation validation,
+  respectively — kept, not deleted, because they're exactly what the planned
+  conversational agent loop (`spec.md`'s non-goal on NL request parsing) will
+  need. Nothing currently calls them.
+
+- **Per-passage `[meaning / sentiment]` line — proposed, explicitly deferred
+  again.** Raised alongside concept-pair convergence: a per-passage prompt
+  like "analyze the sentiment of this text where the core concept is
+  [symbol]." Deliberately **not** built in Phase 11 — it would reintroduce a
+  generation call exactly where FR29 just removed one, and the project has no
+  running agent-loop surface yet for it to belong to. Revisit once the
+  conversational agent layer exists; no design work done (no proposed model,
+  no scope for what "sentiment" means for interpretive/symbolic text).
 
 ## Verification
 
-- **T25 (end-to-end v1 acceptance) is still unchecked in `tasks.md`.**
-  `tests/integration/test_query_end_to_end.py` (`@pytest.mark.requires_ollama`)
-  exists and collects cleanly but has not been run and confirmed passing —
-  extensive manual retrieval diagnostics happened this session (direct
-  Python scripts against the real store), but not the actual integration
-  test or a plain `mythrix query` CLI run confirmed end-to-end. Run
-  `uv run pytest tests/integration -m requires_ollama -q` to close this out;
-  it's the last item blocking "Definition of done for v1" in `tasks.md`.
+- **T25/T39's full-corpus acceptance tests are removed, not just unrun
+  (2026-07-19).** Both `tests/integration/test_query_end_to_end.py` and
+  `tests/integration/test_query_concept_scoped_synthesis.py` re-ingested the
+  complete ~1700-chunk Douay-Rheims Bible into a fresh store on every
+  invocation, purely to get a local Ollama embedding model in the loop —
+  40+ minutes per run. Judged not worth maintaining as routine coverage, so
+  both files are deleted rather than left as an ever-growing "still not run"
+  item. T39's convergence finding and T33's crowding-out fix remain valid as
+  one-time historical results recorded on those tasks in `tasks.md`; T25's
+  real-Ollama run for The Tower specifically was never completed and has no
+  automated path left to close it out. `test_synthesis_chain_ollama.py`
+  (a single small `invoke()` call) is unaffected and still runs under
+  `uv run pytest tests/integration -m requires_ollama -q`.
 
 ## Possible future retrieval strategies
 
@@ -148,9 +182,14 @@ Noted per the user's framing ("en el futuro podemos tener distintas
 estrategias") — not committed to, just recorded as options if the current
 per-fact/RRF approach needs revisiting:
 
-- Per-attribute LLM-free re-ranking of a larger candidate pool (retrieve top
+- ~~Per-attribute LLM-free re-ranking of a larger candidate pool (retrieve top
   30-50 per query instead of top 6, then apply a cheaper secondary filter
-  before the final cut).
+  before the final cut).~~ **Partially realized (Phase 11).** A deeper pool
+  (`retrieval_match_pool_size`, default 30) is now retrieved per concept — but
+  for concept-pair intersection-finding (FR27), not for re-ranking a
+  concept's own displayed results, which still cut to `top_k`. The general
+  re-ranking idea (widen a concept's *own* top-k using the deeper pool, not
+  just cross-concept pairs) remains open.
 - A pluggable retrieval-strategy interface, so `build_query_texts`'s
   decomposition (per-fact, no identity, no bare relationship names) becomes
   one strategy among several rather than the only option — deliberately not

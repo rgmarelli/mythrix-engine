@@ -189,20 +189,104 @@ class RetrievedPassage(MythrixModel):
     embedding_model: str = ""
 
 
-class RetrievalContext(MythrixModel):
-    """Everything retrieved for a query: graph facts plus grounding document passages."""
+class ConceptCandidates(MythrixModel):
+    """Retrieved passages for one individually-queried concept (FR24) — an attribute
+    value, a keyword, or a relationship-target fact, exactly as decomposed by
+    `retrieval.pipeline.build_query_texts`. Kept separate from every other concept's
+    candidates rather than merged into one shared pool, so a well-supported concept
+    (e.g. a precise numeric-fact match) can't be crowded out of the final output by
+    unrelated concepts that simply generated more queries — the empirical failure
+    this restructuring exists to fix (see plan.md's "Concept-scoped retrieval and
+    synthesis"). Where two concepts both retrieve the same passage, that convergence
+    is surfaced separately as `ConceptPairCandidates` (FR27).
 
-    graph_facts: GraphFacts
+    `concept` doubles as both the grouping key and the human-readable label shown in
+    output — it's the atomic query text itself (e.g. "white horse", "laughter"),
+    which is already exactly what a researcher would recognize the concept by.
+    """
+
+    concept: str
     passages: tuple[RetrievedPassage, ...] = ()
 
 
-class InterpretationResult(MythrixModel):
-    """Final synthesized output: narrative text plus the full evidentiary chain (FR12, FR16)."""
+class ConceptMatchScore(MythrixModel):
+    """One concept's own claim on a passage, within a pair match (FR27, FR28).
 
-    context: RetrievalContext
-    narrative: str
-    generation_model: str
-    embedding_model: str
-    citation_markers_valid: bool
-    invalid_markers: tuple[str, ...] = ()
-    generated_at: datetime
+    `score` is that concept's best similarity for this passage. `exact_value` marks
+    the FR28 case: a numeric fact (a gematria value, a deck position) reaches a
+    passage through a literal-text filter, not through embedding similarity, so its
+    membership is a *guarantee* that the passage contains that value rather than a
+    similarity judgment. Such a match carries no meaningful magnitude — its `score`
+    is not comparable to a semantic concept's and is excluded from the combined
+    score (see `ConceptPairCandidates`).
+    """
+
+    concept: str
+    score: float = 0.0
+    exact_value: bool = False
+
+
+class MergedCandidate(MythrixModel):
+    """A passage two concepts both retrieved, with the components of its combined
+    score kept alongside the verdict (FR27) — a researcher sees not just that a
+    passage converged but how strongly it did on each side, which is what
+    distinguishes a genuine intersection from a strong match on one concept that
+    merely grazed the other."""
+
+    passage: RetrievedPassage
+    matches: tuple[ConceptMatchScore, ...] = ()
+    combined_score: float = 0.0
+
+
+class ConceptPairCandidates(MythrixModel):
+    """Passages retrieved by *both* of two concepts (FR27) — emitted alongside, never
+    instead of, each concept's own `ConceptCandidates`. Convergence is the signal
+    per-concept grouping alone discards: a passage matching two independently-derived
+    concepts at once is a stronger finding than either concept's own top hit, but
+    under FR24 it is merely duplicated into two groups with nothing recording that
+    it was the same passage.
+
+    Because groups are additive, a strong single-concept match never loses to a
+    convergent one — it still stands in its own concept's group — so no ranking rule
+    has to adjudicate between the two kinds of result.
+
+    Candidates are ranked by the geometric mean of the pair's *semantic* component
+    scores, clamped at zero. Geometric rather than arithmetic because convergence is
+    conjunctive: a passage scoring (0.90, 0.20) and one scoring (0.57, 0.53) have
+    identical sums and means, but only the second genuinely sits at the intersection
+    — the first is a strong match on one concept that merely reached the other's
+    matching pool. Clamped because `1 - cosine_distance` spans [-1, 1], so a
+    negative component would otherwise make the square root complex; a passage
+    anti-correlated with one member has no conjunctive strength anyway. An
+    `exact_value` member (FR28) contributes membership but no score, so a
+    concept-plus-number pair is scored by its semantic concept alone.
+
+    Scores are only comparable *within* a group, where every candidate is scored by
+    the same two queries and any per-query bias is constant across the rows being
+    compared. They are not comparable across groups — see plan.md's Risks.
+    """
+
+    concepts: tuple[str, ...] = ()
+    candidates: tuple[MergedCandidate, ...] = ()
+
+
+class RetrievalContext(MythrixModel):
+    """Everything retrieved for a query: graph facts, grounding document passages
+    grouped per concept (FR24), and the concept pairs those passages converge on
+    (FR27). No synthesized text — the query path invokes no generation model (FR29)."""
+
+    graph_facts: GraphFacts
+    concept_candidates: tuple[ConceptCandidates, ...] = ()
+    pair_candidates: tuple[ConceptPairCandidates, ...] = ()
+
+    @property
+    def all_passages(self) -> tuple[RetrievedPassage, ...]:
+        """Every retrieved passage across every concept, flattened — for callers that
+        only need a corpus-wide view (e.g. counting total passages retrieved), not
+        the per-concept grouping itself. Deliberately excludes `pair_candidates`,
+        which are *mostly* but not entirely a subset of these: pair membership is
+        detected against a matching pool deeper than the one displayed here (FR27),
+        so a passage can converge on two concepts while ranking below both of their
+        displayed cutoffs. Callers needing every passage the query touched must read
+        `pair_candidates` too."""
+        return tuple(passage for candidates in self.concept_candidates for passage in candidates.passages)

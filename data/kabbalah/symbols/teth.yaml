@@ -7,8 +7,9 @@ symbol:
       value_type: integer
     - key: letter_type
       value: simple
+      retrievable: false
     - key: meaning
-      value: "Inclination, staff, below"
+      value: [Inclination, staff, below]
 
 interpretations:
   - tradition: sepher-yetzirah-gra

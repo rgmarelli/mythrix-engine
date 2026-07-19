@@ -1,15 +1,27 @@
-"""Human-readable and JSON renderers for CLI output (FR13, FR16).
+"""Human-readable and JSON renderers for CLI output (FR13, FR16, FR24, FR27).
 
 Reuses `synthesis/prompts.py`'s `render_graph_facts_block`/`render_passages_block`
-for the human-readable References section — the same rendering the model
-itself was shown, so what a researcher reads matches exactly what was cited.
+verbatim for the per-concept sections — the same rendering a future
+conversational agent would be shown, so what a researcher reads today matches
+what would be cited later.
+
+Per FR29 the query path produces no synthesized narrative — output is
+retrieved evidence only: graph facts, one section per concept (FR24), and one
+section per concept-pair convergence (FR27), each carrying full verbatim
+passage text and attribution (FR13).
 """
 
 from __future__ import annotations
 
 import json
 
-from mythrix.core.models import GraphFacts, InterpretationResult, RetrievalContext, RetrievedPassage
+from mythrix.core.models import (
+    ConceptMatchScore,
+    ConceptPairCandidates,
+    GraphFacts,
+    RetrievalContext,
+    RetrievedPassage,
+)
 from mythrix.core.synthesis.prompts import graph_fact_lines, render_graph_facts_block, render_passages_block
 
 _HUMAN_PASSAGE_PREVIEW_CHARS = 500
@@ -29,62 +41,101 @@ def _passages_payload(passages: tuple[RetrievedPassage, ...]) -> dict:
     return {"markers": markers, "items": [passage.model_dump(mode="json") for passage in passages]}
 
 
+def _render_candidates_block(concept: str, passages: tuple[RetrievedPassage, ...], *, max_chars: int | None) -> str:
+    """Like `render_passages_block`, but headed by the concept these
+    passages were retrieved for (FR24) instead of a generic `PASSAGES` label
+    — `render_passages_block`'s own `[S#]` numbering/body is reused verbatim,
+    only its header line is swapped."""
+    _, _, body = render_passages_block(passages, max_chars=max_chars).partition("\n")
+    return f'CANDIDATES — "{concept}"\n{body}'
+
+
+def _render_match_component(match: ConceptMatchScore) -> str:
+    """An exact-value match (FR28) carries no meaningful score — it's a
+    guarantee of containment, not a similarity judgment — so it's shown by
+    name alone; a semantic match shows its own similarity score."""
+    return match.concept if match.exact_value else f"{match.concept} {match.score:.2f}"
+
+
+def _render_pair_block(pair: ConceptPairCandidates, *, max_chars: int | None) -> str:
+    """Concept-pair convergence (FR27, FR28): headed like `_render_candidates_block`
+    but by the pair's members, and each candidate shows its combined score
+    *alongside* the per-concept components it was derived from — the verdict
+    and its inputs together, since the combined score alone can't distinguish
+    a genuine intersection from a lopsided match that merely reached the
+    other concept's deep matching pool (see retrieval/pipeline.py)."""
+    label = ", ".join(pair.concepts)
+    if not pair.candidates:
+        return f"CANDIDATES — [{label}]\n(none retrieved)"
+    lines = []
+    for i, candidate in enumerate(pair.candidates):
+        passage = candidate.passage
+        attribution = f"{passage.source.title}, {passage.source.author}"
+        if passage.locator:
+            attribution += f", {passage.locator}"
+        components = " · ".join(_render_match_component(match) for match in candidate.matches)
+        text = passage.text
+        if max_chars is not None and len(text) > max_chars:
+            text = text[:max_chars].rstrip() + "… [truncated for display — full text in --json]"
+        lines.append(
+            f"[S{i + 1}] Symbols: {label}   {candidate.combined_score:.2f}  ({components})\n"
+            f'     ({attribution}): "{text}"'
+        )
+    return f"CANDIDATES — [{label}]\n" + "\n".join(lines)
+
+
 def render_facts_human(context: RetrievalContext) -> str:
-    """`--facts-only` human-readable output: just the retrieved facts/passages,
-    no narrative (FR14 — no LLM was invoked to produce this)."""
-    return "\n\n".join(
-        [
-            render_graph_facts_block(context.graph_facts),
-            render_passages_block(context.passages, max_chars=_HUMAN_PASSAGE_PREVIEW_CHARS),
+    """Human-readable query output: retrieved graph facts, per-concept
+    candidate passages (FR24), and concept-pair convergences (FR27) — no
+    synthesized narrative, since the query path invokes no generation model
+    (FR29)."""
+    sections = [render_graph_facts_block(context.graph_facts)]
+    if context.concept_candidates:
+        sections += [
+            _render_candidates_block(candidates.concept, candidates.passages, max_chars=_HUMAN_PASSAGE_PREVIEW_CHARS)
+            for candidates in context.concept_candidates
         ]
-    )
+    else:
+        sections.append("CANDIDATES\n(none retrieved)")
+    sections += [_render_pair_block(pair, max_chars=_HUMAN_PASSAGE_PREVIEW_CHARS) for pair in context.pair_candidates]
+    return "\n\n".join(sections)
+
+
+def _pair_candidates_payload(pairs: tuple[ConceptPairCandidates, ...]) -> list[dict]:
+    """A list, not a dict keyed by concept text: unlike `concept_candidates`
+    above (keyed by a single concept, which is unique per query), two
+    concepts in a pair have no natural unique string key, and two different
+    pairs could otherwise collide."""
+    return [
+        {
+            "concepts": list(pair.concepts),
+            "candidates": [
+                {
+                    "combined_score": candidate.combined_score,
+                    "matches": [
+                        {"concept": match.concept, "score": match.score, "exact_value": match.exact_value}
+                        for match in candidate.matches
+                    ],
+                    "passage": candidate.passage.model_dump(mode="json"),
+                }
+                for candidate in pair.candidates
+            ],
+        }
+        for pair in pairs
+    ]
 
 
 def render_facts_json(context: RetrievalContext) -> str:
-    """`--facts-only --json` output — the evidentiary chain (FR16) without a
-    narrative or model identifiers, since none were used."""
+    """`--json` output — the full evidentiary chain (FR16): graph facts,
+    candidate passages grouped by concept (FR24), and concept-pair
+    convergences (FR27), matching what retrieval actually produced. No
+    synthesized summary or generation-model identifier, since none were used
+    (FR29)."""
     payload = {
         "graph_facts": _graph_facts_payload(context.graph_facts),
-        "passages": _passages_payload(context.passages),
-    }
-    return json.dumps(payload, indent=2, ensure_ascii=False)
-
-
-def render_result_human(result: InterpretationResult) -> str:
-    interpretation = result.context.graph_facts.interpretation
-    header = f"{interpretation.display_name} ({interpretation.tradition.name})"
-    citation_status = (
-        "yes" if result.citation_markers_valid else f"NO — invalid marker(s): {', '.join(result.invalid_markers)}"
-    )
-    sections = [
-        header,
-        "=" * len(header),
-        result.narrative,
-        "",
-        "References:",
-        render_graph_facts_block(result.context.graph_facts),
-        render_passages_block(result.context.passages, max_chars=_HUMAN_PASSAGE_PREVIEW_CHARS),
-        "",
-        f"Generation model: {result.generation_model} | Embedding model: {result.embedding_model} | "
-        f"Generated at: {result.generated_at.isoformat()}",
-        f"Citations valid: {citation_status}",
-    ]
-    return "\n".join(sections)
-
-
-def render_result_json(result: InterpretationResult) -> str:
-    """Full evidentiary chain (FR16): graph fact/passage identifiers and
-    verbatim text, plus the embedding/generation model identifiers and
-    timestamp used, so a result is reproducible and auditable later even if
-    the corpus or models change."""
-    payload = {
-        "narrative": result.narrative,
-        "generation_model": result.generation_model,
-        "embedding_model": result.embedding_model,
-        "citation_markers_valid": result.citation_markers_valid,
-        "invalid_markers": list(result.invalid_markers),
-        "generated_at": result.generated_at.isoformat(),
-        "graph_facts": _graph_facts_payload(result.context.graph_facts),
-        "passages": _passages_payload(result.context.passages),
+        "concept_candidates": {
+            candidates.concept: _passages_payload(candidates.passages) for candidates in context.concept_candidates
+        },
+        "pair_candidates": _pair_candidates_payload(context.pair_candidates),
     }
     return json.dumps(payload, indent=2, ensure_ascii=False)

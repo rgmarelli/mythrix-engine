@@ -4,7 +4,7 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
-from mythrix.core.loaders.symbol_schema import SourceFile, SymbolFile, TraditionFile
+from mythrix.core.loaders.symbol_schema import PropertyEntry, SourceFile, SymbolFile, TraditionFile
 
 THE_FOOL_YAML = """
 symbol:
@@ -71,6 +71,24 @@ def test_parses_samekh_worked_example_with_properties_and_multiple_correspondenc
 
     assert {p.key: p.value for p in parsed.symbol.properties} == {"alphabet_position": "15", "numeric_value": "60"}
     assert len(parsed.interpretations[0].corresponds_to) == 2
+
+
+def test_property_value_as_a_yaml_list_is_joined_to_the_same_comma_separated_string() -> None:
+    """A multi-concept value (e.g. a Hebrew letter's `meaning`) is a vector of
+    atomic concepts either way — authoring it as `value: [Ox, teaching, master]`
+    must normalize to the exact same internal string a hand-punctuated
+    `value: "Ox, teaching, master"` would, since that's what
+    `retrieval.pipeline._atomic_values` splits on."""
+    from_list = PropertyEntry.model_validate({"key": "meaning", "value": ["Ox", "teaching", "master"]})
+    from_string = PropertyEntry.model_validate({"key": "meaning", "value": "Ox, teaching, master"})
+
+    assert from_list.value == from_string.value == "Ox, teaching, master"
+
+
+def test_property_value_as_a_single_item_list_has_no_trailing_artifacts() -> None:
+    parsed = PropertyEntry.model_validate({"key": "meaning", "value": ["laughter"]})
+
+    assert parsed.value == "laughter"
 
 
 def test_bare_symbol_with_no_interpretations_is_valid() -> None:

@@ -1,47 +1,61 @@
-"""LangChain + Ollama synthesis (FR9, FR11, FR12) behind a `Synthesizer`
-Protocol, so tests inject a fake instead of requiring a running Ollama daemon
-(plan.md Risks: "Testing LLM-dependent code"). The LLM never gets tool-calling
-access to the graph or vector store (FR10) — `OllamaSynthesizer` only ever
-sends it the rendered `build_prompt(context)` text and reads back a narrative,
-which `validate_citations` then checks in code (FR12).
+"""Ollama chat client (FR10) retained for a future conversational agent loop
+(spec.md's non-goal on conversational request parsing) — the `query` path
+itself invokes no generation model at all (FR29). `OllamaChatClient` only
+ever sends rendered prompt text and reads back plain text; it has no
+tool-calling access to the graph or vector store, by construction. Whatever
+context an agent loop assembles for it should use `synthesis/prompts.py`'s
+`[G#]`/`[S#]` rendering, so `synthesis/citations.py` can validate the result
+the same way this project always has.
+
+Retained from the pre-Phase-11 synthesis orchestration: the `ChatOllama`
+construction and its error mapping. The mapping matches on *message text*
+because `validate_model_on_init` raises inconsistent exception types across
+`langchain_ollama`/`httpx` versions for "model not pulled" and "daemon
+unreachable" alike — established empirically (plan.md's "LangChain + Ollama
+synthesis"), not something to rediscover later. Removed: the per-concept and
+general-summary orchestration (`synthesize()`/`_synthesize_concept()`) — the
+query path no longer produces synthesized text at all (FR29).
 """
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from typing import Protocol
 
 from mythrix.core.errors import ModelRequestError, ModelUnavailableError
-from mythrix.core.models import InterpretationResult, RetrievalContext
-from mythrix.core.synthesis.citations import validate_citations
-from mythrix.core.synthesis.prompts import build_prompt
 
 
-class Synthesizer(Protocol):
+class ChatClient(Protocol):
     generation_model: str
 
-    def synthesize(self, context: RetrievalContext) -> InterpretationResult: ...
+    def invoke(self, prompt: str) -> str: ...
 
 
-class OllamaSynthesizer:
-    """Real `ChatOllama`-backed `Synthesizer`. Exercised directly only by the
-    opt-in `@pytest.mark.requires_ollama` test in `tests/integration/` — unit
-    tests cover the wiring (prompt assembly, citation validation, result shape)
-    against a fake `Synthesizer` instead."""
+class OllamaChatClient:
+    """Real `ChatOllama`-backed `ChatClient`. Exercised directly only by the
+    opt-in `@pytest.mark.requires_ollama` test in `tests/integration/`; unit
+    tests inject a fake instead."""
 
     def __init__(
-        self, *, generation_model: str, embedding_model: str, base_url: str, temperature: float = 0.15
+        self,
+        *,
+        generation_model: str,
+        base_url: str,
+        temperature: float = 0.15,
+        num_ctx: int = 8192,
     ) -> None:
         if not generation_model:
             raise ModelUnavailableError(generation_model or "<unset>")
 
         self.generation_model = generation_model
-        self._embedding_model = embedding_model
         try:
             from langchain_ollama import ChatOllama
 
             self._llm = ChatOllama(
-                model=generation_model, base_url=base_url, temperature=temperature, validate_model_on_init=True
+                model=generation_model,
+                base_url=base_url,
+                temperature=temperature,
+                num_ctx=num_ctx,
+                validate_model_on_init=True,
             )
         except Exception as exc:  # noqa: BLE001 - validate_model_on_init raises inconsistent exception
             # types across langchain_ollama/httpx versions for "model not found" and
@@ -53,10 +67,9 @@ class OllamaSynthesizer:
                 raise ModelUnavailableError(generation_model) from exc
             raise ModelRequestError(generation_model, cause=f"{type(exc).__name__}: {message}") from exc
 
-    def synthesize(self, context: RetrievalContext) -> InterpretationResult:
+    def invoke(self, prompt: str) -> str:
         from ollama import ResponseError
 
-        prompt = build_prompt(context)
         try:
             response = self._llm.invoke(prompt)
         except ResponseError as exc:
@@ -65,15 +78,4 @@ class OllamaSynthesizer:
             raise ModelRequestError(self.generation_model, cause=str(exc)) from exc
         except Exception as exc:  # noqa: BLE001 - connection drops, timeouts, etc: surface the real cause
             raise ModelRequestError(self.generation_model, cause=f"{type(exc).__name__}: {exc}") from exc
-
-        narrative = str(response.content)
-        invalid_markers = validate_citations(narrative, context)
-        return InterpretationResult(
-            context=context,
-            narrative=narrative,
-            generation_model=self.generation_model,
-            embedding_model=self._embedding_model,
-            citation_markers_valid=not invalid_markers,
-            invalid_markers=invalid_markers,
-            generated_at=datetime.now(UTC),
-        )
+        return str(response.content)

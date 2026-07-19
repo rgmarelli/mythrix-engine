@@ -7,8 +7,9 @@ symbol:
       value_type: integer
     - key: letter_type
       value: double
+      retrievable: false
     - key: meaning
-      value: "Palm of the hand, cloud, power to suppress"
+      value: [Palm of the hand, cloud, power to suppress]
 
 interpretations:
   - tradition: sepher-yetzirah-gra

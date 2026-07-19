@@ -7,8 +7,9 @@ symbol:
       value_type: integer
     - key: letter_type
       value: simple
+      retrievable: false
     - key: meaning
-      value: "To sustain, support"
+      value: [To sustain, support]
 
 interpretations:
   - tradition: sepher-yetzirah-gra
