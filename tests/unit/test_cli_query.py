@@ -13,7 +13,7 @@ import pytest
 from mythrix.cli.commands.query import run_query
 from mythrix.core.errors import ModelUnavailableError
 from mythrix.core.graph.store import KuzuGraphStore
-from mythrix.core.models import Attribute, Citation, Interpretation, Source, Symbol, Tradition
+from mythrix.core.models import Citation, Interpretant, Manifestation, Sign, Source, Tradition
 from mythrix.core.vector.chunking import Chunk
 from mythrix.core.vector.store import ChromaVectorStore, ChunkMetadata
 
@@ -31,19 +31,31 @@ class FakeEmbedder:
 def graph_store(tmp_path: Path) -> KuzuGraphStore:
     store = KuzuGraphStore(tmp_path / "graph.kuzu")
     store.upsert_tradition(RIDER_WAITE)
-    store.upsert_source(Source(id="waite", title="The Pictorial Key to the Tarot", author="A. E. Waite"))
-    the_tower = Symbol(id="the-tower", slug="the-tower", canonical_name="The Tower", symbol_type="major-arcana")
-    interpretation = Interpretation(
+    store.upsert_source(
+        Source(id="waite", domain="tarot", title="The Pictorial Key to the Tarot", author="A. E. Waite")
+    )
+    the_tower = Sign(
+        id="the-tower",
+        slug="the-tower",
+        canonical_name="The Tower",
+        sign_type="major-arcana",
+        semiotic_system="tarot",
+    )
+    manifestation = Manifestation(
         id="the-tower::rider-waite",
-        symbol_id="the-tower",
+        sign_id="the-tower",
         tradition=RIDER_WAITE,
         display_name="The Tower",
-        summary="Sudden upheaval; the collapse of false structures.",
-        attributes=(Attribute(id="attr-element", key="element", value="Fire"),),
-        citations=(Citation(source=Source(id="waite", title="The Pictorial Key to the Tarot", author="A. E. Waite")),),
+        denotation="Sudden upheaval; the collapse of false structures.",
+        interpretants=(Interpretant(id="interp-element", type="element", value="Fire"),),
+        citations=(
+            Citation(
+                source=Source(id="waite", domain="tarot", title="The Pictorial Key to the Tarot", author="A. E. Waite")
+            ),
+        ),
         created_at=datetime(2026, 1, 1, tzinfo=UTC),
     )
-    store.upsert_symbol_with_interpretation(the_tower, interpretation)
+    store.upsert_sign_with_manifestation(the_tower, manifestation)
     return store
 
 
@@ -142,18 +154,18 @@ def test_query_surfaces_a_concept_pair_convergence(
     graph_store: KuzuGraphStore, vector_store: ChromaVectorStore, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """End-to-end through the real Chroma store: a passage retrieved for
-    both an attribute's concept and a keyword concept converges into a pair
-    group in the rendered output (FR27)."""
-    the_tower = graph_store.get_interpretation("the-tower", "rider-waite").symbol
-    updated_interpretation = graph_store.get_interpretation("the-tower", "rider-waite").interpretation.model_copy(
+    both an interpretant's concept and a keyword concept converges into a
+    pair group in the rendered output (FR27)."""
+    the_tower = graph_store.get_manifestation("the-tower", "rider-waite").sign
+    updated_manifestation = graph_store.get_manifestation("the-tower", "rider-waite").manifestation.model_copy(
         update={
-            "attributes": (
-                Attribute(id="attr-element", key="element", value="Fire"),
-                Attribute(id="attr-keyword", key="keyword", value="upheaval"),
+            "interpretants": (
+                Interpretant(id="interp-element", type="element", value="Fire"),
+                Interpretant(id="interp-keyword", type="concept", value="upheaval"),
             )
         }
     )
-    graph_store.upsert_symbol_with_interpretation(the_tower, updated_interpretation)
+    graph_store.upsert_sign_with_manifestation(the_tower, updated_manifestation)
 
     embedding = [1.0, 0.0]
     vector_store.add_chunks(
@@ -161,7 +173,6 @@ def test_query_surfaces_a_concept_pair_convergence(
         [embedding],
         ChunkMetadata(
             source_id="waite",
-            tradition_slug="rider-waite",
             domain="tarot",
             embedding_model="fake-embed",
             ingested_at="2026-01-01T00:00:00Z",

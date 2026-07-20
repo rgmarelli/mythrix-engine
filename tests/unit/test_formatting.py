@@ -13,38 +13,48 @@ from mythrix.core.models import (
     ConceptMatchScore,
     ConceptPairCandidates,
     GraphFacts,
-    Interpretation,
+    Manifestation,
     MergedCandidate,
     RetrievalContext,
     RetrievedPassage,
+    Sign,
     Source,
-    Symbol,
     Tradition,
 )
 
 RIDER_WAITE = Tradition(id="rider-waite", slug="rider-waite", name="Rider-Waite-Smith", domain="tarot")
-THE_TOWER = Symbol(id="the-tower", slug="the-tower", canonical_name="The Tower", symbol_type="major-arcana")
-INTERPRETATION = Interpretation(
+THE_TOWER = Sign(
+    id="the-tower",
+    slug="the-tower",
+    canonical_name="The Tower",
+    sign_type="major-arcana",
+    semiotic_system="tarot",
+)
+MANIFESTATION = Manifestation(
     id="the-tower::rider-waite",
-    symbol_id="the-tower",
+    sign_id="the-tower",
     tradition=RIDER_WAITE,
     display_name="The Tower",
-    summary="Sudden upheaval; the collapse of false structures.",
+    denotation="Sudden upheaval; the collapse of false structures.",
     created_at=datetime(2026, 1, 1, tzinfo=UTC),
 )
-GRAPH_FACTS = GraphFacts(symbol=THE_TOWER, interpretation=INTERPRETATION)
+GRAPH_FACTS = GraphFacts(sign=THE_TOWER, manifestation=MANIFESTATION)
 PASSAGE = RetrievedPassage(
     chunk_id="waite::0",
-    source=Source(id="waite", title="The Pictorial Key to the Tarot", author="A. E. Waite"),
-    tradition=RIDER_WAITE,
+    source=Source(id="waite", domain="tarot", title="The Pictorial Key to the Tarot", author="A. E. Waite"),
     text="Catastrophe strikes without warning.",
     locator="p. 143",
     score=0.9,
 )
 GENESIS_PASSAGE = RetrievedPassage(
     chunk_id="douay::genesis-21-5",
-    source=Source(id="douay", title="The Holy Bible, Douay-Rheims", author="Various"),
-    tradition=RIDER_WAITE,
+    source=Source(
+        id="douay",
+        domain="scripture",
+        citation_label="Douay-Rheims",
+        title="The Holy Bible, Douay-Rheims",
+        author="Various",
+    ),
     text="And Abraham was a hundred years old, when Isaac his son was born to him.",
     locator="Genesis 21:5",
     score=0.61,
@@ -75,14 +85,13 @@ def test_render_facts_human_reports_no_candidates_for_an_empty_context() -> None
 def test_render_facts_json_is_valid_and_grouped_by_concept() -> None:
     payload = json.loads(render_facts_json(CONTEXT))
 
-    assert payload["graph_facts"]["symbol"]["canonical_name"] == "The Tower"
-    assert payload["graph_facts"]["interpretation"]["tradition_id"] == "rider-waite"
+    assert payload["graph_facts"]["sign"]["canonical_name"] == "The Tower"
+    assert payload["graph_facts"]["manifestation"]["tradition_id"] == "rider-waite"
     concept_payload = payload["concept_candidates"]["element"]
     assert concept_payload[0]["text"] == PASSAGE.text
     assert concept_payload[0]["chunk_id"] == "waite::0"
     assert concept_payload[0]["char_start"] == 0
     assert concept_payload[0]["source_id"] == "waite"
-    assert concept_payload[0]["tradition_id"] == "rider-waite"
 
 
 def test_render_facts_json_lists_referenced_sources_and_traditions_once() -> None:
@@ -95,9 +104,7 @@ def test_render_facts_json_lists_referenced_sources_and_traditions_once() -> Non
 
 def test_render_facts_json_deduplicates_a_source_cited_by_both_a_concept_and_a_pair_candidate() -> None:
     """A source cited by a concept candidate and again by a pair candidate
-    (as can happen for any tradition, which every passage in a query shares)
-    appears exactly once in `sources`/`traditions`, not once per citing
-    passage."""
+    appears exactly once in `sources`, not once per citing passage."""
     merged_candidate = MergedCandidate(passage=PASSAGE, matches=(ConceptMatchScore(concept="element", score=0.9),))
     pair = ConceptPairCandidates(concepts=("element", "upheaval"), candidates=(merged_candidate,))
     context = RetrievalContext(
@@ -146,6 +153,25 @@ def test_render_facts_human_includes_a_pair_group_with_combined_and_component_sc
     assert "Genesis 21:5" in output
 
 
+def test_render_facts_human_attributes_a_passage_by_its_sources_citation_label() -> None:
+    """A source with a `citation_label` (every corpus document) is attributed
+    by that label, not by `title`/`author` — the label is what's meant to be
+    shown for a retrieved passage (FR13)."""
+    output = render_facts_human(_context_with_a_pair())
+
+    assert "(Douay-Rheims, Genesis 21:5):" in output
+    assert "The Holy Bible, Douay-Rheims, Various" not in output
+
+
+def test_render_facts_human_falls_back_to_title_author_without_a_citation_label() -> None:
+    """A source with no `citation_label` set (today, only ever the case for a
+    sign's own citation sources, never ingested into the corpus) still
+    attributes by title/author rather than rendering an empty label."""
+    output = render_facts_human(CONTEXT)
+
+    assert "(The Pictorial Key to the Tarot, A. E. Waite, p. 143):" in output
+
+
 def test_render_facts_human_shows_an_exact_value_match_without_a_score() -> None:
     """FR28: an exact-value member (e.g. "100") carries no similarity score —
     it's shown by name alone, not as "100 0.00", which would misrepresent a
@@ -181,6 +207,7 @@ def test_render_facts_json_includes_pair_candidates_with_matches_and_passage() -
     assert candidate["passage"]["chunk_id"] == "douay::genesis-21-5"
     assert candidate["passage"]["source_id"] == "douay"
     assert payload["sources"]["douay"]["title"] == "The Holy Bible, Douay-Rheims"
+    assert payload["sources"]["douay"]["citation_label"] == "Douay-Rheims"
 
 
 def test_render_facts_human_reports_no_pair_candidates_for_an_empty_pair() -> None:

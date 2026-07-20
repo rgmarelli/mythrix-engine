@@ -1,0 +1,68 @@
+semiotic_system: tarot
+sign:
+  name: The Magician
+  type: major-arcana
+  manifestations:
+  - tradition: rider-waite
+    display_name: The Magician
+    denotation: A youthful figure in a magician's robe stands before an altar-like table bearing the four
+      suit symbols. A lemniscate hovers above his head and a serpent-cincture, devouring its own tail,
+      encircles his waist. His right hand raises a wand toward heaven while his left hand points to the
+      earth. Roses and lilies grow around his feet.
+    properties:
+    - key: number
+      value: '1'
+    interpretants:
+    - type: concept
+      value: lemniscate
+    - type: concept
+      value: ouroboros
+    - type: concept
+      value: pointing heaven
+    - type: concept
+      value: pointing earth
+    - type: concept
+      value: altar
+    - type: concept
+      value: wand
+    - type: concept
+      value: sword
+    - type: concept
+      value: cup
+    - type: concept
+      value: pentacle
+    cites: 'Waite, Pictorial Key to the Tarot, Part II: The Doctrine Behind the Veil, I. The Magician'
+    intersemiotic_interpretants:
+    - target_system: hebrew_alef_bet
+      target_sign: Aleph
+      relationship: hebrew_letter
+      according_to: marelli
+  - tradition: marseille
+    display_name: Le Bateleur
+    denotation: A juggler stands behind a table bearing the cup, the sword, and the pentacles, one hand
+      raised toward heaven holding a wand and the other pointed down toward the earth. Above his head
+      hovers the sign of Universal Life, the figure-eight lemniscate.
+    properties:
+    - key: number
+      value: '1'
+    interpretants:
+    - type: concept
+      value: juggler
+    - type: concept
+      value: table
+    - type: concept
+      value: cup
+    - type: concept
+      value: sword
+    - type: concept
+      value: pentacles
+    - type: concept
+      value: wand
+    - type: concept
+      value: lemniscate
+    cites: Papus, Le Tarot des Bohémiens, The Juggler
+    intersemiotic_interpretants:
+    - target_system: hebrew_alef_bet
+      target_sign: Aleph
+      relationship: hebrew_letter
+      according_to: marelli

@@ -1,0 +1,23 @@
+semiotic_system: hebrew_alef_bet
+sign:
+  name: Ayin
+  type: hebrew-letter
+  properties:
+  - key: letter_type
+    value: simple
+  manifestations:
+  - tradition: sepher-yetzirah-gra
+    display_name: Ayin
+    interpretants:
+    - type: numeric_value
+      value: '70'
+      query:
+        directive: filter
+        as_token: seventy
+    - type: meaning
+      value: Eye
+    - type: foundation
+      value: anger
+    - type: constellation
+      value: Capricorn
+    cites: Sepher Yetzirah

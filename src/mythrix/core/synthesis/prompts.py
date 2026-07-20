@@ -39,16 +39,18 @@ def graph_fact_lines(graph_facts: GraphFacts) -> list[str]:
     each `[G#]` in the JSON output's marker map — the same enumeration that
     decides what's a *valid* marker (`graph_fact_ids`) and what's shown in the
     rendered prompt (`render_graph_facts_block`)."""
-    symbol, interpretation = graph_facts.symbol, graph_facts.interpretation
+    sign, manifestation = graph_facts.sign, graph_facts.manifestation
     lines = [
-        f'Symbol "{symbol.canonical_name}" ({symbol.symbol_type}), interpreted in '
-        f'{interpretation.tradition.name} as "{interpretation.display_name}": {interpretation.summary}'
+        f'Symbol "{sign.canonical_name}" ({sign.sign_type}), interpreted in '
+        f'{manifestation.tradition.name} as "{manifestation.display_name}": {manifestation.denotation}'
     ]
-    lines += [f"Attribute — {attribute.key}: {attribute.value}" for attribute in interpretation.attributes]
     lines += [
-        f"Correspondence — {relationship.relationship_type}: relates to "
-        f'"{relationship.target_symbol.canonical_name}", according to {relationship.according_to_tradition.name}.'
-        for relationship in symbol.relationships
+        f"Interpretant — {interpretant.type}: {interpretant.value}" for interpretant in manifestation.interpretants
+    ]
+    lines += [
+        f"Correspondence — {interpretant.relationship}: relates to "
+        f'"{interpretant.target_sign.canonical_name}", according to {interpretant.according_to.name}.'
+        for interpretant in sign.intersemiotic_interpretants
     ]
     return lines
 
@@ -85,7 +87,7 @@ def render_passages_block(passages: tuple[RetrievedPassage, ...], *, max_chars: 
         return "PASSAGES\n(none retrieved)"
     lines = []
     for i, passage in enumerate(passages):
-        attribution = f"{passage.source.title}, {passage.source.author}"
+        attribution = passage.source.citation_label or f"{passage.source.title}, {passage.source.author}"
         if passage.locator:
             attribution += f", {passage.locator}"
         text = passage.text

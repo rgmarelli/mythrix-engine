@@ -16,7 +16,7 @@ from mythrix.api.dependencies import get_chat_client, get_stores
 from mythrix.core.bootstrap import Stores
 from mythrix.core.config import Settings
 from mythrix.core.errors import MythrixError
-from mythrix.core.models import ConceptCandidates, ConceptPairCandidates, GraphFacts, SymbolSummary, Tradition
+from mythrix.core.models import ConceptCandidates, ConceptPairCandidates, GraphFacts, SignSummary, Tradition
 from mythrix.core.query_service import stream_query
 from mythrix.core.synthesis.chain import ChatClient
 from mythrix.core.synthesis.prompts import render_passage_summary_prompt
@@ -55,9 +55,9 @@ def list_traditions(stores: Stores = Depends(get_stores)) -> list[Tradition]:
     return list(stores.graph_store.list_traditions())
 
 
-@router.get("/symbols", response_model=list[SymbolSummary])
-def list_symbols(stores: Stores = Depends(get_stores)) -> list[SymbolSummary]:
-    return list(stores.graph_store.list_symbols())
+@router.get("/symbols", response_model=list[SignSummary])
+def list_symbols(stores: Stores = Depends(get_stores)) -> list[SignSummary]:
+    return list(stores.graph_store.list_signs())
 
 
 def _format_sse(event_type: str, payload: dict) -> str:
@@ -81,7 +81,7 @@ def _sse_body(first_type: str, first_payload: dict, rest: Iterator[tuple[str, di
         200: {
             "description": (
                 "A Server-Sent Events stream. Events, in order: `graph_facts` "
-                "(payload shape: GraphFacts — one `symbol`, one `interpretation`), "
+                "(payload shape: GraphFacts — one `sign`, one `manifestation`), "
                 "zero or more `concept_candidates` (payload shape: ConceptCandidates "
                 "— `concept`, `passages`, each passage carrying its own `source`/"
                 "`tradition` inline), zero or more `pair_candidates` (payload shape: "
@@ -106,7 +106,7 @@ def query(
     per concept with at least one retrieved passage, then one
     `pair_candidates` event per convergence group, then `done`.
 
-    A symbol/tradition/interpretation that doesn't exist raises before the
+    A symbol/tradition/manifestation that doesn't exist raises before the
     stream opens — a normal `404` JSON response, handled by the registered
     `MythrixError` exception handler, same as `/api/traditions`/`/api/symbols`.
     A failure reachable only once retrieval is underway (e.g. the embedding

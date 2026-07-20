@@ -8,7 +8,7 @@ from mythrix.core.errors import (
     IngestValidationError,
     ModelUnavailableError,
     MythrixError,
-    SymbolNotFoundError,
+    SignNotFoundError,
     TraditionNotFoundError,
 )
 
@@ -16,11 +16,11 @@ from mythrix.core.errors import (
 @pytest.mark.parametrize(
     ("error", "expected_fragments"),
     [
-        (SymbolNotFoundError("the-tower"), ["the-tower"]),
+        (SignNotFoundError("the-tower"), ["the-tower"]),
         (TraditionNotFoundError("rider-waite"), ["rider-waite"]),
         (
-            IngestValidationError("dangling citation", source_path="symbols/the-tower.yaml"),
-            ["dangling citation", "symbols/the-tower.yaml"],
+            IngestValidationError("dangling citation", source_path="signs/the-tower.yaml"),
+            ["dangling citation", "signs/the-tower.yaml"],
         ),
         (CitationValidationError(("[S9]", "[G4]")), ["[S9]", "[G4]"]),
         (ModelUnavailableError("llama3.1"), ["llama3.1", "ollama pull"]),

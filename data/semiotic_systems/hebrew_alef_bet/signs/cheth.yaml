@@ -1,0 +1,25 @@
+semiotic_system: hebrew_alef_bet
+sign:
+  name: Cheth
+  type: hebrew-letter
+  properties:
+  - key: letter_type
+    value: simple
+  manifestations:
+  - tradition: sepher-yetzirah-gra
+    display_name: Cheth
+    interpretants:
+    - type: numeric_value
+      value: '8'
+      query:
+        directive: filter
+        as_token: eight
+    - type: meaning
+      value: Fear
+    - type: meaning
+      value: life
+    - type: foundation
+      value: sight
+    - type: constellation
+      value: Cancer
+    cites: Sepher Yetzirah

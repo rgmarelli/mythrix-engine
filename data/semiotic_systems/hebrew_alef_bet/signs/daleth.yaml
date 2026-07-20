@@ -1,0 +1,27 @@
+semiotic_system: hebrew_alef_bet
+sign:
+  name: Daleth
+  type: hebrew-letter
+  properties:
+  - key: letter_type
+    value: double
+  manifestations:
+  - tradition: sepher-yetzirah-gra
+    display_name: Daleth
+    interpretants:
+    - type: numeric_value
+      value: '4'
+      query:
+        directive: filter
+        as_token: four
+    - type: meaning
+      value: Door
+    - type: meaning
+      value: poor man
+    - type: foundation
+      value: Seed
+    - type: transpose
+      value: Desolation
+    - type: planet
+      value: Sun
+    cites: Sepher Yetzirah

@@ -1,0 +1,26 @@
+semiotic_system: hebrew_alef_bet
+sign:
+  name: Samekh
+  type: hebrew-letter
+  manifestations:
+  - tradition: golden-dawn-kabbalah
+    display_name: Samekh (ס)
+    denotation: Support and protection; the serpent encircling the initiate.
+    interpretants:
+    - type: alphabet_position
+      value: '15'
+    - type: numeric_value
+      value: '60'
+    intersemiotic_interpretants:
+    - target_system: hebrew_alef_bet
+      target_sign: 'Path: Tiphareth-Yesod'
+      relationship: tree_of_life_path
+      according_to: Golden Dawn
+    - target_system: hebrew_alef_bet
+      target_sign: Tiphareth
+      relationship: sephirah
+      according_to: Golden Dawn
+    - target_system: hebrew_alef_bet
+      target_sign: Yesod
+      relationship: sephirah
+      according_to: Golden Dawn

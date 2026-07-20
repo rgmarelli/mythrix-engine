@@ -26,7 +26,7 @@ def execute_query(
     merge_top_k: int,
     min_score: float,
 ) -> RetrievalContext:
-    graph_facts = graph_store.get_interpretation(symbol, tradition)
+    graph_facts = graph_store.get_manifestation(symbol, tradition)
     pipeline = RetrievalPipeline(
         graph_store=graph_store,
         vector_store=vector_store,
@@ -52,14 +52,14 @@ def stream_query(
     min_score: float,
 ) -> Iterator[tuple[str, dict]]:
     """Yields `(event_type, payload)` pairs: `"graph_facts"` first — the
-    `KuzuGraphStore.get_interpretation` call that can raise
-    `SymbolNotFoundError`/`TraditionNotFoundError`/`InterpretationNotFoundError`
+    `KuzuGraphStore.get_manifestation` call that can raise
+    `SignNotFoundError`/`TraditionNotFoundError`/`ManifestationNotFoundError`
     runs before this generator's first `yield`, so a caller that primes it
     with one `next()` call sees that error there, not mid-iteration — then
     one `"concept_candidates"`/`"pair_candidates"` pair per item from
     `RetrievalPipeline.iter_candidates` (where `ModelUnavailableError`/
     `ModelRequestError` can still surface, once the embedder is called)."""
-    graph_facts = graph_store.get_interpretation(symbol, tradition)
+    graph_facts = graph_store.get_manifestation(symbol, tradition)
     yield "graph_facts", graph_facts.model_dump(mode="json")
 
     pipeline = RetrievalPipeline(

@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from mythrix.core.graph.store import KuzuGraphStore
-from mythrix.core.loaders.symbol_loader import load_directory
+from mythrix.core.loaders.sign_loader import load_directory
 
 
 @pytest.fixture
@@ -23,18 +23,21 @@ def _load_with_cites(tmp_path: Path, store: KuzuGraphStore, cites: str) -> None:
     )
     (tmp_path / "sources").mkdir(parents=True, exist_ok=True)
     (tmp_path / "sources" / "waite-pictorial-key.yaml").write_text(
-        'source:\n  title: "The Pictorial Key to the Tarot"\n  author: "Arthur Edward Waite"\n', encoding="utf-8"
+        'source:\n  id: "waite-pictorial-key"\n  domain: tarot\n'
+        '  title: "The Pictorial Key to the Tarot"\n  author: "Arthur Edward Waite"\n',
+        encoding="utf-8",
     )
-    (tmp_path / "symbols").mkdir(parents=True, exist_ok=True)
-    (tmp_path / "symbols" / "the-tower.yaml").write_text(
+    (tmp_path / "signs").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "signs" / "the-tower.yaml").write_text(
         f"""
-symbol:
+semiotic_system: tarot
+sign:
   name: "The Tower"
   type: major-arcana
-interpretations:
-  - tradition: rider-waite
-    display_name: "The Tower"
-    cites: "{cites}"
+  manifestations:
+    - tradition: rider-waite
+      display_name: "The Tower"
+      cites: "{cites}"
 """,
         encoding="utf-8",
     )
@@ -46,10 +49,10 @@ def test_locator_containing_its_own_comma_is_preserved_verbatim(tmp_path: Path, 
         tmp_path, store, "Waite, Pictorial Key to the Tarot, Part II: The Doctrine Behind the Veil, XVI. The Tower"
     )
 
-    facts = store.get_interpretation("the-tower", "rider-waite")
+    facts = store.get_manifestation("the-tower", "rider-waite")
 
-    assert len(facts.interpretation.citations) == 1
-    citation = facts.interpretation.citations[0]
+    assert len(facts.manifestation.citations) == 1
+    citation = facts.manifestation.citations[0]
     assert citation.source.title == "The Pictorial Key to the Tarot"
     assert citation.locator == "Part II: The Doctrine Behind the Veil, XVI. The Tower"
 
@@ -59,9 +62,9 @@ def test_citation_with_no_locator_resolves_with_empty_locator(tmp_path: Path, st
     the title mistaken for a locator."""
     _load_with_cites(tmp_path, store, "Waite, Pictorial Key to the Tarot")
 
-    facts = store.get_interpretation("the-tower", "rider-waite")
+    facts = store.get_manifestation("the-tower", "rider-waite")
 
-    citation = facts.interpretation.citations[0]
+    citation = facts.manifestation.citations[0]
     assert citation.source.title == "The Pictorial Key to the Tarot"
     assert citation.locator == ""
 
@@ -69,7 +72,7 @@ def test_citation_with_no_locator_resolves_with_empty_locator(tmp_path: Path, st
 def test_simple_two_comma_citation_still_works_as_before(tmp_path: Path, store: KuzuGraphStore) -> None:
     _load_with_cites(tmp_path, store, "Waite, Pictorial Key to the Tarot, p. 97")
 
-    facts = store.get_interpretation("the-tower", "rider-waite")
+    facts = store.get_manifestation("the-tower", "rider-waite")
 
-    citation = facts.interpretation.citations[0]
+    citation = facts.manifestation.citations[0]
     assert citation.locator == "p. 97"

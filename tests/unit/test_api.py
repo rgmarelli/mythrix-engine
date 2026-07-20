@@ -17,7 +17,7 @@ from mythrix.api.dependencies import get_chat_client, get_stores
 from mythrix.core.bootstrap import Stores
 from mythrix.core.errors import ModelUnavailableError
 from mythrix.core.graph.store import KuzuGraphStore
-from mythrix.core.models import Attribute, Interpretation, Source, Symbol, Tradition
+from mythrix.core.models import Interpretant, Manifestation, Sign, Source, Tradition
 from mythrix.core.vector.store import ChromaVectorStore
 
 RIDER_WAITE = Tradition(id="rider-waite", slug="rider-waite", name="Rider-Waite-Smith", domain="tarot")
@@ -60,21 +60,35 @@ class UnreachableEmbedder:
 def graph_store(tmp_path: Path) -> KuzuGraphStore:
     store = KuzuGraphStore(tmp_path / "graph.kuzu")
     store.upsert_tradition(RIDER_WAITE)
-    store.upsert_source(Source(id="waite", title="The Pictorial Key to the Tarot", author="A. E. Waite"))
-    the_tower = Symbol(id="the-tower", slug="the-tower", canonical_name="The Tower", symbol_type="major-arcana")
-    interpretation = Interpretation(
+    store.upsert_source(
+        Source(id="waite", domain="tarot", title="The Pictorial Key to the Tarot", author="A. E. Waite")
+    )
+    the_tower = Sign(
+        id="the-tower",
+        slug="the-tower",
+        canonical_name="The Tower",
+        sign_type="major-arcana",
+        semiotic_system="tarot",
+    )
+    manifestation = Manifestation(
         id="the-tower::rider-waite",
-        symbol_id="the-tower",
+        sign_id="the-tower",
         tradition=RIDER_WAITE,
         display_name="The Tower",
-        summary="Sudden upheaval; the collapse of false structures.",
-        attributes=(Attribute(id="attr-element", key="element", value="Fire"),),
+        denotation="Sudden upheaval; the collapse of false structures.",
+        interpretants=(Interpretant(id="interp-element", type="element", value="Fire"),),
         created_at=datetime(2026, 1, 1, tzinfo=UTC),
     )
-    store.upsert_symbol_with_interpretation(the_tower, interpretation)
-    # A correspondence-only symbol with zero interpretations — must not appear from /api/symbols.
-    store.upsert_symbol(
-        Symbol(id="path-anchor", slug="path-anchor", canonical_name="Path Anchor", symbol_type="tree-of-life-path")
+    store.upsert_sign_with_manifestation(the_tower, manifestation)
+    # A correspondence-only sign with zero manifestations — must not appear from /api/symbols.
+    store.upsert_sign(
+        Sign(
+            id="path-anchor",
+            slug="path-anchor",
+            canonical_name="Path Anchor",
+            sign_type="tree-of-life-path",
+            semiotic_system="hebrew_alef_bet",
+        )
     )
     return store
 
@@ -109,7 +123,7 @@ def test_list_traditions(graph_store: KuzuGraphStore, vector_store: ChromaVector
     assert [t["slug"] for t in response.json()] == ["rider-waite"]
 
 
-def test_list_symbols_excludes_symbols_with_no_interpretation(
+def test_list_symbols_excludes_signs_with_no_manifestation(
     graph_store: KuzuGraphStore, vector_store: ChromaVectorStore
 ) -> None:
     client = _client(graph_store, vector_store)
@@ -117,6 +131,7 @@ def test_list_symbols_excludes_symbols_with_no_interpretation(
     assert response.status_code == 200
     body = response.json()
     assert [s["slug"] for s in body] == ["the-tower"]
+    assert body[0]["semiotic_system"] == "tarot"
     assert body[0]["tradition_slugs"] == ["rider-waite"]
 
 
@@ -128,7 +143,7 @@ def test_query_streams_graph_facts_then_done(graph_store: KuzuGraphStore, vector
         events = _parse_sse(response.read().decode())
 
     assert events[0][0] == "graph_facts"
-    assert events[0][1]["symbol"]["slug"] == "the-tower"
+    assert events[0][1]["sign"]["slug"] == "the-tower"
     assert events[-1] == ("done", {})
     assert all(event_type in {"concept_candidates", "pair_candidates"} for event_type, _ in events[1:-1])
 

@@ -1,0 +1,56 @@
+semiotic_system: tarot
+sign:
+  name: The Fool
+  type: major-arcana
+  manifestations:
+  - tradition: rider-waite
+    display_name: The Fool
+    denotation: A young man in bright, flowing vestments walks with a light step toward the edge of a
+      precipice, gazing up at the sky rather than the drop before him. A small white dog bounds at his
+      heels. He carries a white rose in one hand and, over his shoulder on a wand, a curiously embroidered
+      wallet. The sun shines behind him from a mountainous landscape.
+    properties:
+    - key: number
+      value: '22'
+    interpretants:
+    - type: concept
+      value: precipice
+    - type: concept
+      value: white dog
+    - type: concept
+      value: rose
+    - type: concept
+      value: wallet on a wand
+    cites: 'Waite, Pictorial Key to the Tarot, Part II: The Doctrine Behind the Veil, Zero. The Fool'
+    intersemiotic_interpretants:
+    - target_system: hebrew_alef_bet
+      target_sign: Tav
+      relationship: hebrew_letter
+      according_to: marelli
+  - tradition: marseille
+    display_name: Le Mat
+    denotation: A careless-looking man wearing a fool's cap and torn clothes carries a bundle upon his
+      shoulder, walking on without noticing a dog that bites at his leg. He does not look where he is
+      going, and walks toward a precipice where a crocodile waits to devour him. Alone among the trumps,
+      this card carries no number.
+    interpretants:
+    - type: concept
+      value: fool's cap
+    - type: concept
+      value: torn clothes
+    - type: concept
+      value: bundle
+    - type: concept
+      value: dog
+    - type: concept
+      value: precipice
+    - type: concept
+      value: crocodile
+    - type: concept
+      value: unnumbered
+    cites: Papus, Le Tarot des Bohémiens, The Foolish Man
+    intersemiotic_interpretants:
+    - target_system: hebrew_alef_bet
+      target_sign: Tav
+      relationship: hebrew_letter
+      according_to: marelli

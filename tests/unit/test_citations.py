@@ -5,24 +5,29 @@ agent loop, which will need the same guarantee over its own output)."""
 
 from datetime import UTC, datetime
 
-from mythrix.core.models import GraphFacts, Interpretation, RetrievedPassage, Source, Symbol, Tradition
+from mythrix.core.models import GraphFacts, Manifestation, RetrievedPassage, Sign, Source, Tradition
 from mythrix.core.synthesis.citations import extract_markers, validate_citations
 
 RIDER_WAITE = Tradition(id="rider-waite", slug="rider-waite", name="Rider-Waite-Smith", domain="tarot")
-THE_TOWER = Symbol(id="the-tower", slug="the-tower", canonical_name="The Tower", symbol_type="major-arcana")
-INTERPRETATION = Interpretation(
+THE_TOWER = Sign(
+    id="the-tower",
+    slug="the-tower",
+    canonical_name="The Tower",
+    sign_type="major-arcana",
+    semiotic_system="tarot",
+)
+MANIFESTATION = Manifestation(
     id="the-tower::rider-waite",
-    symbol_id="the-tower",
+    sign_id="the-tower",
     tradition=RIDER_WAITE,
     display_name="The Tower",
-    summary="Sudden upheaval.",
+    denotation="Sudden upheaval.",
     created_at=datetime(2026, 1, 1, tzinfo=UTC),
 )
-GRAPH_FACTS = GraphFacts(symbol=THE_TOWER, interpretation=INTERPRETATION)
+GRAPH_FACTS = GraphFacts(sign=THE_TOWER, manifestation=MANIFESTATION)
 PASSAGE = RetrievedPassage(
     chunk_id="waite::0",
-    source=Source(id="waite", title="The Pictorial Key to the Tarot", author="A. E. Waite"),
-    tradition=RIDER_WAITE,
+    source=Source(id="waite", domain="tarot", title="The Pictorial Key to the Tarot", author="A. E. Waite"),
     text="Sudden upheaval; the collapse of false structures.",
 )
 PASSAGES = (PASSAGE,)  # valid markers: G1, S1

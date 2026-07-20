@@ -10,8 +10,15 @@ import kuzu
 
 from mythrix.core.graph.schema import ALL_DDL, NODE_TABLE_DDL, REL_TABLE_DDL, create_schema
 
-EXPECTED_NODE_TABLES = {"Symbol", "Tradition", "Interpretation", "Attribute", "Source"}
-EXPECTED_REL_TABLES = {"HAS_INTERPRETATION", "INTERPRETED_IN", "HAS_ATTRIBUTE", "CITES", "RELATES_TO"}
+EXPECTED_NODE_TABLES = {"Sign", "Tradition", "Manifestation", "Property", "Interpretant", "Source"}
+EXPECTED_REL_TABLES = {
+    "HAS_MANIFESTATION",
+    "MANIFESTED_IN",
+    "HAS_PROPERTY",
+    "HAS_INTERPRETANT",
+    "CITES",
+    "INTERSEMIOTIC",
+}
 
 
 def test_schema_creates_all_expected_tables(tmp_path: Path) -> None:
@@ -37,14 +44,14 @@ def test_all_ddl_is_included_in_node_and_rel_tuples() -> None:
     assert len(REL_TABLE_DDL) == len(EXPECTED_REL_TABLES)
 
 
-def test_has_attribute_spans_both_symbol_and_interpretation(tmp_path: Path) -> None:
-    """HAS_ATTRIBUTE must connect from both Symbol (intrinsic properties) and
-    Interpretation (tradition-scoped attributes) — this is what lets Samekh's
-    alphabet position live on the symbol while its meaning stays tradition-scoped."""
+def test_has_property_spans_both_sign_and_manifestation(tmp_path: Path) -> None:
+    """HAS_PROPERTY must connect from both Sign (intrinsic properties) and
+    Manifestation (tradition-scoped structural facts) — this is what lets Samekh's
+    alphabet position live on the sign while a card's deck number stays manifestation-scoped."""
     database = kuzu.Database(str(tmp_path / "graph.kuzu"))
     connection = kuzu.Connection(database)
     create_schema(connection)
 
-    pairs = {(row[0], row[1]) for row in connection.execute("CALL show_connection('HAS_ATTRIBUTE') RETURN *")}
+    pairs = {(row[0], row[1]) for row in connection.execute("CALL show_connection('HAS_PROPERTY') RETURN *")}
 
-    assert pairs == {("Symbol", "Attribute"), ("Interpretation", "Attribute")}
+    assert pairs == {("Sign", "Property"), ("Manifestation", "Property")}

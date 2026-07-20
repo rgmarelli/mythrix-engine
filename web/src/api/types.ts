@@ -1,8 +1,7 @@
 // Mirrors the SSE event payload shapes `stream_query`/`routes.py` emit
 // (`core/models.py`'s Pydantic models, `.model_dump(mode="json")`) —
-// denormalized: every passage carries its own `source`/`tradition` inline,
-// no id-based lookup table (see specs/query-viewer-web-ui/plan.md's
-// "Streaming design").
+// denormalized: every passage carries its own `source` inline, no id-based
+// lookup table (see specs/query-viewer-web-ui/plan.md's "Streaming design").
 
 export interface Tradition {
   id: string;
@@ -14,22 +13,36 @@ export interface Tradition {
 
 export interface Source {
   id: string;
+  domain: string;
+  citation_label: string;
   title: string;
   author: string;
   publication_year: number | null;
   license: string;
   uri: string;
+  description: string;
   content_hash: string;
   ingested_at: string | null;
 }
 
-export interface Attribute {
+export interface Property {
   id: string;
   key: string;
   value: string;
-  value_type: string;
   position: number;
-  retrievable: boolean;
+}
+
+export interface QueryDirective {
+  directive: string;
+  as_token: string;
+}
+
+export interface Interpretant {
+  id: string;
+  type: string;
+  value: string;
+  position: number;
+  query: QueryDirective | null;
 }
 
 export interface Citation {
@@ -37,47 +50,48 @@ export interface Citation {
   locator: string;
 }
 
-export interface RelationshipFact {
-  relationship_type: string;
-  target_symbol: Symbol;
-  according_to_tradition: Tradition;
+export interface IntersemioticInterpretant {
+  relationship: string;
+  target_sign: Sign;
+  according_to: Tradition;
   description: string;
   symmetric: boolean;
   confidence: string;
-  target_semantic_facts: Attribute[];
+  target_interpretants: Interpretant[];
   citation: Citation | null;
 }
 
-export interface Symbol {
+export interface Sign {
   id: string;
   slug: string;
   canonical_name: string;
-  symbol_type: string;
+  sign_type: string;
+  semiotic_system: string;
   notes: string;
-  properties: Attribute[];
-  relationships: RelationshipFact[];
+  properties: Property[];
+  intersemiotic_interpretants: IntersemioticInterpretant[];
 }
 
-export interface Interpretation {
+export interface Manifestation {
   id: string;
-  symbol_id: string;
+  sign_id: string;
   tradition: Tradition;
   display_name: string;
-  summary: string;
-  attributes: Attribute[];
+  denotation: string;
+  properties: Property[];
+  interpretants: Interpretant[];
   citations: Citation[];
   created_at: string;
 }
 
 export interface GraphFacts {
-  symbol: Symbol;
-  interpretation: Interpretation;
+  sign: Sign;
+  manifestation: Manifestation;
 }
 
 export interface RetrievedPassage {
   chunk_id: string;
   source: Source;
-  tradition: Tradition;
   text: string;
   locator: string;
   score: number;
@@ -109,9 +123,10 @@ export interface ConceptPairCandidates {
   candidates: MergedCandidate[];
 }
 
-export interface SymbolSummary {
+export interface SignSummary {
   slug: string;
   canonical_name: string;
-  symbol_type: string;
+  sign_type: string;
+  semiotic_system: string;
   tradition_slugs: string[];
 }

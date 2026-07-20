@@ -1,0 +1,25 @@
+semiotic_system: hebrew_alef_bet
+sign:
+  name: Qoph
+  type: hebrew-letter
+  properties:
+  - key: letter_type
+    value: simple
+  manifestations:
+  - tradition: sepher-yetzirah-gra
+    display_name: Qoph
+    interpretants:
+    - type: numeric_value
+      value: '100'
+      query:
+        directive: filter
+        as_token: hundred
+    - type: meaning
+      value: Monkey
+    - type: meaning
+      value: eye of the needle
+    - type: foundation
+      value: laughter
+    - type: constellation
+      value: Pisces
+    cites: Sepher Yetzirah

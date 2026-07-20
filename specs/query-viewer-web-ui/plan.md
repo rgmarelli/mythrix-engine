@@ -11,8 +11,8 @@ src/mythrix/
     query_service.py     # execute_query() (CLI), stream_query() (API)
     serialization.py     # facts_json_payload() — CLI --json shape
     retrieval/pipeline.py  # RetrievalPipeline.iter_candidates() — shared incremental retrieval
-    graph/store.py        # + list_traditions(), list_symbols()
-    models.py              # + SymbolSummary
+    graph/store.py        # + list_traditions(), list_signs()
+    models.py              # + SignSummary
   cli/
     commands/query.py    # run_query() — unchanged behavior, now a thin consumer of core/
     formatting.py         # render_facts_human/json — unchanged behavior
@@ -39,8 +39,8 @@ The API's `lifespan` holds a write-mode `KuzuGraphStore` open for the process's 
 
 Behavior-preserving. Existing tests pass unmodified after these changes.
 
-- `core/graph/store.py`: `KuzuGraphStore.list_traditions() -> tuple[Tradition, ...]`; `list_symbols() -> tuple[SymbolSummary, ...]`, grouping symbols that have at least one interpretation by slug.
-- `core/models.py`: `SymbolSummary(MythrixModel)` — `slug: str`, `canonical_name: str`, `symbol_type: str`, `tradition_slugs: tuple[str, ...]`.
+- `core/graph/store.py`: `KuzuGraphStore.list_traditions() -> tuple[Tradition, ...]`; `list_signs() -> tuple[SignSummary, ...]`, grouping signs that have at least one manifestation by slug.
+- `core/models.py`: `SignSummary(MythrixModel)` — `slug: str`, `canonical_name: str`, `sign_type: str`, `semiotic_system: str`, `tradition_slugs: tuple[str, ...]`. `semiotic_system` lets the picker offer a semiotic-system selector that scopes the sign list (FR20).
 - `core/bootstrap.py` (new): `build_stores(settings: Settings) -> Stores`, extracted from `cli/commands/query.py::query()`'s store-construction lines. `Stores` is a frozen container of `graph_store`/`vector_store`/`embedder`.
 - `core/retrieval/pipeline.py`: `RetrievalPipeline.retrieve` splits into `iter_candidates(graph_facts) -> Iterator[ConceptCandidates | ConceptPairCandidates]` (yields each concept's `ConceptCandidates` as its Chroma searches complete, then yields the existing sorted pair-candidate groups) and `retrieve(graph_facts) -> RetrievalContext` (collects `iter_candidates`'s output into the same `RetrievalContext` shape as before).
 - `core/query_service.py` (new): `execute_query(...) -> RetrievalContext` for the CLI, extracted from `cli/commands/query.py::run_query`'s retrieval logic, propagating `MythrixError` instead of catching it. `stream_query(...) -> Iterator[tuple[str, dict]]` for the API — yields `("graph_facts", ...)` first (graph lookup happens before the first `yield`), then one `("concept_candidates", ...)`/`("pair_candidates", ...)` pair per item from `RetrievalPipeline.iter_candidates`. Payloads are each model's own `.model_dump(mode="json")`.
@@ -56,24 +56,24 @@ Server-Sent Events (`text/event-stream`). Event sequence:
 4. `event: done` — `{}`, marks a normal end of stream.
 5. `event: error` — in place of the next event, if a `MythrixError` is raised while iterating (e.g. `ModelUnavailableError`, FR10). `{"detail": str(exc)}`. Ends the stream.
 
-`core/query_service.py::stream_query` calls `graph_store.get_interpretation(symbol, tradition)` before its first `yield`. The API route primes the generator with one `next()` call outside `StreamingResponse` construction:
+`core/query_service.py::stream_query` calls `graph_store.get_manifestation(symbol, tradition)` before its first `yield`. The API route primes the generator with one `next()` call outside `StreamingResponse` construction:
 
 ```python
 gen = stream_query(...)
 first_type, first_payload = next(gen)
 ```
 
-A `MythrixError` here (`SymbolNotFoundError`/`TraditionNotFoundError`/`InterpretationNotFoundError`, FR9) raises before any response is constructed — the standard `errors.py` exception-handler mapping applies (404/502/500 JSON). Once `next()` succeeds, the HTTP status is committed to 200; a `MythrixError` raised later (only reachable once the embedder is called inside `RetrievalPipeline.iter_candidates`, FR10) is reported as the `error` SSE event instead.
+A `MythrixError` here (`SignNotFoundError`/`TraditionNotFoundError`/`ManifestationNotFoundError`, FR9) raises before any response is constructed — the standard `errors.py` exception-handler mapping applies (404/502/500 JSON). Once `next()` succeeds, the HTTP status is committed to 200; a `MythrixError` raised later (only reachable once the embedder is called inside `RetrievalPipeline.iter_candidates`, FR10) is reported as the `error` SSE event instead.
 
 The route's body generator is a plain synchronous generator. Starlette runs a sync `body_iterator` via `iterate_in_threadpool` — the blocking Kùzu/Chroma/Ollama calls do not block the event loop for other requests.
 
 ## API package
 
 - `GET /api/traditions` — `200`, array of `Tradition.model_dump(mode="json")`, `response_model=list[Tradition]`.
-- `GET /api/symbols` — `200`, array of `SymbolSummary.model_dump(mode="json")`, `response_model=list[SymbolSummary]`. Powers the picker (FR2) — every symbol with at least one interpretation.
-- `GET /api/query?symbol=&tradition=&top_k=&match_pool=` — `200`, `text/event-stream`, event sequence above. `Settings`-derived defaults for `top_k`/`match_pool` when omitted, mirroring the CLI's `--top-k`/`--match-pool`.
+- `GET /api/symbols` — `200`, array of `SignSummary.model_dump(mode="json")`, `response_model=list[SignSummary]`. Powers the picker (FR2, FR20) — every sign with at least one manifestation, each carrying its `semiotic_system` so the picker can offer a system selector without a separate endpoint.
+- `GET /api/query?symbol=&tradition=&top_k=&match_pool=` — `200`, `text/event-stream`, event sequence above. `Settings`-derived defaults for `top_k`/`match_pool` when omitted, mirroring the CLI's `--top-k`/`--match-pool`. Query parameter names (`symbol`, `tradition`) and route paths (`/api/symbols`, `/api/traditions`) keep the pre-rename vocabulary deliberately — this is user/API-facing surface, not the authoring/domain-modeling vocabulary `core/models.py` uses internally (`Sign`, `Manifestation`, ...).
 - Stores built once at process startup via `lifespan`, stored on `app.state`, read per-request via `dependencies.py::get_stores`.
-- Error mapping (`errors.py`, source of truth `core/errors.py`): `SymbolNotFoundError`/`TraditionNotFoundError`/`InterpretationNotFoundError` → 404; `ModelUnavailableError`/`ModelRequestError`/`EmbeddingModelMismatchError` → 502; other `MythrixError` → 500. Body: `{"detail": str(exc)}`.
+- Error mapping (`errors.py`, source of truth `core/errors.py`): `SignNotFoundError`/`TraditionNotFoundError`/`ManifestationNotFoundError` → 404; `ModelUnavailableError`/`ModelRequestError`/`EmbeddingModelMismatchError` → 502; other `MythrixError` → 500. Body: `{"detail": str(exc)}`.
 - `app.py` registers `app.include_router(routes.router, prefix="/api")` before the conditional `app.mount("/", StaticFiles(directory="web/dist", html=True))`. A `Mount("/")` registered first shadows every path, including `/api/*`. `StaticFiles.__init__` raises `RuntimeError` at construction if the directory is missing (`check_dir=True` default) — the mount is guarded by `if Path("web/dist").is_dir():`.
 - OpenAPI: FastAPI's default `/docs`, `/redoc`, `/openapi.json`. `/api/query`'s `responses=` parameter documents the `text/event-stream` content with the event schemas above; its docstring lists the event sequence.
 
@@ -97,13 +97,17 @@ The route's body generator is a plain synchronous generator. Starlette runs a sy
 
 ## Frontend
 
-`web/` — React + TypeScript + Vite, independent toolchain and build. `api/client.ts` opens `new EventSource` against `/api/query` (all parameters in the URL, native GET support). Component state accumulates per SSE event: `graphFacts`, `conceptCandidates[]`, `pairCandidates[]`, appended as events land — sections render as their data arrives, not after a single blocking fetch. `PassageCard` renders source attribution (`{source.id} - {locator}`, e.g. `douay-rheims-bible - Genesis 9` — the source id plus locator, not the repeated full title/author) and score only, never passage text (FR4).
+`web/` — React + TypeScript + Vite, independent toolchain and build. `api/types.ts` mirrors `core/models.py`'s current shapes directly: `Sign`, `Manifestation`, `Property`, `Interpretant`, `IntersemioticInterpretant`, `Source` (with `domain`/`citation_label`/`description`), `RetrievedPassage` (no `tradition` field — a passage always comes from an independent corpus source), `GraphFacts` (`sign`/`manifestation`), `SignSummary` (`+ semiotic_system`). Display copy keeps the pre-rename words ("Symbol", "Correspondence") where the CLI's own human-readable rendering (`synthesis/prompts.py::graph_fact_lines`) does, for the same reason: approachable to a researcher, independent of the internal domain vocabulary.
 
-`GraphFactsPanel` renders, per correspondence, the target symbol's own `properties` and the relationship's `target_semantic_facts` nested under the correspondence line (FR16) — the target of a correspondence carries facts of its own (e.g. The Sun's `hebrew_letter` correspondence to Qoph brings in Qoph's `numeric_value`/`meaning` properties and `foundation`/`constellation` semantic facts), not just the bare relationship claim.
+`api/client.ts` opens `new EventSource` against `/api/query` (all parameters in the URL, native GET support); `fetchSymbols`/`fetchTraditions`/the `symbol`/`tradition` parameter names on `streamQuery` keep their pre-rename names, matching the API's own surface (see "API package" above). Component state accumulates per SSE event: `graphFacts`, `conceptCandidates[]`, `pairCandidates[]`, appended as events land — sections render as their data arrives, not after a single blocking fetch. `PassageCard` renders source attribution (`source.citation_label || `${source.title}, ${source.author}``, plus `, {locator}` when present — matching `cli/formatting.py`'s own attribution formula) and score only, never passage text (FR4).
+
+`SignTraditionPicker` (renamed from `SymbolTraditionPicker`) adds a semiotic-system `<select>` ahead of the sign selector (FR20): its options are the distinct `semiotic_system` values across the fetched `SignSummary[]` (no separate endpoint — `/api/symbols` already carries what's needed), sorted; choosing one filters which signs the sign `<select>` offers, exactly as choosing a sign already filters which traditions the tradition `<select>` offers. Changing the system resets both the sign and tradition selections, the same way changing the sign already resets the tradition selection.
+
+`GraphFactsPanel` renders the queried sign's own `properties`, the manifestation's own `properties`, the manifestation's `interpretants`, then each intersemiotic interpretant — and for each one, the target sign's own `properties` and the interpretant's `target_interpretants` nested under the correspondence line (FR16). The target of a correspondence carries facts of its own (e.g. The Sun's `hebrew_letter` correspondence to Qoph brings in Qoph's `numeric_value`/`meaning` properties and `foundation`/`constellation` interpretants), not just the bare relationship claim.
 
 `App.tsx` tracks which concept(s) a selected passage came from (`selectedConcepts: string[]`) alongside `selectedPassage` — a per-concept section passes `[candidates.concept]`, a pair section passes `pair.concepts` — so `PassageDetailPanel` knows what to scope an AI Summary request to (FR17). `PassageDetailPanel` is rendered with `key={selectedPassage?.chunk_id}` so React remounts it fresh on every new selection, resetting its internal summary/loading/error state rather than carrying a stale summary over to the next passage.
 
-`PassageDetailPanel` (FR5, FR17-FR19) orders its content metadata-first: the `Source`/`Locator`/`Tradition`/`Score` `<dl>` above the passage text, so the citation is visible without scrolling past the passage. Below the text, an "AI Summary — {concepts}" button calls `api/client.ts::summarizePassage(text, concepts)` (`POST /api/summarize`) and renders the returned summary, or a client-visible error on failure (FR19), without touching the rest of the displayed query result. `.passage-detail` is bounded to `max-height: calc(100svh - 2rem)` with `overflow-y: auto` so a long passage scrolls inside the panel instead of extending past the viewport with no way to reach the rest of it.
+`PassageDetailPanel` (FR5, FR17-FR19) orders its content metadata-first: the `Source`/`Locator`/`Score` `<dl>` above the passage text (no `Tradition` row — `RetrievedPassage` carries none), so the citation is visible without scrolling past the passage. Below the text, an "AI Summary — {concepts}" button calls `api/client.ts::summarizePassage(text, concepts)` (`POST /api/summarize`) and renders the returned summary, or a client-visible error on failure (FR19), without touching the rest of the displayed query result. `.passage-detail` is bounded to `max-height: calc(100svh - 2rem)` with `overflow-y: auto` so a long passage scrolls inside the panel instead of extending past the viewport with no way to reach the rest of it.
 
 ## Dev/prod serving
 

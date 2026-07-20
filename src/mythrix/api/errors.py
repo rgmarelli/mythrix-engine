@@ -10,15 +10,15 @@ from fastapi.responses import JSONResponse
 
 from mythrix.core.errors import (
     EmbeddingModelMismatchError,
-    InterpretationNotFoundError,
+    ManifestationNotFoundError,
     ModelRequestError,
     ModelUnavailableError,
     MythrixError,
-    SymbolNotFoundError,
+    SignNotFoundError,
     TraditionNotFoundError,
 )
 
-_NOT_FOUND = (SymbolNotFoundError, TraditionNotFoundError, InterpretationNotFoundError)
+_NOT_FOUND = (SignNotFoundError, TraditionNotFoundError, ManifestationNotFoundError)
 _MODEL_UNREACHABLE = (ModelUnavailableError, ModelRequestError, EmbeddingModelMismatchError)
 
 

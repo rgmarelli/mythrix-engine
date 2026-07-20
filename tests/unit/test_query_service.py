@@ -8,9 +8,9 @@ from pathlib import Path
 
 import pytest
 
-from mythrix.core.errors import SymbolNotFoundError
+from mythrix.core.errors import SignNotFoundError
 from mythrix.core.graph.store import KuzuGraphStore
-from mythrix.core.models import Attribute, Interpretation, RetrievalContext, Source, Symbol, Tradition
+from mythrix.core.models import Interpretant, Manifestation, RetrievalContext, Sign, Source, Tradition
 from mythrix.core.query_service import execute_query, stream_query
 from mythrix.core.vector.store import ChromaVectorStore
 
@@ -28,18 +28,26 @@ class FakeEmbedder:
 def graph_store(tmp_path: Path) -> KuzuGraphStore:
     store = KuzuGraphStore(tmp_path / "graph.kuzu")
     store.upsert_tradition(RIDER_WAITE)
-    store.upsert_source(Source(id="waite", title="The Pictorial Key to the Tarot", author="A. E. Waite"))
-    the_tower = Symbol(id="the-tower", slug="the-tower", canonical_name="The Tower", symbol_type="major-arcana")
-    interpretation = Interpretation(
+    store.upsert_source(
+        Source(id="waite", domain="tarot", title="The Pictorial Key to the Tarot", author="A. E. Waite")
+    )
+    the_tower = Sign(
+        id="the-tower",
+        slug="the-tower",
+        canonical_name="The Tower",
+        sign_type="major-arcana",
+        semiotic_system="tarot",
+    )
+    manifestation = Manifestation(
         id="the-tower::rider-waite",
-        symbol_id="the-tower",
+        sign_id="the-tower",
         tradition=RIDER_WAITE,
         display_name="The Tower",
-        summary="Sudden upheaval; the collapse of false structures.",
-        attributes=(Attribute(id="attr-element", key="element", value="Fire"),),
+        denotation="Sudden upheaval; the collapse of false structures.",
+        interpretants=(Interpretant(id="interp-element", type="element", value="Fire"),),
         created_at=datetime(2026, 1, 1, tzinfo=UTC),
     )
-    store.upsert_symbol_with_interpretation(the_tower, interpretation)
+    store.upsert_sign_with_manifestation(the_tower, manifestation)
     return store
 
 
@@ -66,11 +74,11 @@ def test_execute_query_returns_a_retrieval_context(
         **_kwargs(),
     )
     assert isinstance(context, RetrievalContext)
-    assert context.graph_facts.symbol.slug == "the-tower"
+    assert context.graph_facts.sign.slug == "the-tower"
 
 
 def test_execute_query_propagates_mythrix_error(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore) -> None:
-    with pytest.raises(SymbolNotFoundError):
+    with pytest.raises(SignNotFoundError):
         execute_query(
             symbol="nonexistent",
             tradition="rider-waite",
@@ -95,7 +103,7 @@ def test_stream_query_yields_graph_facts_first_then_concept_candidates(
         )
     )
     assert events[0][0] == "graph_facts"
-    assert events[0][1]["symbol"]["slug"] == "the-tower"
+    assert events[0][1]["sign"]["slug"] == "the-tower"
     assert all(event_type in {"concept_candidates", "pair_candidates"} for event_type, _ in events[1:])
 
 
@@ -114,5 +122,5 @@ def test_stream_query_raises_before_first_yield_on_unknown_symbol(
         embedder=FakeEmbedder(),
         **_kwargs(),
     )
-    with pytest.raises(SymbolNotFoundError):
+    with pytest.raises(SignNotFoundError):
         next(gen)

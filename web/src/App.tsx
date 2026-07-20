@@ -1,17 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { fetchSymbols, fetchTraditions, streamQuery } from './api/client';
-import type { ConceptCandidates, ConceptPairCandidates, GraphFacts, RetrievedPassage, SymbolSummary, Tradition } from './api/types';
+import type { ConceptCandidates, ConceptPairCandidates, GraphFacts, RetrievedPassage, SignSummary, Tradition } from './api/types';
 import { ConceptCandidatesSection } from './components/ConceptCandidatesSection';
 import { GraphFactsPanel } from './components/GraphFactsPanel';
 import { PairCandidatesSection } from './components/PairCandidatesSection';
 import { PassageDetailPanel } from './components/PassageDetailPanel';
-import { SymbolTraditionPicker } from './components/SymbolTraditionPicker';
+import { SignTraditionPicker } from './components/SignTraditionPicker';
 
 function App() {
-  const [symbols, setSymbols] = useState<SymbolSummary[]>([]);
+  const [signs, setSigns] = useState<SignSummary[]>([]);
   const [traditions, setTraditions] = useState<Tradition[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  const [selectedSystem, setSelectedSystem] = useState('');
   const [selectedSymbol, setSelectedSymbol] = useState('');
   const [selectedTradition, setSelectedTradition] = useState('');
 
@@ -27,7 +28,7 @@ function App() {
 
   useEffect(() => {
     fetchTraditions().then(setTraditions).catch((error: Error) => setLoadError(error.message));
-    fetchSymbols().then(setSymbols).catch((error: Error) => setLoadError(error.message));
+    fetchSymbols().then(setSigns).catch((error: Error) => setLoadError(error.message));
     return () => stopStreamRef.current?.();
   }, []);
 
@@ -64,12 +65,14 @@ function App() {
       <header>
         <h1>Mythrix — Query Viewer</h1>
         {loadError && <p className="error">{loadError}</p>}
-        <SymbolTraditionPicker
-          symbols={symbols}
+        <SignTraditionPicker
+          signs={signs}
           traditions={traditions}
+          selectedSystem={selectedSystem}
           selectedSymbol={selectedSymbol}
           selectedTradition={selectedTradition}
           isStreaming={isStreaming}
+          onSystemChange={setSelectedSystem}
           onSymbolChange={setSelectedSymbol}
           onTraditionChange={setSelectedTradition}
           onSubmit={handleSubmit}

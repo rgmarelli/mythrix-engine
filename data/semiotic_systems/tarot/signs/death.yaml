@@ -1,0 +1,49 @@
+semiotic_system: tarot
+sign:
+  name: Death
+  type: major-arcana
+  manifestations:
+  - tradition: rider-waite
+    display_name: Death
+    denotation: A mysterious armoured horseman rides slowly, bearing a black banner emblazoned with the
+      Mystic Rose. A king, a child, and a maiden fall before him, while a prelate awaits his end with
+      clasped hands. Between two distant pillars the sun of immortality shines.
+    properties:
+    - key: number
+      value: '13'
+    interpretants:
+    - type: concept
+      value: horseman
+    - type: concept
+      value: black banner
+    - type: concept
+      value: mystic rose
+    - type: concept
+      value: fallen king
+    cites: 'Waite, Pictorial Key to the Tarot, Part II: The Doctrine Behind the Veil, XIII. Death'
+    intersemiotic_interpretants:
+    - target_system: hebrew_alef_bet
+      target_sign: Mem
+      relationship: hebrew_letter
+      according_to: marelli
+  - tradition: marseille
+    display_name: Arcane sans nom
+    denotation: A skeleton mows down heads in a field with a scythe, while hands and feet spring up on
+      every side as the blade passes. Alone among the trumps, this card carries no printed name beneath
+      its number.
+    properties:
+    - key: number
+      value: '13'
+    interpretants:
+    - type: concept
+      value: skeleton
+    - type: concept
+      value: scythe
+    - type: concept
+      value: unnamed
+    cites: Papus, Le Tarot des Bohémiens, Death, or the Skeleton Mower
+    intersemiotic_interpretants:
+    - target_system: hebrew_alef_bet
+      target_sign: Mem
+      relationship: hebrew_letter
+      according_to: marelli

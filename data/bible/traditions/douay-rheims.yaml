@@ -1,9 +1,0 @@
-tradition:
-  name: "Douay-Rheims Bible"
-  domain: scripture
-  description: >
-    The Challoner revision of the Douay-Rheims Bible, an English translation
-    of the Christian Bible from the Latin Vulgate (Old Testament first
-    published 1609-1610, New Testament 1582). Used here purely as an
-    independent primary-source corpus — not as an interpretive tradition of
-    any symbol system, unlike every other Tradition in this dataset.

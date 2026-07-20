@@ -1,0 +1,29 @@
+semiotic_system: hebrew_alef_bet
+sign:
+  name: Kaph
+  type: hebrew-letter
+  properties:
+  - key: letter_type
+    value: double
+  manifestations:
+  - tradition: sepher-yetzirah-gra
+    display_name: Kaph
+    interpretants:
+    - type: numeric_value
+      value: '20'
+      query:
+        directive: filter
+        as_token: twenty
+    - type: meaning
+      value: Palm of the hand
+    - type: meaning
+      value: cloud
+    - type: meaning
+      value: power to suppress
+    - type: foundation
+      value: Life
+    - type: transpose
+      value: Death
+    - type: planet
+      value: Venus
+    cites: Sepher Yetzirah

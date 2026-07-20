@@ -1,0 +1,47 @@
+semiotic_system: tarot
+sign:
+  name: Strength
+  type: major-arcana
+  manifestations:
+  - tradition: rider-waite
+    display_name: Strength
+    denotation: A woman, the same sign of life brooding over her head as in the Magician, gently closes
+      the jaws of a lion with her bare hands. Her fortitude has already subdued the beast, which is led
+      by a chain of flowers rather than restrained by force.
+    properties:
+    - key: number
+      value: '8'
+    interpretants:
+    - type: concept
+      value: lion
+    - type: concept
+      value: chain of flowers
+    - type: concept
+      value: bare hands
+    cites: 'Waite, Pictorial Key to the Tarot, Part II: The Doctrine Behind the Veil, VIII. Strength,
+      or Fortitude'
+    intersemiotic_interpretants:
+    - target_system: hebrew_alef_bet
+      target_sign: Kaph
+      relationship: hebrew_letter
+      according_to: marelli
+  - tradition: marseille
+    display_name: La Force
+    denotation: A young girl calmly closes a lion's mouth without any visible effort. She wears the sign
+      of Universal Life, the figure-eight lemniscate, upon her head.
+    properties:
+    - key: number
+      value: '11'
+    interpretants:
+    - type: concept
+      value: lion
+    - type: concept
+      value: lemniscate
+    - type: concept
+      value: bare hands
+    cites: Papus, Le Tarot des Bohémiens, Strength
+    intersemiotic_interpretants:
+    - target_system: hebrew_alef_bet
+      target_sign: Kaph
+      relationship: hebrew_letter
+      according_to: marelli

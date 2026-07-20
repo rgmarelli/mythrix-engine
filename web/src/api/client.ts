@@ -2,7 +2,7 @@ import type {
   ConceptCandidates,
   ConceptPairCandidates,
   GraphFacts,
-  SymbolSummary,
+  SignSummary,
   Tradition,
 } from './types';
 
@@ -20,7 +20,7 @@ export function fetchTraditions(): Promise<Tradition[]> {
   return fetchJson('/api/traditions');
 }
 
-export function fetchSymbols(): Promise<SymbolSummary[]> {
+export function fetchSymbols(): Promise<SignSummary[]> {
   return fetchJson('/api/symbols');
 }
 
@@ -58,7 +58,7 @@ export interface QueryStreamHandlers {
  * non-2xx response before the stream opens) arrives as a plain `Event`
  * with no `.data`, and its response body is never exposed to this code by
  * the `EventSource` API, so that case falls back to a generic message. In
- * practice this path is a fallback only: `SymbolTraditionPicker` already
+ * practice this path is a fallback only: `SignTraditionPicker` already
  * restricts submissions to symbol/tradition pairs `/api/symbols` reports
  * as valid. */
 export function streamQuery(

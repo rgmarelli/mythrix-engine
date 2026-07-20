@@ -9,7 +9,7 @@ interface Props {
 
 /** The only place a passage's `text` ever renders (FR4, FR5) — full
  * verbatim text, no client-side truncation, plus the complete citation.
- * Metadata (source/locator/tradition/score) is shown first, so it's visible
+ * Metadata (source/locator/score) is shown first, so it's visible
  * without scrolling past the passage text. Remounted by `App.tsx` on every
  * new passage selection (`key={passage.chunk_id}`) so AI Summary state
  * never leaks from one passage to the next. */
@@ -26,7 +26,7 @@ export function PassageDetailPanel({ passage, concepts }: Props) {
     );
   }
 
-  const attribution = [passage.source.title, passage.source.author].filter(Boolean).join(', ');
+  const attribution = passage.source.citation_label || `${passage.source.title}, ${passage.source.author}`;
 
   async function handleSummarize() {
     setIsSummarizing(true);
@@ -51,8 +51,6 @@ export function PassageDetailPanel({ passage, concepts }: Props) {
             <dd>{passage.locator}</dd>
           </>
         )}
-        <dt>Tradition</dt>
-        <dd>{passage.tradition.name}</dd>
         <dt>Score</dt>
         <dd>{passage.score.toFixed(2)}</dd>
       </dl>

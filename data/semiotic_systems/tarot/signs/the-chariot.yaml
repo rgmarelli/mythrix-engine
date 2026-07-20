@@ -1,0 +1,52 @@
+semiotic_system: tarot
+sign:
+  name: The Chariot
+  type: major-arcana
+  manifestations:
+  - tradition: rider-waite
+    display_name: The Chariot
+    denotation: An erect, princely figure stands in a chariot bearing a drawn sword, the Urim and Thummim
+      upon his shoulders. Two sphinxes, one black and one white, draw the chariot beneath a starry canopy
+      — the figure of conquest and triumph on every plane.
+    properties:
+    - key: number
+      value: '7'
+    interpretants:
+    - type: concept
+      value: drawn sword
+    - type: concept
+      value: two sphinxes
+    - type: concept
+      value: starry canopy
+    cites: 'Waite, Pictorial Key to the Tarot, Part II: The Doctrine Behind the Veil, VII. The Chariot'
+    intersemiotic_interpretants:
+    - target_system: hebrew_alef_bet
+      target_sign: Zayin
+      relationship: hebrew_letter
+      according_to: marelli
+  - tradition: marseille
+    display_name: Le Chariot
+    denotation: A conqueror crowned with a coronet bearing three golden pentagrams advances in a cubical
+      chariot beneath an azure, star-decked canopy raised on four columns. He bears the Urim and Thummim
+      upon his shoulders and holds a sceptre surmounted by a globe, a square, and a triangle. Two sphinxes,
+      one white and one black, are harnessed to the chariot.
+    properties:
+    - key: number
+      value: '7'
+    interpretants:
+    - type: concept
+      value: pentagrams
+    - type: concept
+      value: canopy
+    - type: concept
+      value: sphinxes
+    - type: concept
+      value: urim and thummim
+    - type: concept
+      value: sceptre
+    cites: Papus, Le Tarot des Bohémiens, The Chariot
+    intersemiotic_interpretants:
+    - target_system: hebrew_alef_bet
+      target_sign: Zayin
+      relationship: hebrew_letter
+      according_to: marelli

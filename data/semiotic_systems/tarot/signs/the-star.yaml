@@ -1,0 +1,51 @@
+semiotic_system: tarot
+sign:
+  name: The Star
+  type: major-arcana
+  manifestations:
+  - tradition: rider-waite
+    display_name: The Star
+    denotation: A great, radiant eight-rayed star is surrounded by seven lesser stars. Below, an entirely
+      naked woman kneels with one knee on the land and one foot on the water, pouring the Water of Life
+      from two great ewers to irrigate sea and land alike, while a bird alights on a nearby tree.
+    properties:
+    - key: number
+      value: '17'
+    interpretants:
+    - type: concept
+      value: eight-rayed star
+    - type: concept
+      value: two ewers
+    - type: concept
+      value: kneeling figure
+    - type: concept
+      value: bird in tree
+    cites: 'Waite, Pictorial Key to the Tarot, Part II: The Doctrine Behind the Veil, XVII. The Star'
+    intersemiotic_interpretants:
+    - target_system: hebrew_alef_bet
+      target_sign: Peh
+      relationship: hebrew_letter
+      according_to: marelli
+  - tradition: marseille
+    display_name: L'Étoile
+    denotation: A nude female figure pours the Water of Universal Life from two cups. She is crowned with
+      seven stars, among which shines one large and brilliant star, and near her an ibis rests upon a
+      flower.
+    properties:
+    - key: number
+      value: '17'
+    interpretants:
+    - type: concept
+      value: nude figure
+    - type: concept
+      value: two cups
+    - type: concept
+      value: seven stars
+    - type: concept
+      value: ibis
+    cites: Papus, Le Tarot des Bohémiens, The Star
+    intersemiotic_interpretants:
+    - target_system: hebrew_alef_bet
+      target_sign: Peh
+      relationship: hebrew_letter
+      according_to: marelli

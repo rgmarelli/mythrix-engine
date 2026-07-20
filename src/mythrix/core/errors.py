@@ -12,16 +12,16 @@ class MythrixError(Exception):
     """Base class for all Mythrix-specific errors."""
 
 
-class SymbolNotFoundError(MythrixError):
-    """Raised when a query names a symbol that doesn't exist in the Symbol Graph."""
+class SignNotFoundError(MythrixError):
+    """Raised when a query names a sign that doesn't exist in the Sign Graph."""
 
-    def __init__(self, symbol_slug: str) -> None:
-        self.symbol_slug = symbol_slug
-        super().__init__(f"No symbol found with slug {symbol_slug!r}.")
+    def __init__(self, sign_slug: str) -> None:
+        self.sign_slug = sign_slug
+        super().__init__(f"No sign found with slug {sign_slug!r}.")
 
 
 class TraditionNotFoundError(MythrixError):
-    """Raised when a query names a tradition that doesn't exist in the Symbol Graph."""
+    """Raised when a query names a tradition that doesn't exist in the Sign Graph."""
 
     def __init__(self, tradition_slug: str) -> None:
         self.tradition_slug = tradition_slug
@@ -30,26 +30,27 @@ class TraditionNotFoundError(MythrixError):
 
 class SourceNotFoundError(MythrixError):
     """Raised when a document is ingested for a source that hasn't been declared
-    (via the structured-data loader) in the Symbol Graph yet."""
+    (via the structured-data loader) in the Sign Graph yet."""
 
     def __init__(self, source_id: str) -> None:
         self.source_id = source_id
         super().__init__(f"No source found with id {source_id!r}. Load it via the structured-data loader first.")
 
 
-class InterpretationNotFoundError(MythrixError):
-    """Raised when both the symbol and tradition exist, but the symbol has no
-    interpretation recorded within that specific tradition."""
+class ManifestationNotFoundError(MythrixError):
+    """Raised when both the sign and tradition exist, but the sign has no
+    manifestation recorded within that specific tradition."""
 
-    def __init__(self, symbol_slug: str, tradition_slug: str) -> None:
-        self.symbol_slug = symbol_slug
+    def __init__(self, sign_slug: str, tradition_slug: str) -> None:
+        self.sign_slug = sign_slug
         self.tradition_slug = tradition_slug
-        super().__init__(f"Symbol {symbol_slug!r} has no interpretation in tradition {tradition_slug!r}.")
+        super().__init__(f"Sign {sign_slug!r} has no manifestation in tradition {tradition_slug!r}.")
 
 
 class IngestValidationError(MythrixError):
     """Raised when structured data fails schema or referential-integrity validation
-    during loading. Nothing is written to the graph when this is raised (FR5)."""
+    during loading, including an unresolvable target semiotic system (FR18).
+    Nothing is written to the graph when this is raised (FR5)."""
 
     def __init__(self, message: str, *, source_path: str | None = None) -> None:
         self.source_path = source_path

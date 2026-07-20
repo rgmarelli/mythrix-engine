@@ -51,7 +51,7 @@ def _render_pair_block(pair: ConceptPairCandidates, *, max_chars: int | None) ->
     lines = []
     for i, candidate in enumerate(pair.candidates):
         passage = candidate.passage
-        attribution = f"{passage.source.title}, {passage.source.author}"
+        attribution = passage.source.citation_label or f"{passage.source.title}, {passage.source.author}"
         if passage.locator:
             attribution += f", {passage.locator}"
         components = " · ".join(_render_match_component(match) for match in candidate.matches)

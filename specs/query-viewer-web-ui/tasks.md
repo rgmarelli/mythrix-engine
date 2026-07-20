@@ -57,3 +57,15 @@
 - [x] T38: `App.tsx` — track `selectedConcepts` alongside `selectedPassage`; pass through from both section components.
 - [x] T39: `api/client.ts::summarizePassage`; `PassageDetailPanel.tsx` — AI Summary button, loading/error/result states, remounted via `key={chunk_id}` per selection.
 - [x] T40: Manual check — AI Summary button against real Ollama (`qwen2.5:3b`) produces a passage-focused summary end to end.
+
+## Sign/Manifestation vocabulary catch-up + semiotic-system selector
+
+- [x] T41: `core/models.py::SignSummary` — add `semiotic_system: str`; `core/graph/store.py::list_signs()` — select and populate it.
+- [x] T42: `tests/unit/test_graph_store.py`/`test_api.py` — assert `semiotic_system` on the updated fixtures.
+- [x] T43: Rewrite `web/src/api/types.ts` for the current `core/models.py` shapes: `Sign`, `Manifestation`, `Property`, `Interpretant`, `IntersemioticInterpretant`, `Source` (`id`/`domain`/`citation_label`/`description`), `RetrievedPassage` (no `tradition`), `GraphFacts` (`sign`/`manifestation`), `SignSummary` (`+ semiotic_system`).
+- [x] T44: Rename `SymbolTraditionPicker.tsx` → `SignTraditionPicker.tsx`; add a semiotic-system `<select>` (FR20) that filters the sign list, resetting sign/tradition selections on change.
+- [x] T45: `GraphFactsPanel.tsx` — update field access to `sign`/`manifestation`/`property`/`interpretant`/`intersemiotic_interpretants`; render the manifestation's own `properties` alongside the sign's.
+- [x] T46: `PassageCard.tsx`/`PassageDetailPanel.tsx` — attribution via `source.citation_label || `${title}, ${author}``; drop the `Tradition` `<dl>` row (removed from `RetrievedPassage`).
+- [x] T47: `App.tsx` — wire the renamed picker and updated types; no behavior change to streaming/selection state.
+- [x] T48: `cd web && npx tsc -b && npx oxlint` clean; `npm run build` succeeds.
+- [x] T49: Manual check — dev server renders a system → sign → tradition cascade, submits a query, and results match `mythrix query --json` for the same sign/tradition pair.

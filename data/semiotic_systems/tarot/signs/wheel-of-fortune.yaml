@@ -1,0 +1,54 @@
+semiotic_system: tarot
+sign:
+  name: Wheel of Fortune
+  type: major-arcana
+  manifestations:
+  - tradition: rider-waite
+    display_name: Wheel of Fortune
+    denotation: A great wheel is inscribed with the letters TARO counterchanged with the letters of the
+      Divine Name. A sphinx, the equilibrium of the scene, sits atop the wheel, while the four Living
+      Creatures of Ezekiel's vision occupy the angles of the card — the perpetual motion of a fluidic
+      universe and the flux of human life.
+    properties:
+    - key: number
+      value: '10'
+    interpretants:
+    - type: concept
+      value: wheel
+    - type: concept
+      value: sphinx
+    - type: concept
+      value: four living creatures
+    - type: concept
+      value: Divine Name
+    cites: 'Waite, Pictorial Key to the Tarot, Part II: The Doctrine Behind the Veil, X. Wheel of Fortune'
+    intersemiotic_interpretants:
+    - target_system: hebrew_alef_bet
+      target_sign: Yod
+      relationship: hebrew_letter
+      according_to: marelli
+  - tradition: marseille
+    display_name: La Roue de Fortune
+    denotation: The wheel of fortune is suspended upon its axis. To the right, Anubis, the genius of good,
+      ascends; to the left, Typhon, the genius of evil, descends. A sphinx is balanced upon the centre
+      of the wheel, holding a sword in its lion claws.
+    properties:
+    - key: number
+      value: '10'
+    interpretants:
+    - type: concept
+      value: wheel
+    - type: concept
+      value: anubis
+    - type: concept
+      value: typhon
+    - type: concept
+      value: sphinx
+    - type: concept
+      value: sword
+    cites: Papus, Le Tarot des Bohémiens, The Wheel of Fortune
+    intersemiotic_interpretants:
+    - target_system: hebrew_alef_bet
+      target_sign: Yod
+      relationship: hebrew_letter
+      according_to: marelli

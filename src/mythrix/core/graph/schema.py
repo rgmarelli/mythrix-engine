@@ -1,21 +1,28 @@
-"""Kùzu DDL for the Symbol Graph — the single source of truth for its schema.
+"""Kùzu DDL for the Sign Graph — the single source of truth for its schema.
 
-Domain-agnostic by construction: every table here is generic (Symbol, Tradition,
-Interpretation, Attribute, Source, and their relationships). No domain-specific
-column or table belongs here — see tests/unit/test_domain_agnosticism.py.
+Domain-agnostic by construction: every table here is generic (Sign, Tradition,
+Manifestation, Property, Interpretant, Source, and their relationships). No
+domain-specific column or table belongs here — see tests/unit/test_domain_agnosticism.py.
 
-`Interpretation` is the key join entity: "this Symbol as understood within this
-Tradition." Tradition-specific *meaning* (display name, summary, attributes, citations)
-hangs off `Interpretation`, never off the bare `Symbol` — this is what keeps distinct
-traditions from ever collapsing into one merged meaning (FR2).
+`Manifestation` is the key join entity: "this Sign as understood within this
+Tradition." Tradition-specific *meaning* (display name, denotation, properties,
+interpretants, citations) hangs off `Manifestation`, never off the bare `Sign` —
+this is what keeps distinct traditions from ever collapsing into one merged
+meaning (FR2).
 
-`RELATES_TO` (correspondences between symbols, e.g. a tarot card to a Hebrew letter)
-connects `Symbol -> Symbol` directly, not `Interpretation -> Interpretation`. A
-correspondence claim's attribution lives entirely in its `according_to_tradition_id`
-property — tying the edge to one *specific* interpretation of each endpoint as well
-would be redundant scoping, and would block a symbol with zero interpretations from
-ever participating in a correspondence (FR3, and the "interpretations are optional"
-requirement it must support).
+`INTERSEMIOTIC` (correspondences between signs, e.g. a tarot card to a Hebrew
+letter) connects `Sign -> Sign` directly, not `Manifestation -> Manifestation`.
+A correspondence claim's attribution lives entirely in its `according_to_id`
+property — tying the edge to one *specific* manifestation of each endpoint as
+well would be redundant scoping, and would block a sign with zero manifestations
+from ever participating in a correspondence (FR3, and the "manifestations are
+optional" requirement it must support).
+
+`Property` and `Interpretant` are separate node tables: a property is never used
+to build retrieval query text regardless of scope (FR8, FR21), while an
+interpretant always is unless it carries a `query_directive` (FR28) — the two
+roles have different columns and no shared upsert path, unlike the earlier
+single `Attribute` table this schema replaces.
 
 Kùzu is pre-1.0 and its DDL syntax has changed release-to-release, so this module is
 validated against the exact `kuzu` version pinned in pyproject.toml (see
@@ -26,11 +33,12 @@ from __future__ import annotations
 
 NODE_TABLE_DDL: tuple[str, ...] = (
     """
-    CREATE NODE TABLE Symbol(
+    CREATE NODE TABLE Sign(
         id STRING,
         slug STRING,
         canonical_name STRING,
-        symbol_type STRING,
+        sign_type STRING,
+        semiotic_system STRING,
         notes STRING,
         PRIMARY KEY (id)
     )
@@ -46,24 +54,33 @@ NODE_TABLE_DDL: tuple[str, ...] = (
     )
     """,
     """
-    CREATE NODE TABLE Interpretation(
+    CREATE NODE TABLE Manifestation(
         id STRING,
-        symbol_id STRING,
+        sign_id STRING,
         tradition_id STRING,
         display_name STRING,
-        summary STRING,
+        denotation STRING,
         created_at TIMESTAMP,
         PRIMARY KEY (id)
     )
     """,
     """
-    CREATE NODE TABLE Attribute(
+    CREATE NODE TABLE Property(
         id STRING,
         key STRING,
         value STRING,
-        value_type STRING,
         position INT64,
-        retrievable BOOLEAN,
+        PRIMARY KEY (id)
+    )
+    """,
+    """
+    CREATE NODE TABLE Interpretant(
+        id STRING,
+        type STRING,
+        value STRING,
+        position INT64,
+        query_directive STRING,
+        query_as_token STRING,
         PRIMARY KEY (id)
     )
     """,
@@ -74,11 +91,14 @@ NODE_TABLE_DDL: tuple[str, ...] = (
     """
     CREATE NODE TABLE Source(
         id STRING,
+        domain STRING,
+        citation_label STRING,
         title STRING,
         author STRING,
         publication_year INT64,
         license STRING,
         uri STRING,
+        description STRING,
         content_hash STRING,
         ingested_at TIMESTAMP,
         PRIMARY KEY (id)
@@ -87,22 +107,24 @@ NODE_TABLE_DDL: tuple[str, ...] = (
 )
 
 REL_TABLE_DDL: tuple[str, ...] = (
-    "CREATE REL TABLE HAS_INTERPRETATION(FROM Symbol TO Interpretation)",
-    "CREATE REL TABLE INTERPRETED_IN(FROM Interpretation TO Tradition)",
-    # Symbol->Attribute is for intrinsic, tradition-independent facts (e.g. a Hebrew
-    # letter's alphabet position or numeric value). Interpretation->Attribute is for
-    # tradition-dependent interpretive claims (e.g. element, keywords). Keeping both
-    # pairs on one rel table lets a single query pattern disambiguate by node type.
-    "CREATE REL TABLE HAS_ATTRIBUTE(FROM Symbol TO Attribute, FROM Interpretation TO Attribute)",
-    "CREATE REL TABLE CITES(FROM Interpretation TO Source, locator STRING)",
+    "CREATE REL TABLE HAS_MANIFESTATION(FROM Sign TO Manifestation)",
+    "CREATE REL TABLE MANIFESTED_IN(FROM Manifestation TO Tradition)",
+    # Sign->Property is for intrinsic, tradition-independent facts (e.g. a Hebrew
+    # letter's alphabet position or numeric value). Manifestation->Property is for
+    # tradition-specific structural facts (e.g. a card's deck number in one
+    # specific deck). Keeping both pairs on one rel table lets a single query
+    # pattern disambiguate by node type.
+    "CREATE REL TABLE HAS_PROPERTY(FROM Sign TO Property, FROM Manifestation TO Property)",
+    "CREATE REL TABLE HAS_INTERPRETANT(FROM Manifestation TO Interpretant)",
+    "CREATE REL TABLE CITES(FROM Manifestation TO Source, locator STRING)",
     """
-    CREATE REL TABLE RELATES_TO(
-        FROM Symbol TO Symbol,
-        relationship_type STRING,
+    CREATE REL TABLE INTERSEMIOTIC(
+        FROM Sign TO Sign,
+        relationship STRING,
         description STRING,
         symmetric BOOLEAN,
         confidence STRING,
-        according_to_tradition_id STRING,
+        according_to_id STRING,
         source_id STRING
     )
     """,

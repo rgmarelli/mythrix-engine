@@ -36,7 +36,26 @@ class Tradition(MythrixModel):
 
 
 class Source(MythrixModel):
-    """A primary-source document citable by an interpretation or a relationship claim.
+    """A primary-source document citable by a manifestation or an intersemiotic
+    interpretant, or ingested as an independent corpus document (FR6).
+
+    `id` is always authored explicitly in the source's own YAML — unlike a
+    `Sign`, a source is never referenced by curators repeating its slug across
+    other files (a manifestation's `cites:` resolves by fuzzy title/author
+    match, not by id), so an authored id carries none of the repetition risk
+    FR18 exists to avoid for signs.
+
+    `domain` names the broad subject area this source belongs to (e.g.
+    "tarot", "scripture") — the same free-text vocabulary `Tradition.domain`
+    already uses, not a `Sign.semiotic_system` value; a corpus source has no
+    semiotic system of its own to belong to.
+
+    `citation_label` is the short human-readable label used to attribute a
+    retrieved passage in output (FR13) — e.g. "Douay-Rheims" — in place of
+    `title`/`author`, which stay as full bibliographic metadata. Left empty
+    for a source that is only ever cited via a `Citation` (never ingested
+    into the vector store), since those render their own attribution from
+    `title`/`author` directly.
 
     `content_hash`/`ingested_at` are written by the document loader, not authored
     in a `Source` YAML file — they record what file (by content) is currently
@@ -46,152 +65,195 @@ class Source(MythrixModel):
     """
 
     id: str
+    domain: str
+    citation_label: str = ""
     title: str
     author: str
     publication_year: int | None = None
     license: str = ""
     uri: str = ""
+    description: str = ""
     content_hash: str = ""
     ingested_at: datetime | None = None
 
 
-class Symbol(MythrixModel):
-    """A domain-agnostic symbol anchor.
-
-    `canonical_name` is an internal/fallback label only — the tradition-specific display
-    name actually shown to users lives on `Interpretation.display_name` (FR2).
-
-    `properties` holds intrinsic, tradition-independent facts about the symbol itself
-    (e.g. a Hebrew letter's alphabet position or numeric value) — true regardless of
-    interpretive lens, unlike `Interpretation.attributes`, which holds tradition-scoped
-    interpretive claims (e.g. element, keywords) that can genuinely differ by tradition.
-
-    `relationships` holds this symbol's correspondences to other symbols (FR3, FR19).
-    These live on `Symbol`, not `Interpretation`, because a correspondence claim is
-    about the symbol itself, attributed to whichever tradition/system asserts it —
-    not about one specific tradition's rendering of it — and because a symbol with no
-    interpretation at all must still be able to participate in a correspondence.
-    Relationship targets are shallow (their own `relationships` is always `()`) to
-    avoid unbounded recursion; only the top-level queried symbol has this populated.
-    """
-
-    id: str
-    slug: str
-    canonical_name: str
-    symbol_type: str
-    notes: str = ""
-    properties: tuple[Attribute, ...] = ()
-    relationships: tuple[RelationshipFact, ...] = ()
-
-
-class Attribute(MythrixModel):
-    """A single key/value fact scoped to one interpretation (e.g. element -> Fire).
-
-    `value_type` is a free-text hint for rendering (e.g. "string", "number", "list") —
-    not an enforced enum, so new domains aren't blocked by a fixed type vocabulary a
-    future curator hasn't anticipated. Unknown values should be treated as "string" by
-    consumers rather than rejected.
-
-    `retrievable` is the curator's own call on whether this fact should feed retrieval
-    query construction (FR8) — default `True`. Some facts are purely identifying/
-    bookkeeping (e.g. a tarot card's position number in its own deck) and would only
-    inject a stray token into a similarity search; others that happen to share a
-    superficial trait like "is a number" can still be real symbolic content (e.g. a
-    Hebrew letter's gematria value) that must stay in. The distinction is a curatorial
-    judgment about *this specific fact*, not something core/retrieval code can safely
-    infer from the key name or value type alone — see plan.md's domain-agnosticism
-    guardrail, which is exactly why that inference used to live in `core/retrieval/`
-    and had to be pulled back out.
+class Property(MythrixModel):
+    """A static, structural fact — never used to build retrieval query text (FR8,
+    FR21), regardless of whether it is attached to a `Sign` (tradition-independent)
+    or a `Manifestation` (tradition-specific).
     """
 
     id: str
     key: str
     value: str
-    value_type: str = "string"
     position: int = 0
-    retrievable: bool = True
+
+
+class QueryDirective(MythrixModel):
+    """A curator-authored retrieval instruction on one `Interpretant` (FR8, FR28).
+
+    `directive` is a free-text hint, not an enforced enum — v1 code interprets only
+    `"filter"`, which marks this interpretant as an exact value: it is excluded from
+    the plain concept query text and instead applied as an additional literal-text
+    filter using `as_token`.
+    """
+
+    directive: str
+    as_token: str
+
+
+class Interpretant(MythrixModel):
+    """A conceptual token, value, or meaning evoked by a sign within one
+    manifestation (FR20) — eligible for retrieval query construction (FR8, FR24)
+    unless it carries a `query` directive, in which case it is handled as described
+    on `QueryDirective`.
+
+    `type` is a free-text hint for display/organization (e.g. "concept",
+    "foundation", "numeric_value") — descriptive metadata only, not part of
+    concept-pair grouping identity (FR27), which is keyed by `value` alone.
+    """
+
+    id: str
+    type: str = "concept"
+    value: str
+    position: int = 0
+    query: QueryDirective | None = None
 
 
 class Citation(MythrixModel):
-    """A citation to a source, from either an interpretation or a relationship claim."""
+    """A citation to a source, from either a manifestation or an intersemiotic
+    interpretant."""
 
     source: Source
     locator: str = ""
 
 
-class RelationshipFact(MythrixModel):
-    """A typed, attributable correspondence from one symbol to another (FR3, FR19).
+class IntersemioticInterpretant(MythrixModel):
+    """A typed, attributable correspondence from one sign to another (FR3, FR19).
 
-    `according_to_tradition` records which tradition/attribution-system asserts this
-    specific claim — deliberately the *only* attribution on the edge, since the claim
-    is about the symbols themselves, not about a specific interpretation of either one.
-    This is what lets multiple competing correspondence systems coexist without
-    conflicting, and what lets a symbol with zero interpretations still participate.
+    `according_to` records which tradition/attribution-system asserts this
+    specific claim — deliberately the *only* attribution on the edge, since the
+    claim is about the signs themselves, not about a specific manifestation of
+    either one. This is what lets multiple competing correspondence systems
+    coexist without conflicting, and what lets a sign with zero manifestations
+    still participate.
 
-    `confidence` is free text, not an enforced enum — e.g. "attributed", "traditional",
-    "disputed", "speculative" are suggested starting points for curators, but this
-    vocabulary is a documentation convention, not a validated closed set.
+    `confidence` is free text, not an enforced enum — e.g. "attributed",
+    "traditional", "disputed", "speculative" are suggested starting points for
+    curators, but this vocabulary is a documentation convention, not a validated
+    closed set.
 
-    `target_semantic_facts` is *not* part of the correspondence claim itself — it's
-    the target symbol's own interpretation-level attributes, gathered across every
-    tradition it's interpreted under, purely so retrieval query construction (FR8)
-    can draw on what the target itself means, not just its bare `properties`. E.g. a
-    tarot card's correspondence to a Hebrew letter should pull in that letter's own
-    `foundation`/planetary or zodiacal assignment, not just intrinsic facts like its
-    numeric value.
+    `target_interpretants` is *not* part of the correspondence claim itself —
+    it's the target sign's own manifestation-level interpretants, gathered
+    across every tradition it is manifested under, purely so retrieval query
+    construction (FR8) can draw on what the target itself means. It never
+    includes `target_sign.properties` or any manifestation's `properties` —
+    properties are never used to build query text, at any scope, reached any way.
     """
 
-    relationship_type: str
-    target_symbol: Symbol
-    according_to_tradition: Tradition
+    relationship: str
+    target_sign: Sign
+    according_to: Tradition
     description: str = ""
     symmetric: bool = False
     confidence: str = "attributed"
-    target_semantic_facts: tuple[Attribute, ...] = ()
+    target_interpretants: tuple[Interpretant, ...] = ()
     citation: Citation | None = None
 
 
-class Interpretation(MythrixModel):
-    """A symbol as understood within one tradition — the join entity that keeps
-    distinct traditions' meanings from collapsing into one. Correspondences to other
-    symbols live on `Symbol.relationships`, not here — see `RelationshipFact`."""
+class Sign(MythrixModel):
+    """A domain-agnostic sign anchor.
+
+    `canonical_name` is an internal/fallback label only — the tradition-specific
+    display name actually shown to users lives on `Manifestation.display_name` (FR2).
+
+    `semiotic_system` names the overarching domain/system this sign belongs to
+    (e.g. "tarot_cards", "hebrew_alef_bet") — always present, even for a sign
+    with zero manifestations, so an intersemiotic interpretant's target can be
+    resolved by name scoped to a named system (FR18).
+
+    `properties` holds intrinsic, tradition-independent facts about the sign
+    itself (e.g. a Hebrew letter's alphabet position or numeric value) — true
+    regardless of interpretive lens, unlike `Manifestation.interpretants`, which
+    holds tradition-scoped interpretive claims that can genuinely differ by
+    tradition.
+
+    `intersemiotic_interpretants` holds this sign's correspondences to other
+    signs (FR3, FR19). These live on `Sign`, not `Manifestation`, because a
+    correspondence claim is about the sign itself, attributed to whichever
+    tradition/system asserts it — not about one specific tradition's rendering
+    of it — and because a sign with no manifestation at all must still be able
+    to participate in a correspondence. Targets are shallow (their own
+    `intersemiotic_interpretants` is always `()`) to avoid unbounded recursion;
+    only the top-level queried sign has this populated.
+    """
 
     id: str
-    symbol_id: str
+    slug: str
+    canonical_name: str
+    sign_type: str
+    semiotic_system: str
+    notes: str = ""
+    properties: tuple[Property, ...] = ()
+    intersemiotic_interpretants: tuple[IntersemioticInterpretant, ...] = ()
+
+
+class Manifestation(MythrixModel):
+    """A sign as understood within one tradition — the join entity that keeps
+    distinct traditions' meanings from collapsing into one. Intersemiotic
+    interpretants to other signs live on `Sign.intersemiotic_interpretants`, not
+    here — see `IntersemioticInterpretant`.
+
+    `properties` holds structural facts specific to this one tradition's
+    rendering of the sign (e.g. a card's position number within one specific
+    deck) — distinct from `Sign.properties` (tradition-independent) and from
+    `interpretants` (tradition-scoped but eligible for retrieval).
+    """
+
+    id: str
+    sign_id: str
     tradition: Tradition
     display_name: str
-    summary: str
-    attributes: tuple[Attribute, ...] = ()
+    denotation: str = ""
+    properties: tuple[Property, ...] = ()
+    interpretants: tuple[Interpretant, ...] = ()
     citations: tuple[Citation, ...] = ()
     created_at: datetime
 
 
-class SymbolSummary(MythrixModel):
-    """A lightweight listing of one symbol, for a picker to choose a
-    symbol/tradition pair guaranteed to have an interpretation (FR9 of
-    `specs/query-viewer-web-ui/spec.md`) — not a full `Symbol` (no
-    `properties`/`relationships`), since a picker has no use for either."""
+class SignSummary(MythrixModel):
+    """A lightweight listing of one sign, for a picker to choose a
+    sign/tradition pair guaranteed to have a manifestation (FR9 of
+    `specs/query-viewer-web-ui/spec.md`) — not a full `Sign` (no
+    `properties`/`intersemiotic_interpretants`), since a picker has no use for
+    either.
+
+    `semiotic_system` lets a picker offer a semiotic-system selector that
+    scopes which signs it lists (FR20 of `specs/query-viewer-web-ui/spec.md`)."""
 
     slug: str
     canonical_name: str
-    symbol_type: str
+    sign_type: str
+    semiotic_system: str
     tradition_slugs: tuple[str, ...] = ()
 
 
 class GraphFacts(MythrixModel):
-    """Deterministic result of a single graph query: one symbol, resolved for one
+    """Deterministic result of a single graph query: one sign, resolved for one
     tradition (v1 query scope, FR9)."""
 
-    symbol: Symbol
-    interpretation: Interpretation
+    sign: Sign
+    manifestation: Manifestation
 
 
 class RetrievedPassage(MythrixModel):
-    """A single retrieved document chunk, carrying full verbatim text for display (FR13)."""
+    """A single retrieved document chunk, carrying full verbatim text for
+    display (FR13). Carries no `Tradition` — a retrieved passage always comes
+    from an independent corpus document (FR7), which has no interpretive
+    tradition of its own; `source.citation_label` is what attributes it."""
 
     chunk_id: str
     source: Source
-    tradition: Tradition
     text: str
     locator: str = ""
     score: float = 0.0
@@ -202,15 +264,15 @@ class RetrievedPassage(MythrixModel):
 
 
 class ConceptCandidates(MythrixModel):
-    """Retrieved passages for one individually-queried concept (FR24) — an attribute
-    value, a keyword, or a relationship-target fact, exactly as decomposed by
-    `retrieval.pipeline.build_query_texts`. Kept separate from every other concept's
-    candidates rather than merged into one shared pool, so a well-supported concept
-    (e.g. a precise numeric-fact match) can't be crowded out of the final output by
-    unrelated concepts that simply generated more queries — the empirical failure
-    this restructuring exists to fix (see plan.md's "Concept-scoped retrieval and
-    synthesis"). Where two concepts both retrieve the same passage, that convergence
-    is surfaced separately as `ConceptPairCandidates` (FR27).
+    """Retrieved passages for one individually-queried concept (FR24) — an
+    interpretant value, exactly as decomposed by `retrieval.pipeline.build_query_texts`.
+    Kept separate from every other concept's candidates rather than merged into
+    one shared pool, so a well-supported concept (e.g. a precise exact-value
+    match) can't be crowded out of the final output by unrelated concepts that
+    simply generated more queries — the empirical failure this restructuring
+    exists to fix (see plan.md's "Concept-scoped retrieval and synthesis").
+    Where two concepts both retrieve the same passage, that convergence is
+    surfaced separately as `ConceptPairCandidates` (FR27).
 
     `concept` doubles as both the grouping key and the human-readable label shown in
     output — it's the atomic query text itself (e.g. "white horse", "laughter"),
@@ -225,12 +287,13 @@ class ConceptMatchScore(MythrixModel):
     """One concept's own claim on a passage, within a pair match (FR27, FR28).
 
     `score` is that concept's best similarity for this passage. `exact_value` marks
-    the FR28 case: a numeric fact (a gematria value, a deck position) reaches a
-    passage through a literal-text filter, not through embedding similarity, so its
-    membership is a *guarantee* that the passage contains that value rather than a
-    similarity judgment. Such a match carries no meaningful magnitude — its `score`
-    is not comparable to a semantic concept's and is excluded from the combined
-    score (see `ConceptPairCandidates`).
+    the FR28 case: an interpretant carrying a `query.directive: "filter"`
+    annotation reaches a passage through a literal-text filter, not through
+    embedding similarity, so its membership is a *guarantee* that the passage
+    contains its `as_token` text rather than a similarity judgment. Such a match
+    carries no meaningful magnitude — its `score` is not comparable to a
+    semantic concept's and is excluded from the combined score (see
+    `ConceptPairCandidates`).
     """
 
     concept: str
@@ -271,7 +334,7 @@ class ConceptPairCandidates(MythrixModel):
     negative component would otherwise make the square root complex; a passage
     anti-correlated with one member has no conjunctive strength anyway. An
     `exact_value` member (FR28) contributes membership but no score, so a
-    concept-plus-number pair is scored by its semantic concept alone.
+    concept-plus-filter-token pair is scored by its semantic concept alone.
 
     Scores are only comparable *within* a group, where every candidate is scored by
     the same two queries and any per-query bias is constant across the rows being

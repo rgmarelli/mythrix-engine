@@ -1,0 +1,25 @@
+semiotic_system: hebrew_alef_bet
+sign:
+  name: Zayin
+  type: hebrew-letter
+  properties:
+  - key: letter_type
+    value: simple
+  manifestations:
+  - tradition: sepher-yetzirah-gra
+    display_name: Zayin
+    interpretants:
+    - type: numeric_value
+      value: '7'
+      query:
+        directive: filter
+        as_token: seven
+    - type: meaning
+      value: Weapon
+    - type: meaning
+      value: sword
+    - type: foundation
+      value: motion
+    - type: constellation
+      value: Gemini
+    cites: Sepher Yetzirah

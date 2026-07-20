@@ -9,14 +9,14 @@ docstring.
 from datetime import UTC, datetime
 
 from mythrix.core.models import (
-    Attribute,
     Citation,
     GraphFacts,
-    Interpretation,
-    RelationshipFact,
+    Interpretant,
+    IntersemioticInterpretant,
+    Manifestation,
     RetrievedPassage,
+    Sign,
     Source,
-    Symbol,
     Tradition,
 )
 from mythrix.core.synthesis.prompts import graph_fact_ids, passage_ids, render_passages_block
@@ -25,43 +25,49 @@ RIDER_WAITE = Tradition(id="rider-waite", slug="rider-waite", name="Rider-Waite-
 GOLDEN_DAWN = Tradition(
     id="golden-dawn-kabbalah", slug="golden-dawn-kabbalah", name="Golden Dawn Kabbalah", domain="kabbalah"
 )
-PEH = Symbol(id="hebrew-letter-peh", slug="hebrew-letter-peh", canonical_name="Peh", symbol_type="hebrew-letter")
-WAITE_SOURCE = Source(id="waite-pictorial-key", title="The Pictorial Key to the Tarot", author="A. E. Waite")
+PEH = Sign(
+    id="hebrew-letter-peh",
+    slug="hebrew-letter-peh",
+    canonical_name="Peh",
+    sign_type="hebrew-letter",
+    semiotic_system="hebrew_alef_bet",
+)
+WAITE_SOURCE = Source(
+    id="waite-pictorial-key", domain="tarot", title="The Pictorial Key to the Tarot", author="A. E. Waite"
+)
 
-THE_TOWER = Symbol(
+THE_TOWER = Sign(
     id="the-tower",
     slug="the-tower",
     canonical_name="The Tower",
-    symbol_type="major-arcana",
-    relationships=(
-        RelationshipFact(
-            relationship_type="corresponds_to_letter", target_symbol=PEH, according_to_tradition=GOLDEN_DAWN
-        ),
+    sign_type="major-arcana",
+    semiotic_system="tarot",
+    intersemiotic_interpretants=(
+        IntersemioticInterpretant(relationship="corresponds_to_letter", target_sign=PEH, according_to=GOLDEN_DAWN),
     ),
 )
-THE_TOWER_INTERPRETATION = Interpretation(
+THE_TOWER_MANIFESTATION = Manifestation(
     id="the-tower::rider-waite",
-    symbol_id="the-tower",
+    sign_id="the-tower",
     tradition=RIDER_WAITE,
     display_name="The Tower",
-    summary="Sudden upheaval; the collapse of false structures.",
-    attributes=(Attribute(id="attr-element", key="element", value="Fire"),),
+    denotation="Sudden upheaval; the collapse of false structures.",
+    interpretants=(Interpretant(id="interp-element", type="element", value="Fire"),),
     citations=(Citation(source=WAITE_SOURCE, locator="p. 143"),),
     created_at=datetime(2026, 1, 1, tzinfo=UTC),
 )
-GRAPH_FACTS = GraphFacts(symbol=THE_TOWER, interpretation=THE_TOWER_INTERPRETATION)
+GRAPH_FACTS = GraphFacts(sign=THE_TOWER, manifestation=THE_TOWER_MANIFESTATION)
 PASSAGE = RetrievedPassage(
     chunk_id="waite-pictorial-key::0",
     source=WAITE_SOURCE,
-    tradition=RIDER_WAITE,
     text="Sudden upheaval; the collapse of false structures.",
     locator="p. 143",
     score=0.9,
 )
 
 
-def test_graph_fact_ids_enumerates_identity_attribute_and_relationship() -> None:
-    # 1 identity line + 1 attribute + 1 relationship = G1..G3
+def test_graph_fact_ids_enumerates_identity_interpretant_and_correspondence() -> None:
+    # 1 identity line + 1 interpretant + 1 correspondence = G1..G3
     assert graph_fact_ids(GRAPH_FACTS) == ("G1", "G2", "G3")
 
 

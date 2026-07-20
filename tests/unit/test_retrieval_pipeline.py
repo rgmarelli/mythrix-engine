@@ -1,20 +1,19 @@
 """Unit tests for RetrievalPipeline (T15, restructured T26): multi-query text
 construction from graph facts only — one query per *individual atomic
-concept*, no identity query and no `key:` label (one per attribute value —
+concept*, no identity query and no `type:` label (one per interpretant value —
 split further on commas, since a value can list several distinct concepts
-under one key — then per corresponds_to relationship one per atomic concept
-about the target, but not the target's bare name, disabled for now), never
-grouping concepts into a combined query, see pipeline.py's docstring for why
-— plus corpus-wide (not tradition-scoped) retrieval, grouped and merged
-per concept (FR24) via Reciprocal Rank Fusion *within* that concept's own
-queries only, never across a different concept's queries (see pipeline.py's
-docstring for the real crowding-out case that motivated this), and hydration
-of raw vector hits into full RetrievedPassages — including hits from a
-*different* tradition than the one queried, which is the whole point of
-FR7's revised scoping (an independent document like Genesis should be
-discoverable when querying a tarot symbol, not excluded for carrying a
-different tradition tag). Uses a fake vector store/embedder — no Ollama
-needed."""
+under one type — then per intersemiotic interpretant one per atomic concept
+about the target's own `target_interpretants`, but not the target's bare
+name, disabled for now), never grouping concepts into a combined query, see
+pipeline.py's docstring for why — plus corpus-wide retrieval with no
+tradition to scope by (FR7), grouped and merged per concept (FR24) via
+Reciprocal Rank Fusion *within* that concept's own queries only, never
+across a different concept's queries (see pipeline.py's docstring for the
+real crowding-out case that motivated this), and hydration of raw vector
+hits into full RetrievedPassages from an independent corpus source (FR7:
+e.g. Genesis, discoverable when querying a tarot sign, carrying no
+interpretive tradition of its own). Uses a fake vector store/embedder — no
+Ollama needed."""
 
 from datetime import UTC, datetime
 from pathlib import Path
@@ -23,32 +22,40 @@ import pytest
 
 from mythrix.core.graph.store import KuzuGraphStore
 from mythrix.core.models import (
-    Attribute,
     ConceptCandidates,
     ConceptPairCandidates,
     GraphFacts,
-    Interpretation,
-    RelationshipFact,
+    Interpretant,
+    IntersemioticInterpretant,
+    Manifestation,
+    Property,
+    QueryDirective,
     RetrievalContext,
+    Sign,
     Source,
-    Symbol,
     Tradition,
 )
 from mythrix.core.retrieval.pipeline import RetrievalPipeline, _combined_score, build_query_texts
 from mythrix.core.vector.store import VectorHit
 
 RIDER_WAITE = Tradition(id="rider-waite", slug="rider-waite", name="Rider-Waite-Smith", domain="tarot")
-THE_TOWER = Symbol(id="the-tower", slug="the-tower", canonical_name="The Tower", symbol_type="major-arcana")
-THE_TOWER_INTERPRETATION = Interpretation(
+THE_TOWER = Sign(
+    id="the-tower",
+    slug="the-tower",
+    canonical_name="The Tower",
+    sign_type="major-arcana",
+    semiotic_system="tarot",
+)
+THE_TOWER_MANIFESTATION = Manifestation(
     id="the-tower::rider-waite",
-    symbol_id="the-tower",
+    sign_id="the-tower",
     tradition=RIDER_WAITE,
     display_name="The Tower",
-    summary="Sudden upheaval; the collapse of false structures.",
-    attributes=(Attribute(id="attr-element", key="element", value="Fire"),),
+    denotation="Sudden upheaval; the collapse of false structures.",
+    interpretants=(Interpretant(id="interp-element", type="element", value="Fire"),),
     created_at=datetime(2026, 1, 1, tzinfo=UTC),
 )
-GRAPH_FACTS = GraphFacts(symbol=THE_TOWER, interpretation=THE_TOWER_INTERPRETATION)
+GRAPH_FACTS = GraphFacts(sign=THE_TOWER, manifestation=THE_TOWER_MANIFESTATION)
 
 
 class FakeEmbedder:
@@ -67,10 +74,9 @@ class FakeVectorStore:
         self._hits = hits
         self.last_call: dict | None = None
 
-    def similarity_search(self, query_embedding, *, tradition_slug=None, top_k=6, document_contains=None):  # noqa: ANN001, ANN201
+    def similarity_search(self, query_embedding, *, top_k=6, document_contains=None):  # noqa: ANN001, ANN201
         self.last_call = {
             "query_embedding": query_embedding,
-            "tradition_slug": tradition_slug,
             "top_k": top_k,
             "document_contains": document_contains,
         }
@@ -87,7 +93,7 @@ class SequencedVectorStore:
         self.call_count = 0
         self.document_contains_per_call: list[str | None] = []
 
-    def similarity_search(self, query_embedding, *, tradition_slug=None, top_k=6, document_contains=None):  # noqa: ANN001, ANN201
+    def similarity_search(self, query_embedding, *, top_k=6, document_contains=None):  # noqa: ANN001, ANN201
         self.call_count += 1
         self.document_contains_per_call.append(document_contains)
         return next(self._hits_per_call)
@@ -97,14 +103,16 @@ class SequencedVectorStore:
 def graph_store(tmp_path: Path) -> KuzuGraphStore:
     store = KuzuGraphStore(tmp_path / "graph.kuzu")
     store.upsert_tradition(RIDER_WAITE)
-    store.upsert_source(Source(id="waite-pictorial-key", title="The Pictorial Key to the Tarot", author="A. E. Waite"))
+    store.upsert_source(
+        Source(id="waite-pictorial-key", domain="tarot", title="The Pictorial Key to the Tarot", author="A. E. Waite")
+    )
     return store
 
 
-def test_query_texts_have_no_identity_query_only_one_per_attribute_value() -> None:
-    """No combined name+summary query — a symbol's canonical name, display
-    name, and summary are never searched at all, only its individual
-    attribute values, so every symbol is represented by comparably short,
+def test_query_texts_have_no_identity_query_only_one_per_interpretant_value() -> None:
+    """No combined name+denotation query — a sign's canonical name, display
+    name, and denotation are never searched at all, only its individual
+    interpretant values, so every sign is represented by comparably short,
     atomic queries instead of some being diluted by a long paragraph others
     don't have (pipeline.py's module docstring)."""
     query_texts = build_query_texts(GRAPH_FACTS)
@@ -113,44 +121,46 @@ def test_query_texts_have_no_identity_query_only_one_per_attribute_value() -> No
     assert not any("Tower" in q.text or "upheaval" in q.text for q in query_texts)
 
 
-def test_query_texts_exclude_only_attributes_marked_not_retrievable() -> None:
+def test_manifestation_properties_never_feed_query_text() -> None:
     """A card's ordinal position in its deck isn't descriptive of what the
-    symbol means — including it would inject an arbitrary numeral into the
-    similarity search, diluting it with content unrelated to meaning. Only
-    an attribute explicitly marked `retrievable: false` is excluded — being
-    numeric isn't itself disqualifying (see the sibling test: a Hebrew
-    letter's gematria `numeric_value` is numeric too, but is real symbolic
-    content and must stay included by default)."""
-    numbered_interpretation = THE_TOWER_INTERPRETATION.model_copy(
-        update={
-            "attributes": (
-                Attribute(id="attr-element", key="element", value="Fire"),
-                Attribute(id="attr-number", key="number", value="16", value_type="integer", retrievable=False),
-            )
-        }
+    sign means — including it would inject an arbitrary numeral into the
+    similarity search, diluting it with content unrelated to meaning.
+    Properties are structurally excluded from query-text construction — there
+    is no per-fact flag to set, `build_query_texts` simply never reads
+    `Manifestation.properties`/`Sign.properties` at all."""
+    manifestation_with_property = THE_TOWER_MANIFESTATION.model_copy(
+        update={"properties": (Property(id="prop-number", key="number", value="16"),)}
     )
-    graph_facts = GraphFacts(symbol=THE_TOWER, interpretation=numbered_interpretation)
+    graph_facts = GraphFacts(sign=THE_TOWER, manifestation=manifestation_with_property)
 
     query_texts = build_query_texts(graph_facts)
 
     assert query_texts == [("Fire", None)]
+    assert not any("16" in q.text for q in query_texts)
 
 
-def test_query_texts_convert_a_lone_gematria_value_to_its_word_form_with_no_filter() -> None:
+def test_query_texts_convert_a_lone_gematria_interpretant_to_its_authored_token_with_no_filter() -> None:
     """Unlike a card's `number`, a Hebrew letter's `numeric_value` (gematria)
     is real symbolic content in Kabbalah — gematria is literally the
-    technique of connecting concepts by matching numeric value — so it must
-    stay included by default (`retrievable` defaults to `True`) despite also
-    being `value_type: integer`. But an exact value isn't a fuzzy meaning an
-    embedding matches well on its own (pipeline.py's module docstring): with
-    no other concept in this group to attach it to as a filter, it's
-    searched as plain text in its English word form ("100" -> "hundred")."""
-    interpretation_with_gematria = THE_TOWER_INTERPRETATION.model_copy(
+    technique of connecting concepts by matching numeric value — so a curator
+    marks it with `query: {directive: filter, as_token: ...}`. But an exact
+    value isn't a fuzzy meaning an embedding matches well on its own
+    (pipeline.py's module docstring):
+    with no other concept in this group to attach it to as a filter, it's
+    searched plainly in its authored token form ("100" -> "hundred")."""
+    manifestation_with_gematria = THE_TOWER_MANIFESTATION.model_copy(
         update={
-            "attributes": (Attribute(id="attr-numeric-value", key="numeric_value", value="100", value_type="integer"),)
+            "interpretants": (
+                Interpretant(
+                    id="interp-numeric-value",
+                    type="numeric_value",
+                    value="100",
+                    query=QueryDirective(directive="filter", as_token="hundred"),
+                ),
+            )
         }
     )
-    graph_facts = GraphFacts(symbol=THE_TOWER, interpretation=interpretation_with_gematria)
+    graph_facts = GraphFacts(sign=THE_TOWER, manifestation=manifestation_with_gematria)
 
     query_texts = build_query_texts(graph_facts)
 
@@ -159,14 +169,16 @@ def test_query_texts_convert_a_lone_gematria_value_to_its_word_form_with_no_filt
 
 def test_query_texts_split_a_comma_separated_value_into_one_query_per_concept() -> None:
     """A value like a Hebrew letter's `meaning`, "Monkey, eye of the needle",
-    lists two unrelated concepts sharing one key — not one phrase. Each must
+    lists two unrelated concepts sharing one type — not one phrase. Each must
     become its own query, since one ("eye of the needle") can be exactly the
     useful signal while the other ("Monkey") contributes nothing, and bundled
     together neither would compete cleanly against anything."""
-    interpretation_with_list_meaning = THE_TOWER_INTERPRETATION.model_copy(
-        update={"attributes": (Attribute(id="attr-meaning", key="meaning", value="Monkey, eye of the needle"),)}
+    manifestation_with_list_meaning = THE_TOWER_MANIFESTATION.model_copy(
+        update={
+            "interpretants": (Interpretant(id="interp-meaning", type="meaning", value="Monkey, eye of the needle"),)
+        }
     )
-    graph_facts = GraphFacts(symbol=THE_TOWER, interpretation=interpretation_with_list_meaning)
+    graph_facts = GraphFacts(sign=THE_TOWER, manifestation=manifestation_with_list_meaning)
 
     query_texts = build_query_texts(graph_facts)
 
@@ -188,41 +200,47 @@ def test_query_texts_add_a_gematria_filtered_variant_without_dropping_the_plain_
     combining both signals ranks higher via RRF, without excluding a passage
     that only matches the concept. The filter is global (not scoped to the
     group the number came from): Qoph's gematria filters its own
-    `properties`/`target_semantic_facts` concepts (Monkey, eye of the needle,
-    laughter, Pisces) *and* the symbol's own unrelated "Fire" attribute — a
-    real passage can combine a concept from one part of the graph with a
-    number from a completely different part (e.g. Genesis 21: a child born
-    when his father was a hundred years old). The target's bare name ("Qoph")
-    is deliberately NOT queried on its own — see the module docstring TODO on
-    why."""
-    qoph = Symbol(
+    `target_interpretants` concepts (Monkey, eye of the needle, laughter,
+    Pisces) *and* the sign's own unrelated "Fire" interpretant — a real
+    passage can combine a concept from one part of the graph with a number
+    from a completely different part (e.g. Genesis 21: a child born when his
+    father was a hundred years old). The target's bare name ("Qoph") is
+    deliberately NOT queried on its own — see the module docstring TODO on
+    why. Qoph's own `properties` never feed this at all — only
+    `target_interpretants` does (the properties-asymmetry fix)."""
+    qoph = Sign(
         id="qoph",
         slug="qoph",
         canonical_name="Qoph",
-        symbol_type="hebrew-letter",
-        properties=(
-            Attribute(id="qoph-numeric-value", key="numeric_value", value="100", value_type="integer"),
-            Attribute(id="qoph-meaning", key="meaning", value="Monkey, eye of the needle"),
-        ),
+        sign_type="hebrew-letter",
+        semiotic_system="hebrew_alef_bet",
+        properties=(Property(id="qoph-letter-type", key="letter_type", value="simple"),),
     )
     marelli = Tradition(id="marelli", slug="marelli", name="marelli", domain="kabbalah")
     the_sun = THE_TOWER.model_copy(
         update={
             "canonical_name": "The Sun",
-            "relationships": (
-                RelationshipFact(
-                    relationship_type="hebrew_letter",
-                    target_symbol=qoph,
-                    according_to_tradition=marelli,
-                    target_semantic_facts=(
-                        Attribute(id="qoph-foundation", key="foundation", value="laughter"),
-                        Attribute(id="qoph-constellation", key="constellation", value="Pisces"),
+            "intersemiotic_interpretants": (
+                IntersemioticInterpretant(
+                    relationship="hebrew_letter",
+                    target_sign=qoph,
+                    according_to=marelli,
+                    target_interpretants=(
+                        Interpretant(
+                            id="qoph-numeric-value",
+                            type="numeric_value",
+                            value="100",
+                            query=QueryDirective(directive="filter", as_token="hundred"),
+                        ),
+                        Interpretant(id="qoph-meaning", type="meaning", value="Monkey, eye of the needle"),
+                        Interpretant(id="qoph-foundation", type="foundation", value="laughter"),
+                        Interpretant(id="qoph-constellation", type="constellation", value="Pisces"),
                     ),
                 ),
             ),
         }
     )
-    graph_facts = GraphFacts(symbol=the_sun, interpretation=THE_TOWER_INTERPRETATION)
+    graph_facts = GraphFacts(sign=the_sun, manifestation=THE_TOWER_MANIFESTATION)
 
     query_texts = build_query_texts(graph_facts)
 
@@ -253,18 +271,19 @@ def test_query_texts_add_a_gematria_filtered_variant_without_dropping_the_plain_
         "hundred",
     ]
     # Every filtered variant carries the number's authored value too (FR28),
-    # not just its search word — this is what lets "100" surface as a pair
+    # not just its search token — this is what lets "100" surface as a pair
     # member later, rather than being discarded once the search text is derived.
-    filtered_queries = [q for q in query_texts if q.number is not None]
-    assert all(q.number.value == "100" for q in filtered_queries)
+    filtered_queries = [q for q in query_texts if q.filter_token is not None]
+    assert all(q.filter_token.value == "100" for q in filtered_queries)
     assert "Qoph" not in texts
     assert not any("Qoph" in t for t in texts)
     assert "100" not in texts  # the raw digit form is never searched as embeddable text
+    assert not any("simple" in t for t in texts)  # Qoph's own properties never feed query text either
 
 
-def test_retrieve_searches_the_full_corpus_without_a_tradition_filter(graph_store: KuzuGraphStore) -> None:
-    """FR7 (revised): retrieval is not scoped to the queried interpretation's
-    own tradition — an independent document may carry any tradition tag."""
+def test_retrieve_searches_the_full_corpus_with_no_scoping_filter(graph_store: KuzuGraphStore) -> None:
+    """FR7: retrieval is never scoped by tradition — there is no tradition
+    parameter left on `similarity_search` to pass one through."""
     embedder = FakeEmbedder()
     vector_store = FakeVectorStore(hits=[])
     # match_pool_size, not top_k, is what reaches `similarity_search` (FR27 —
@@ -278,25 +297,27 @@ def test_retrieve_searches_the_full_corpus_without_a_tradition_filter(graph_stor
     assert embedder.embedded_texts == [q.text for q in build_query_texts(GRAPH_FACTS)]
     assert vector_store.last_call == {
         "query_embedding": [1.0, 0.0],
-        "tradition_slug": None,
         "top_k": 3,
         "document_contains": None,
     }
 
 
-def test_retrieve_hydrates_a_hit_from_a_different_tradition(graph_store: KuzuGraphStore) -> None:
-    """The concrete scenario FR7 was revised for: a query about a tarot symbol
-    (tradition `rider-waite`) surfacing a passage from an independent corpus
-    tagged under an entirely different tradition (`douay-rheims`)."""
-    bible_tradition = Tradition(id="douay-rheims", slug="douay-rheims", name="Douay-Rheims Bible", domain="scripture")
-    graph_store.upsert_tradition(bible_tradition)
+def test_retrieve_hydrates_a_hit_from_an_independent_corpus_source(graph_store: KuzuGraphStore) -> None:
+    """The concrete scenario FR7 exists for: a query about a tarot sign
+    surfacing a passage from an independent corpus document, which carries no
+    tradition of its own at all (FR7)."""
     graph_store.upsert_source(
-        Source(id="douay-rheims-bible", title="The Holy Bible, Douay-Rheims, Complete", author="Various")
+        Source(
+            id="douay-rheims-bible",
+            domain="scripture",
+            citation_label="Douay-Rheims",
+            title="The Holy Bible, Douay-Rheims, Complete",
+            author="Various",
+        )
     )
     hit = VectorHit(
         chunk_id="douay-rheims-bible::0",
         source_id="douay-rheims-bible",
-        tradition_slug="douay-rheims",
         domain="scripture",
         text="And they said: Come, let us make a city and a tower, the top whereof may reach to heaven.",
         chunk_index=0,
@@ -313,8 +334,8 @@ def test_retrieve_hydrates_a_hit_from_a_different_tradition(graph_store: KuzuGra
 
     assert len(context.all_passages) == 1
     passage = context.all_passages[0]
-    assert passage.tradition.slug == "douay-rheims"
     assert passage.source.title == "The Holy Bible, Douay-Rheims, Complete"
+    assert passage.source.citation_label == "Douay-Rheims"
     assert "tower" in passage.text.lower()
 
 
@@ -322,7 +343,6 @@ def test_retrieve_hydrates_hits_into_full_retrieved_passages(graph_store: KuzuGr
     hit = VectorHit(
         chunk_id="waite-pictorial-key::0",
         source_id="waite-pictorial-key",
-        tradition_slug="rider-waite",
         domain="tarot",
         text="The Tower represents sudden and unavoidable upheaval.",
         chunk_index=0,
@@ -344,7 +364,6 @@ def test_retrieve_hydrates_hits_into_full_retrieved_passages(graph_store: KuzuGr
     passage = context.all_passages[0]
     assert passage.text == "The Tower represents sudden and unavoidable upheaval."
     assert passage.source.title == "The Pictorial Key to the Tarot"
-    assert passage.tradition.slug == "rider-waite"
     assert passage.chunk_index == 0
     assert passage.char_start == 100
     assert passage.char_end == 155
@@ -355,7 +374,6 @@ def test_retrieve_filters_out_hits_below_min_score(graph_store: KuzuGraphStore) 
     low_score_hit = VectorHit(
         chunk_id="waite-pictorial-key::1",
         source_id="waite-pictorial-key",
-        tradition_slug="rider-waite",
         domain="tarot",
         text="Unrelated passage.",
         chunk_index=1,
@@ -377,71 +395,77 @@ def test_retrieve_filters_out_hits_below_min_score(graph_store: KuzuGraphStore) 
     assert context.all_passages == ()
 
 
-def _relationship_graph_facts() -> GraphFacts:
-    """A symbol with exactly two query facets under the current (no identity,
-    no relationship-name) scheme: one attribute of the symbol's own
-    interpretation, and one property on its corresponds_to target — i.e. the
-    minimal case that still exercises multi-query search: one query from the
-    symbol's own side, one from the relationship's target."""
-    qoph = Symbol(
-        id="qoph",
-        slug="qoph",
-        canonical_name="Qoph",
-        symbol_type="hebrew-letter",
-        properties=(Attribute(id="qoph-meaning", key="meaning", value="Fish"),),
+def _intersemiotic_graph_facts() -> GraphFacts:
+    """A sign with exactly two query facets under the current (no identity,
+    no relationship-name) scheme: one interpretant of the sign's own
+    manifestation, and one interpretant on its intersemiotic-interpretant
+    target — i.e. the minimal case that still exercises multi-query search:
+    one query from the sign's own side, one from the target's side."""
+    qoph = Sign(
+        id="qoph", slug="qoph", canonical_name="Qoph", sign_type="hebrew-letter", semiotic_system="hebrew_alef_bet"
     )
     marelli = Tradition(id="marelli", slug="marelli", name="marelli", domain="kabbalah")
     the_sun = THE_TOWER.model_copy(
         update={
             "canonical_name": "The Sun",
-            "relationships": (
-                RelationshipFact(relationship_type="hebrew_letter", target_symbol=qoph, according_to_tradition=marelli),
+            "intersemiotic_interpretants": (
+                IntersemioticInterpretant(
+                    relationship="hebrew_letter",
+                    target_sign=qoph,
+                    according_to=marelli,
+                    target_interpretants=(Interpretant(id="qoph-meaning", type="meaning", value="Fish"),),
+                ),
             ),
         }
     )
-    interpretation_with_one_attribute = THE_TOWER_INTERPRETATION.model_copy(
-        update={"attributes": (Attribute(id="attr-element", key="element", value="Fire"),)}
+    manifestation_with_one_interpretant = THE_TOWER_MANIFESTATION.model_copy(
+        update={"interpretants": (Interpretant(id="interp-element", type="element", value="Fire"),)}
     )
-    return GraphFacts(symbol=the_sun, interpretation=interpretation_with_one_attribute)
+    return GraphFacts(sign=the_sun, manifestation=manifestation_with_one_interpretant)
 
 
-def _gematria_relationship_graph_facts() -> GraphFacts:
-    """Like `_relationship_graph_facts`, but the relationship target also
-    carries a gematria value — so the symbol's own "Fire" attribute is one
-    concept with a single query, while the target's "Fish" meaning is a
-    *second*, separate concept with two queries (plain + "hundred"-filtered).
-    Used to test Reciprocal Rank Fusion and top_k truncation *within* one
-    concept, and isolation *between* concepts (FR24)."""
-    qoph = Symbol(
-        id="qoph",
-        slug="qoph",
-        canonical_name="Qoph",
-        symbol_type="hebrew-letter",
-        properties=(
-            Attribute(id="qoph-numeric-value", key="numeric_value", value="100", value_type="integer"),
-            Attribute(id="qoph-meaning", key="meaning", value="Fish"),
-        ),
+def _gematria_intersemiotic_graph_facts() -> GraphFacts:
+    """Like `_intersemiotic_graph_facts`, but the target also carries a
+    gematria value — so the sign's own "Fire" interpretant is one concept
+    with a single query, while the target's "Fish" meaning is a *second*,
+    separate concept with two queries (plain + "hundred"-filtered). Used to
+    test Reciprocal Rank Fusion and top_k truncation *within* one concept,
+    and isolation *between* concepts (FR24)."""
+    qoph = Sign(
+        id="qoph", slug="qoph", canonical_name="Qoph", sign_type="hebrew-letter", semiotic_system="hebrew_alef_bet"
     )
     marelli = Tradition(id="marelli", slug="marelli", name="marelli", domain="kabbalah")
     the_sun = THE_TOWER.model_copy(
         update={
             "canonical_name": "The Sun",
-            "relationships": (
-                RelationshipFact(relationship_type="hebrew_letter", target_symbol=qoph, according_to_tradition=marelli),
+            "intersemiotic_interpretants": (
+                IntersemioticInterpretant(
+                    relationship="hebrew_letter",
+                    target_sign=qoph,
+                    according_to=marelli,
+                    target_interpretants=(
+                        Interpretant(
+                            id="qoph-numeric-value",
+                            type="numeric_value",
+                            value="100",
+                            query=QueryDirective(directive="filter", as_token="hundred"),
+                        ),
+                        Interpretant(id="qoph-meaning", type="meaning", value="Fish"),
+                    ),
+                ),
             ),
         }
     )
-    interpretation_with_one_attribute = THE_TOWER_INTERPRETATION.model_copy(
-        update={"attributes": (Attribute(id="attr-element", key="element", value="Fire"),)}
+    manifestation_with_one_interpretant = THE_TOWER_MANIFESTATION.model_copy(
+        update={"interpretants": (Interpretant(id="interp-element", type="element", value="Fire"),)}
     )
-    return GraphFacts(symbol=the_sun, interpretation=interpretation_with_one_attribute)
+    return GraphFacts(sign=the_sun, manifestation=manifestation_with_one_interpretant)
 
 
 def _make_hit(chunk_id: str, distance: float) -> VectorHit:
     return VectorHit(
         chunk_id=chunk_id,
         source_id="waite-pictorial-key",
-        tradition_slug="rider-waite",
         domain="tarot",
         text=f"Passage for {chunk_id}.",
         chunk_index=0,
@@ -453,12 +477,12 @@ def _make_hit(chunk_id: str, distance: float) -> VectorHit:
 
 
 def test_retrieve_never_fuses_across_different_concepts(graph_store: KuzuGraphStore) -> None:
-    """Two concepts ("Fire", the symbol's own attribute; "Fish", the
-    relationship target's meaning) must never be merged into one shared pool
+    """Two concepts ("Fire", the sign's own interpretant; "Fish", the
+    intersemiotic target's meaning) must never be merged into one shared pool
     (FR24) — each comes back as its own separate `ConceptCandidates`, even
     though the old flat-merge design would have combined them into a single
     ranked list."""
-    graph_facts = _relationship_graph_facts()
+    graph_facts = _intersemiotic_graph_facts()
     hit_fire = _make_hit("waite-pictorial-key::fire-hit", distance=0.2)
     hit_fish = _make_hit("waite-pictorial-key::fish-hit", distance=0.3)
     vector_store = SequencedVectorStore([[hit_fire], [hit_fish]])
@@ -485,7 +509,7 @@ def test_retrieve_fuses_multiple_queries_of_the_same_concept_by_reciprocal_rank(
     docstring). This is unrelated to, and must not be confused with, fusion
     *across* concepts, which no longer happens at all (see the sibling
     'never fuses across different concepts' test)."""
-    graph_facts = _gematria_relationship_graph_facts()
+    graph_facts = _gematria_intersemiotic_graph_facts()
     hit_x = _make_hit("waite-pictorial-key::X", distance=0.05)  # best raw match, but only in one query
     hit_y = _make_hit("waite-pictorial-key::Y", distance=0.5)
     hit_y_filtered = _make_hit("waite-pictorial-key::Y", distance=0.4)  # Y found by both of Fish's queries
@@ -509,7 +533,7 @@ def test_retrieve_deduplicates_a_chunk_matched_by_multiple_queries_of_the_same_c
     (its plain form and its gematria-filtered variant) — it must appear once
     in that concept's results, with its best (lowest-distance) displayed
     score, not once per matching query."""
-    graph_facts = _gematria_relationship_graph_facts()
+    graph_facts = _gematria_intersemiotic_graph_facts()
     weaker_match = _make_hit("waite-pictorial-key::0", distance=0.6)
     stronger_match = _make_hit("waite-pictorial-key::0", distance=0.3)
     # 4 calls now that the gematria filter is global: Fire(None), Fire(hundred), Fish(None), Fish(hundred).
@@ -531,7 +555,7 @@ def test_retrieve_truncates_each_concepts_own_hits_to_top_k(graph_store: KuzuGra
     (rank 1 in one query only) comes next; chunk 3 (rank 2 in one query only)
     is excluded by the `top_k=2` cap — all entirely within the "Fish"
     concept, unaffected by "Fire" (which returns nothing here)."""
-    graph_facts = _gematria_relationship_graph_facts()
+    graph_facts = _gematria_intersemiotic_graph_facts()
     plain_hits = [
         _make_hit("waite-pictorial-key::0", distance=0.1),
         _make_hit("waite-pictorial-key::2", distance=0.2),
@@ -566,17 +590,17 @@ def test_retrieve_keeps_every_concepts_own_top_hit_even_when_globally_outranked(
     with `top_k=1`, it would have been the only one excluded. Each concept
     now gets its own `top_k` budget, so it survives regardless of how many
     other concepts exist alongside it."""
-    interpretation = THE_TOWER_INTERPRETATION.model_copy(
+    manifestation = THE_TOWER_MANIFESTATION.model_copy(
         update={
-            "attributes": (
-                Attribute(id="attr-1", key="keyword", value="naked child"),
-                Attribute(id="attr-2", key="keyword", value="white horse"),
-                Attribute(id="attr-3", key="keyword", value="red standard"),
-                Attribute(id="attr-4", key="foundation", value="laughter"),
+            "interpretants": (
+                Interpretant(id="interp-1", type="concept", value="naked child"),
+                Interpretant(id="interp-2", type="concept", value="white horse"),
+                Interpretant(id="interp-3", type="concept", value="red standard"),
+                Interpretant(id="interp-4", type="foundation", value="laughter"),
             )
         }
     )
-    graph_facts = GraphFacts(symbol=THE_TOWER, interpretation=interpretation)
+    graph_facts = GraphFacts(sign=THE_TOWER, manifestation=manifestation)
     hits_per_call = [
         [_make_hit("naked-child-hit", distance=0.1)],
         [_make_hit("white-horse-hit", distance=0.15)],
@@ -595,36 +619,14 @@ def test_retrieve_keeps_every_concepts_own_top_hit_even_when_globally_outranked(
 
 
 def test_retrieve_passes_the_gematria_filter_through_to_the_vector_store(graph_store: KuzuGraphStore) -> None:
-    """End-to-end: a relationship target's gematria value reaches the vector
+    """End-to-end: an intersemiotic target's gematria value reaches the vector
     store as an actual `document_contains` filter *globally* — not just on
-    its own sibling concept ("Fish"), but also on the symbol's own unrelated
-    "Fire" attribute — never replacing any plain (unfiltered) search, just
+    its own sibling concept ("Fish"), but also on the sign's own unrelated
+    "Fire" interpretant — never replacing any plain (unfiltered) search, just
     adding to every one of them (see pipeline.py's module docstring on why a
     hard filter would silently kill results for most cards, and on why the
     filter is global rather than scoped to the group the number came from)."""
-    qoph = Symbol(
-        id="qoph",
-        slug="qoph",
-        canonical_name="Qoph",
-        symbol_type="hebrew-letter",
-        properties=(
-            Attribute(id="qoph-numeric-value", key="numeric_value", value="100", value_type="integer"),
-            Attribute(id="qoph-meaning", key="meaning", value="Fish"),
-        ),
-    )
-    marelli = Tradition(id="marelli", slug="marelli", name="marelli", domain="kabbalah")
-    the_sun = THE_TOWER.model_copy(
-        update={
-            "canonical_name": "The Sun",
-            "relationships": (
-                RelationshipFact(relationship_type="hebrew_letter", target_symbol=qoph, according_to_tradition=marelli),
-            ),
-        }
-    )
-    interpretation_with_one_attribute = THE_TOWER_INTERPRETATION.model_copy(
-        update={"attributes": (Attribute(id="attr-element", key="element", value="Fire"),)}
-    )
-    graph_facts = GraphFacts(symbol=the_sun, interpretation=interpretation_with_one_attribute)
+    graph_facts = _gematria_intersemiotic_graph_facts()
     vector_store = SequencedVectorStore([[_make_hit("waite-pictorial-key::0", distance=0.1)], [], [], []])
     pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
 
@@ -646,7 +648,7 @@ def test_pair_candidates_emitted_for_a_chunk_shared_by_two_concepts(graph_store:
     additional `ConceptPairCandidates` group, *alongside* — never instead of
     — each concept's own group. Additive, not a restructuring: a strong
     single-concept match never has to compete with a convergent one."""
-    graph_facts = _relationship_graph_facts()
+    graph_facts = _intersemiotic_graph_facts()
     shared_hit_for_fire = _make_hit("shared", distance=0.2)
     shared_hit_for_fish = _make_hit("shared", distance=0.3)
     vector_store = SequencedVectorStore([[shared_hit_for_fire], [shared_hit_for_fish]])
@@ -668,7 +670,7 @@ def test_iter_candidates_yields_concept_candidates_before_pair_candidates(graph_
     full — every concept's `ConceptCandidates` comes out before any
     `ConceptPairCandidates`, and collecting the whole generator reproduces
     exactly what `retrieve()` returns."""
-    graph_facts = _relationship_graph_facts()
+    graph_facts = _intersemiotic_graph_facts()
     shared_hit_for_fire = _make_hit("shared", distance=0.2)
     shared_hit_for_fish = _make_hit("shared", distance=0.3)
     vector_store = SequencedVectorStore([[shared_hit_for_fire], [shared_hit_for_fish]])
@@ -694,7 +696,7 @@ def test_iter_candidates_yields_concept_candidates_before_pair_candidates(graph_
 def test_no_pair_candidates_when_no_chunk_is_shared(graph_store: KuzuGraphStore) -> None:
     """A passage retrieved by only one concept produces no pair group at all
     — convergence is only surfaced when it genuinely occurs."""
-    graph_facts = _relationship_graph_facts()
+    graph_facts = _intersemiotic_graph_facts()
     vector_store = SequencedVectorStore(
         [[_make_hit("fire-only", distance=0.2)], [_make_hit("fish-only", distance=0.2)]]
     )
@@ -711,7 +713,7 @@ def test_pair_candidates_found_even_when_below_one_concepts_displayed_top_k(grap
     real convergence, yet it never enters the second concept's *displayed*
     top-6 list. Pairs must be detected against `match_pool_size`, not
     `top_k`, or this case is invisible."""
-    graph_facts = _relationship_graph_facts()
+    graph_facts = _intersemiotic_graph_facts()
     converge_hit_for_fire = _make_hit("converge", distance=0.1)  # rank 1 for "Fire"
     fish_hits = [_make_hit(f"fish-filler-{i}", distance=0.05 + i * 0.01) for i in range(8)]
     fish_hits.append(_make_hit("converge", distance=0.5))  # ranked 9th for "Fish"
@@ -734,7 +736,7 @@ def test_exact_value_pairs_with_the_concept_sharing_its_chunk(graph_store: KuzuG
     own similarity alone — the value itself carries no score, only a
     guarantee of containment, since it arrived via `document_contains` (a
     hard filter) rather than embedding similarity."""
-    graph_facts = _gematria_relationship_graph_facts()
+    graph_facts = _gematria_intersemiotic_graph_facts()
     fish_and_hundred_hit = _make_hit("fish-and-hundred", distance=0.3)
     # 4 calls: Fire(None), Fire(hundred), Fish(None), Fish(hundred) — the hit
     # is only returned by Fish's *filtered* query, proving membership comes

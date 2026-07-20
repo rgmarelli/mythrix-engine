@@ -1,0 +1,27 @@
+semiotic_system: hebrew_alef_bet
+sign:
+  name: Teth
+  type: hebrew-letter
+  properties:
+  - key: letter_type
+    value: simple
+  manifestations:
+  - tradition: sepher-yetzirah-gra
+    display_name: Teth
+    interpretants:
+    - type: numeric_value
+      value: '9'
+      query:
+        directive: filter
+        as_token: nine
+    - type: meaning
+      value: Inclination
+    - type: meaning
+      value: staff
+    - type: meaning
+      value: below
+    - type: foundation
+      value: hearing
+    - type: constellation
+      value: Leo
+    cites: Sepher Yetzirah

@@ -1,0 +1,25 @@
+semiotic_system: hebrew_alef_bet
+sign:
+  name: Nun
+  type: hebrew-letter
+  properties:
+  - key: letter_type
+    value: simple
+  manifestations:
+  - tradition: sepher-yetzirah-gra
+    display_name: Nun
+    interpretants:
+    - type: numeric_value
+      value: '50'
+      query:
+        directive: filter
+        as_token: fifty
+    - type: meaning
+      value: Fish
+    - type: meaning
+      value: kingdom
+    - type: foundation
+      value: smell
+    - type: constellation
+      value: Scorpio
+    cites: Sepher Yetzirah

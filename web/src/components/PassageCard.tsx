@@ -9,8 +9,11 @@ interface Props {
 
 /** Metadata only — source attribution and score, never `passage.text` (FR4).
  * The only way to see any passage text is to select a card, which shows the
- * full record in `PassageDetailPanel`. */
+ * full record in `PassageDetailPanel`. Attribution mirrors
+ * `cli/formatting.py`'s formula: `citation_label`, falling back to
+ * `title, author` when a source has none. */
 export function PassageCard({ passage, scoreLabel, isSelected, onSelect }: Props) {
+  const attribution = passage.source.citation_label || `${passage.source.title}, ${passage.source.author}`;
   return (
     <button
       type="button"
@@ -18,7 +21,7 @@ export function PassageCard({ passage, scoreLabel, isSelected, onSelect }: Props
       onClick={() => onSelect(passage)}
     >
       <span className="attribution">
-        {passage.source.id}
+        {attribution}
         {passage.locator && ` - ${passage.locator}`}
       </span>
       <span className="score">{scoreLabel}</span>

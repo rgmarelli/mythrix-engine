@@ -1,0 +1,21 @@
+semiotic_system: hebrew_alef_bet
+sign:
+  name: Shin
+  type: hebrew-letter
+  properties:
+  - key: letter_type
+    value: mother
+  manifestations:
+  - tradition: sepher-yetzirah-gra
+    display_name: Shin
+    interpretants:
+    - type: numeric_value
+      value: '300'
+      query:
+        directive: filter
+        as_token: three hundred
+    - type: foundation
+      value: Heaven
+    - type: foundation
+      value: Fire
+    cites: Sepher Yetzirah

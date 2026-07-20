@@ -1,52 +1,56 @@
 """`RetrievalPipeline`: turns deterministic graph facts into grounding document
-passages (plan.md "Chroma vector store design", FR7/FR8/FR13).
+passages (plan.md "Retrieval pipeline", FR7/FR8/FR13).
 
 Similarity-search query text is built entirely from already-retrieved
-`GraphFacts` (attribute values) — never from raw user input (FR8) — as *many*
+`GraphFacts` (interpretant values) — never from raw user input (FR8) — as *many*
 separate queries, one per individual atomic concept, never grouped into a
-combined string: one query per atomic concept in each of the symbol's own
-attributes/keywords, and for every `corresponds_to` relationship (FR3, FR19),
-one per atomic concept about the target. A value that lists several distinct
-concepts separated by commas (e.g. a Hebrew letter's `meaning`, "Monkey, eye
-of the needle") is split further still, one query per concept — those aren't
-one idea, they're several sharing a key, and one ("eye of the needle" — an
-impossible-thing-made-possible image, echoing a child born to hundred-year-old
-parents) can be exactly the useful part while another ("Monkey") contributes
-nothing. No `key:` label is included (see the TODO below on why that's
-deliberately unresolved rather than reasoned out), and there's no combined
-descriptive-identity query either: a symbol's own canonical name/display
-name/summary are no longer searched at all, only its individual attribute
-values, so every symbol is represented by comparably short, atomic queries
-rather than some being diluted by a long paragraph others don't have.
+combined string: one query per atomic concept in each of the manifestation's own
+`interpretants`, and for every `intersemiotic_interpretants` entry (FR3, FR19),
+one per atomic concept about the target's own `target_interpretants`. A value that
+lists several distinct concepts separated by commas (e.g. a Hebrew letter's
+`meaning`, "Monkey, eye of the needle") is split further still, one query per
+concept — those aren't one idea, they're several sharing a `type`, and one ("eye
+of the needle" — an impossible-thing-made-possible image, echoing a child born to
+hundred-year-old parents) can be exactly the useful part while another ("Monkey")
+contributes nothing. No `type:` label is included (see the TODO below on why
+that's deliberately unresolved rather than reasoned out), and there's no combined
+descriptive-identity query either: a sign's canonical name, a manifestation's
+display name/denotation, and any `properties` (at either scope) are never
+searched at all, only a manifestation's individual interpretant values — so every
+sign is represented by comparably short, atomic queries rather than some being
+diluted by a long paragraph others don't have, and properties (structural,
+non-interpretive facts) never inject a stray token into a similarity search
+regardless of whether they belong to the queried sign or to an
+intersemiotic-interpretant target.
 
-An exact numeric value (`value_type: integer`, e.g. a Hebrew letter's
-gematria) is a special case, handled differently from every other concept:
-semantic similarity can't distinguish "this passage happens to mention some
-number" from "this passage mentions exactly this number" — a real case found
-`numeric_value: 100` (bare, embedded as text) surfacing a passage about
-measuring units ("the ephi and the bate") with no thematic connection to
-anything, purely because it also contains numbers. So a recognized numeric
-value is converted to its English word form (`_NUMBER_WORDS`) and used as a
-literal-text filter (`document_contains`, `ChromaVectorStore.similarity_search`)
-— but as a *second, additional* query alongside each plain concept query, not
-a replacement for it. An earlier version made the filtered version replace
-the plain one, which silently returns zero results for any card where no
-single passage happens to combine the exact number and the concept — for
-most symbols, most of the time, since that's a fairly specific coincidence.
-Killing real candidates that way is worse than an occasional missed boost, so
-now every concept is always searched plainly too; the filtered variant is
-purely additive, a second independent ranking that rewards (via Reciprocal
-Rank Fusion) a passage combining both signals without excluding one that only
-matches the concept. See `_fact_queries`. Because that filter is a *hard*
-Chroma `where_document` constraint, every hit it returns provably contains the
-number — which is what lets the number appear as a first-class member of a
-concept pair (FR28, see "Concept-pair convergence" below).
+An interpretant carrying a `query.directive: "filter"` annotation (FR28) is a
+special case, handled differently from every other concept: semantic similarity
+can't distinguish "this passage happens to mention some number" from "this
+passage mentions exactly this number" — a real case found `numeric_value: "100"`
+(bare, embedded as text) surfacing a passage about measuring units ("the ephi and
+the bate") with no thematic connection to anything, purely because it also
+contains numbers. So a curator authors the filter's search text directly
+(`query.as_token`, e.g. "hundred" for a Hebrew letter's gematria value `"100"`)
+and it is used as a literal-text filter (`document_contains`,
+`ChromaVectorStore.similarity_search`) — but as a *second, additional* query
+alongside each plain concept query, not a replacement for it. An earlier version
+made the filtered version replace the plain one, which silently returns zero
+results for any card where no single passage happens to combine the exact value
+and the concept — for most signs, most of the time, since that's a fairly
+specific coincidence. Killing real candidates that way is worse than an
+occasional missed boost, so now every concept is always searched plainly too; the
+filtered variant is purely additive, a second independent ranking that rewards
+(via Reciprocal Rank Fusion) a passage combining both signals without excluding
+one that only matches the concept. See `_fact_queries`. Because that filter is a
+*hard* Chroma `where_document` constraint, every hit it returns provably contains
+the token — which is what lets it appear as a first-class member of a concept
+pair (FR28, see "Concept-pair convergence" below).
 
 A real query (The Sun, corresponding to the Hebrew letter Qoph) drove every
 round of this design, in order: embedding "laughter" (Qoph's Sepher Yetzirah
 foundation) completely alone ranked the one Bible passage it should surface at
 #4 of ~1600 chunks; grouped with Qoph's *other* facts (one query per
-relationship, not yet per fact) it only reached #57; labelled with its own key
+relationship, not yet per fact) it only reached #57; labelled with its own type
 ("foundation: laughter" instead of bare "laughter") it dropped to #30;
 averaged into one ~30-word query combining everything the card and the letter
 both carry, it dropped past #100. Isolating every concept this far (see
@@ -57,11 +61,11 @@ bare proper name) scored *higher* across the board than "laughter" purely
 because "Qoph" sits closer to generic ceremonial/priestly vocabulary in the
 embedding space, nothing to do with relevance. Reciprocal Rank Fusion
 (`RetrievalPipeline.retrieve`) and disabling the bare target-name query
-(`_relationship_query_texts`) fixed that. The exact-number filter above is the
-newest fix, for a different failure mode found afterward: `numeric_value: 100`
+(`_relationship_query_texts`) fixed that. The exact-value filter above is the
+newest fix, for a different failure mode found afterward: `numeric_value: "100"`
 surfacing thematically unrelated passages that merely contained other numbers.
 
-TODO(retrieval-semantics): dropping the `key:` label measurably helped in some
+TODO(retrieval-semantics): dropping the `type:` label measurably helped in some
 cases above and hurt in others — there was no clean universal rule, just a
 per-fact empirical trade-off, and the label was cut anyway because "search the
 bare value" was the simpler, more predictable default to start from. Revisit
@@ -72,26 +76,28 @@ checking specifically against the Hebrew letter data (`meaning` vs
 retrieval once the label's gone, despite being conceptually distinct kinds of
 fact).
 
-TODO(retrieval-semantics): a `corresponds_to` target's bare name (e.g. "Qoph")
-is disabled as its own query for now, for every relationship regardless of
-domain — not special-cased to Hebrew letters specifically, since the same
-failure mode (a bare proper noun scoring high for generic reasons unrelated to
-meaning) will recur for any symbol system's names, not just this one. But the
-name genuinely is a useful, specific search target in the right corpus — e.g.
-Psalm 119's stanzas are each headed by a Hebrew letter name, and a corpus that
-was itself Kabbalistic (the Sepher Yetzirah, the Bahir) would discuss these
-names constantly and meaningfully. Revisit as a corpus-aware or
+TODO(retrieval-semantics): an intersemiotic interpretant's target sign's bare
+name (e.g. "Qoph") is disabled as its own query for now, for every relationship
+regardless of domain — not special-cased to Hebrew letters specifically, since
+the same failure mode (a bare proper noun scoring high for generic reasons
+unrelated to meaning) will recur for any symbol system's names, not just this
+one. But the name genuinely is a useful, specific search target in the right
+corpus — e.g. Psalm 119's stanzas are each headed by a Hebrew letter name, and a
+corpus that was itself Kabbalistic (the Sepher Yetzirah, the Bahir) would
+discuss these names constantly and meaningfully. Revisit as a corpus-aware or
 per-relationship-type decision, not a blanket on/off switch, once there's a
 concrete case that needs it.
 
-Retrieval searches the full document corpus by default (FR7) — an independent,
-uploaded document (e.g. a scriptural text) is meant to be read *through* the
-graph's established symbolism, not excluded just because it carries a different
-tradition tag; see plan.md's Risks for what this deliberately does not yet solve
-(blending competing *interpretive* traditions, should a second one ever be
-added). Each hit is hydrated into a `RetrievedPassage` carrying the full
-verbatim chunk text plus its `Source`/`Tradition`, so the CLI can render a
-References section without re-reading the original document file (FR13).
+Retrieval searches the full document corpus by default (FR7) — every ingested
+document is an independent corpus document (e.g. a scriptural text) meant to
+be read *through* the graph's established symbolism, with no interpretive
+tradition of its own to scope by; see plan.md's Risks for what this
+deliberately does not yet solve (blending competing *interpretive* traditions,
+should a second interpretive tradition's own commentary ever be ingested).
+Each hit is hydrated into a `RetrievedPassage` carrying the full verbatim
+chunk text plus its `Source` (whose `citation_label` attributes it), so the
+CLI can render a References section without re-reading the original document
+file (FR13).
 
 **Concept-scoped retrieval (FR24).** Results are grouped by concept — every
 `_Query` derived from the same atomic value (its plain form plus, if present,
@@ -100,7 +106,7 @@ its `text`, which doubles as the concept's grouping key. Each concept's hits
 are Reciprocal-Rank-Fused *only against that concept's own queries* and kept
 up to `top_k` **per concept**, never merged into one shared pool across
 concepts. This is a deliberate fix, not a tuning tweak: a card with a precise
-numeric fact can generate many more queries than one without (see the module
+exact-value fact can generate many more queries than one without (see the module
 docstring above), and merging everything into one shared final cutoff let a
 handful of low-signal concepts (e.g. `naked child`, `white horse`) crowd out
 a high-signal one (`laughter`, ranked #1 within its own query) purely by
@@ -108,27 +114,27 @@ outnumbering it — confirmed against the real `~/.mythrix` store for The Sun.
 Concept-scoping means every concept gets its own retrieval budget instead of
 competing for a shared one.
 
-**Exact-number filters now apply globally, not just within the group they
-came from (`build_query_texts`).** Originally a recognized numeric value
-(e.g. Qoph's gematria, `numeric_value: 100`) only filtered concepts in its
-*own* `_fact_queries` group — Qoph's own `meaning`/`foundation`/`constellation`
-concepts got the "hundred" filter, but The Sun's own keywords (`naked`,
-`child`, ...) never did, even though a real passage can combine a concept
-from one part of the graph with a number from a completely different part
-(Genesis 21: a *child* born when his father was *a hundred* years old).
-Confirmed empirically before changing this: querying `child` + the `hundred`
-filter (combining a keyword that had never gotten this filter with a number
-from an unrelated relationship) ranked the Genesis 21 passage at #3 and the
-Genesis 17 passage (a second, independent laughter-at-a-hundred-years-old
-account, "Abraham fell upon his face, and laughed... shall a son be born to
-him that is a hundred years old?") at #25 — the best combined ranking for
-*both* passages found across every query shape tried, better than any single
-concept alone. So every recognized number anywhere in a query's `GraphFacts`
-(the symbol's own attributes, and every `corresponds_to` target's facts) is
-now collected once (`_collect_numbers`) and applied as an additional
-filtered variant to *every* concept's plain query, regardless of which group
-originated the number — still additive, never replacing the plain query, per
-the boost-not-hard-filter principle above.
+**Exact-value filters apply globally, not just within the group they came
+from (`build_query_texts`).** A recognized filter token (e.g. Qoph's gematria,
+`query.as_token == "hundred"`) is not limited to filtering concepts in its own
+group — Qoph's own `meaning`/`foundation`/`constellation` concepts get the
+"hundred" filter, and so does The Sun's own keywords (`naked`, `child`, ...),
+even though those come from a completely different part of the graph. A real
+passage can combine a concept from one part of the graph with a filter token
+from another (Genesis 21: a *child* born when his father was *a hundred* years
+old). Confirmed empirically before this design was settled: querying `child` +
+the `hundred` filter (combining a keyword that had never gotten this filter with
+a value from an unrelated relationship) ranked the Genesis 21 passage at #3 and
+the Genesis 17 passage (a second, independent laughter-at-a-hundred-years-old
+account, "Abraham fell upon his face, and laughed... shall a son be born to him
+that is a hundred years old?") at #25 — the best combined ranking for *both*
+passages found across every query shape tried, better than any single concept
+alone. So every recognized filter token anywhere in a query's `GraphFacts` (the
+manifestation's own interpretants, and every intersemiotic-interpretant target's
+`target_interpretants`) is collected once (`_collect_filter_tokens`) and applied
+as an additional filtered variant to *every* concept's plain query, regardless of
+which group originated the token — still additive, never replacing the plain
+query, per the boost-not-hard-filter principle above.
 
 **Concept-pair convergence (FR27, FR28).** Per-concept grouping above discards
 the single most useful thing retrieval knows: when two independently-derived
@@ -153,10 +159,10 @@ not additive, and only a geometric mean distinguishes a passage scoring
 despite only the first genuinely sitting at the intersection. That distinction
 is *created* by the deep pool: at display depth alone, anything appearing in
 two lists was decent at both, so lopsided pairs were rare and the formula
-wouldn't have mattered. An exact numeric value contributes membership but no
-score (FR28) — it arrives via a hard text filter, so its match is a guarantee
-rather than a magnitude, and scoring it as 1.0 would let every number-bearing
-pair dominate the output.
+wouldn't have mattered. An interpretant carrying `query.directive == "filter"`
+contributes membership but no score (FR28) — it arrives via a hard text filter,
+so its match is a guarantee rather than a magnitude, and scoring it as 1.0 would
+let every filter-bearing pair dominate the output.
 
 Scores are comparable only *within* a pair group, where every candidate is
 scored by the same two queries so any per-query bias is constant across the
@@ -175,17 +181,16 @@ from typing import NamedTuple
 from mythrix.core.embedding import Embedder
 from mythrix.core.graph.store import KuzuGraphStore
 from mythrix.core.models import (
-    Attribute,
     ConceptCandidates,
     ConceptMatchScore,
     ConceptPairCandidates,
     GraphFacts,
+    Interpretant,
+    IntersemioticInterpretant,
     MergedCandidate,
-    RelationshipFact,
     RetrievalContext,
     RetrievedPassage,
     Source,
-    Tradition,
 )
 from mythrix.core.vector.store import ChromaVectorStore, VectorHit
 
@@ -195,65 +200,36 @@ from mythrix.core.vector.store import ChromaVectorStore, VectorHit
 # how that query's raw score distribution compares to another's.
 _RRF_K = 60
 
-# English word forms for the integer values this project's data actually
-# uses (Hebrew letter gematria: the 22 letters' values are 1-10, 20-90, then
-# 100/200/300/400) — not a general-purpose number-to-words converter, just
-# enough to turn a recognized exact value into literal search text. See this
-# module's docstring on why an exact value needs this instead of being
-# embedded as a normal concept query.
-_NUMBER_WORDS: dict[int, str] = {
-    1: "one",
-    2: "two",
-    3: "three",
-    4: "four",
-    5: "five",
-    6: "six",
-    7: "seven",
-    8: "eight",
-    9: "nine",
-    10: "ten",
-    20: "twenty",
-    30: "thirty",
-    40: "forty",
-    50: "fifty",
-    60: "sixty",
-    70: "seventy",
-    80: "eighty",
-    90: "ninety",
-    100: "hundred",
-    200: "two hundred",
-    300: "three hundred",
-    400: "four hundred",
-}
 
-
-class _Number(NamedTuple):
-    """A recognized exact numeric value in two forms: `value` as the curator
+class _FilterToken(NamedTuple):
+    """A recognized exact-value filter in two forms: `value` as the curator
     authored it ("100"), which is what a researcher recognizes and what appears
-    as a pair member (FR28), and `word` as it must be searched ("hundred"),
-    since the corpus spells numbers out. Kept together because the search form
-    alone is not presentable and the authored form alone is not searchable."""
+    as a pair member (FR28), and `as_token` as it must be searched ("hundred"),
+    since the corpus spells numbers out and the curator authors this mapping
+    directly via `query.as_token` rather than the code inferring it. Kept
+    together because the search form alone is not presentable and the authored
+    form alone is not searchable."""
 
     value: str
-    word: str
+    as_token: str
 
 
 class _Query(NamedTuple):
-    """One retrieval query: the text to embed, and an optional exact value to
-    combine with it as a literal-text filter — see this module's docstring on
-    when a query gets one.
+    """One retrieval query: the text to embed, and an optional exact filter
+    token to combine with it as a literal-text filter — see this module's
+    docstring on when a query gets one.
 
-    `number` carries the whole `_Number` rather than just the search word so a
-    hit can be attributed back to the authored value (FR28). Every hit from a
-    query bearing one provably contains that number: `document_contains` is a
-    hard `where_document` constraint, not a boost."""
+    `filter_token` carries the whole `_FilterToken` rather than just the search
+    text so a hit can be attributed back to the authored value (FR28). Every hit
+    from a query bearing one provably contains that token: `document_contains`
+    is a hard `where_document` constraint, not a boost."""
 
     text: str
-    number: _Number | None = None
+    filter_token: _FilterToken | None = None
 
     @property
     def document_contains(self) -> str | None:
-        return self.number.word if self.number else None
+        return self.filter_token.as_token if self.filter_token else None
 
 
 class RetrievalPipeline:
@@ -278,7 +254,7 @@ class RetrievalPipeline:
 
     def retrieve(self, graph_facts: GraphFacts) -> RetrievalContext:
         """Deterministic Kùzu-then-Chroma retrieval (FR9): `graph_facts` must
-        already be the result of `KuzuGraphStore.get_interpretation`. Thin
+        already be the result of `KuzuGraphStore.get_manifestation`. Thin
         consumer of `iter_candidates` — collects every `ConceptCandidates`/
         `ConceptPairCandidates` it yields into one `RetrievalContext`, same
         shape and ordering as before this method was split in two."""
@@ -324,11 +300,12 @@ class RetrievalPipeline:
 
         Concept pairs (FR27, FR28) are then built from every concept's full
         deep pool: two semantic concepts sharing a chunk, or a semantic
-        concept sharing a chunk with a recognized exact value (proven via
-        that value's `document_contains` filter, not similarity). Each pair's
-        candidates are ranked by `_combined_score` and cut to `merge_top_k`.
+        concept sharing a chunk with a recognized exact-value filter token
+        (proven via that token's `document_contains` filter, not similarity).
+        Each pair's candidates are ranked by `_combined_score` and cut to
+        `merge_top_k`.
         """
-        self._lookup_cache: dict[tuple[str, str], tuple[Source, Tradition]] = {}
+        self._lookup_cache: dict[str, Source] = {}
 
         queries = build_query_texts(graph_facts)
         query_embeddings = self._embedder.embed([query.text for query in queries])
@@ -338,7 +315,7 @@ class RetrievalPipeline:
             queries_by_concept.setdefault(query.text, []).append((query, embedding))
 
         deep_hits_by_concept: dict[str, dict[str, VectorHit]] = {}
-        number_chunk_ids: dict[str, set[str]] = {}
+        filter_token_chunk_ids: dict[str, set[str]] = {}
 
         for concept, concept_queries in queries_by_concept.items():
             best_hit_by_chunk_id: dict[str, VectorHit] = {}
@@ -347,8 +324,10 @@ class RetrievalPipeline:
                 hits = self._vector_store.similarity_search(
                     embedding, top_k=self._match_pool_size, document_contains=query.document_contains
                 )
-                if query.number is not None:
-                    number_chunk_ids.setdefault(query.number.value, set()).update(hit.chunk_id for hit in hits)
+                if query.filter_token is not None:
+                    filter_token_chunk_ids.setdefault(query.filter_token.value, set()).update(
+                        hit.chunk_id for hit in hits
+                    )
                 for rank, hit in enumerate(hits, start=1):
                     existing = best_hit_by_chunk_id.get(hit.chunk_id)
                     if existing is None or hit.distance < existing.distance:
@@ -368,23 +347,24 @@ class RetrievalPipeline:
             if passages:
                 yield ConceptCandidates(concept=concept, passages=passages)
 
-        yield from self._build_pair_candidates(deep_hits_by_concept, number_chunk_ids)
+        yield from self._build_pair_candidates(deep_hits_by_concept, filter_token_chunk_ids)
 
     def _build_pair_candidates(
         self,
         deep_hits_by_concept: dict[str, dict[str, VectorHit]],
-        number_chunk_ids: dict[str, set[str]],
+        filter_token_chunk_ids: dict[str, set[str]],
     ) -> tuple[ConceptPairCandidates, ...]:
         """One `ConceptPairCandidates` per co-occurring pair (FR27): every
         unordered pair of semantic concepts sharing a chunk in their deep
-        pools, plus every semantic concept paired with every recognized exact
-        value it shares a chunk with (FR28). A pair of two exact values is
-        never emitted — an exact value carries no score of its own (it's a
-        guarantee of containment, not a similarity judgment), so there is
-        nothing to rank such a pair by. Groups are sorted strongest-first by
-        their own top candidate; see this module's docstring and plan.md's
-        Risks on why that ordering is a display heuristic, not a claim that
-        one group's score is commensurable with another's."""
+        pools, plus every semantic concept paired with every recognized
+        exact-value filter token it shares a chunk with (FR28). A pair of two
+        filter tokens is never emitted — a filter token carries no score of
+        its own (it's a guarantee of containment, not a similarity judgment),
+        so there is nothing to rank such a pair by. Groups are sorted
+        strongest-first by their own top candidate; see this module's
+        docstring and plan.md's Risks on why that ordering is a display
+        heuristic, not a claim that one group's score is commensurable with
+        another's."""
         concepts = sorted(deep_hits_by_concept)
         groups: list[ConceptPairCandidates] = []
 
@@ -408,10 +388,10 @@ class RetrievalPipeline:
                 )
             self._append_group(groups, (concept_a, concept_b), candidates)
 
-        for concept, number_value in itertools.product(concepts, sorted(number_chunk_ids)):
+        for concept, filter_value in itertools.product(concepts, sorted(filter_token_chunk_ids)):
             pool = deep_hits_by_concept[concept]
             candidates = []
-            for chunk_id in set(pool) & number_chunk_ids[number_value]:
+            for chunk_id in set(pool) & filter_token_chunk_ids[filter_value]:
                 score = _similarity_score(pool[chunk_id])
                 if score < self._min_score:
                     continue
@@ -420,12 +400,12 @@ class RetrievalPipeline:
                         passage=self._hydrate(pool[chunk_id]),
                         matches=(
                             ConceptMatchScore(concept=concept, score=score),
-                            ConceptMatchScore(concept=number_value, score=0.0, exact_value=True),
+                            ConceptMatchScore(concept=filter_value, score=0.0, exact_value=True),
                         ),
                         combined_score=score,
                     )
                 )
-            self._append_group(groups, (concept, number_value), candidates)
+            self._append_group(groups, (concept, filter_value), candidates)
 
         groups.sort(key=lambda group: group.candidates[0].combined_score, reverse=True)
         return tuple(groups)
@@ -439,11 +419,9 @@ class RetrievalPipeline:
         groups.append(ConceptPairCandidates(concepts=concepts, candidates=tuple(candidates[: self._merge_top_k])))
 
     def _hydrate(self, hit: VectorHit) -> RetrievedPassage:
-        source, tradition = self._source_and_tradition(hit)
         return RetrievedPassage(
             chunk_id=hit.chunk_id,
-            source=source,
-            tradition=tradition,
+            source=self._source_for(hit),
             text=hit.text,
             locator=hit.locator,
             score=_similarity_score(hit),
@@ -453,173 +431,154 @@ class RetrievalPipeline:
             embedding_model=hit.embedding_model,
         )
 
-    def _source_and_tradition(self, hit: VectorHit) -> tuple[Source, Tradition]:
+    def _source_for(self, hit: VectorHit) -> Source:
         """Caches `KuzuGraphStore` lookups per `retrieve()` call — the same
         chunk can be hydrated once for its own concept's display list and
-        again while building a pair candidate, and a passage's source/
-        tradition never varies by which concept or query surfaced it (only
-        its similarity score does, which this method does not cache)."""
-        key = (hit.source_id, hit.tradition_slug)
-        cached = self._lookup_cache.get(key)
+        again while building a pair candidate, and a passage's source never
+        varies by which concept or query surfaced it (only its similarity
+        score does, which this method does not cache)."""
+        cached = self._lookup_cache.get(hit.source_id)
         if cached is None:
-            cached = (self._graph_store.get_source(hit.source_id), self._graph_store.get_tradition(hit.tradition_slug))
-            self._lookup_cache[key] = cached
+            cached = self._graph_store.get_source(hit.source_id)
+            self._lookup_cache[hit.source_id] = cached
         return cached
-
-
-def _is_retrievable(attribute: Attribute) -> bool:
-    """Whether curator-declared data should feed retrieval query construction
-    (FR8) — a call the curator makes per-fact in the YAML (`Attribute.retrievable`),
-    not something this module infers from a key name or value type. Both were
-    tried here and were wrong: hardcoding the key `"number"` baked a domain
-    assumption (tarot cards have deck positions) into supposedly domain-agnostic
-    retrieval code, and before that, excluding every `value_type: integer` fact
-    wrongly dropped a Hebrew letter's gematria value — real symbolic content in
-    Kabbalah, not an identifier, despite also being a number. `retrievable` is
-    data, so no code change is needed the next time a new domain's numbers turn
-    out to matter (or not)."""
-    return attribute.retrievable
 
 
 def _atomic_values(value: str) -> list[str]:
     """A comma-separated value (e.g. a Hebrew letter's `meaning`, "Monkey, eye
     of the needle") lists several distinct concepts sharing one curator-chosen
-    key, not a single unified phrase — split it so each concept is searched
+    `type`, not a single unified phrase — split it so each concept is searched
     entirely on its own. A value with no comma is already atomic and comes
     back as a one-item list; see this module's docstring for the concrete
     case this exists for."""
     return [part.strip() for part in value.split(",") if part.strip()]
 
 
-def _number_for(value: str) -> _Number | None:
-    """The recognized `_Number` for an integer-valued attribute (e.g. "100" ->
-    `_Number("100", "hundred")`), if it's one this project's data actually
-    uses — `None` for anything else (not a number, or a number outside
-    `_NUMBER_WORDS`), so an unrecognized value just falls back to being
-    searched as plain text in `_fact_queries` rather than silently dropped."""
-    try:
-        word = _NUMBER_WORDS.get(int(value))
-    except ValueError:
-        return None
-    return _Number(value=value, word=word) if word else None
+def _filter_token_for(interpretant: Interpretant) -> _FilterToken | None:
+    """The `_FilterToken` for an interpretant carrying a `query.directive ==
+    "filter"` annotation, or `None` for any other interpretant. The search
+    text (`as_token`) is authored directly by the curator (FR8, FR28) — there
+    is no code-side value-to-word inference here."""
+    if interpretant.query is not None and interpretant.query.directive == "filter":
+        return _FilterToken(value=interpretant.value, as_token=interpretant.query.as_token)
+    return None
 
 
-def _extract_concepts(attributes: tuple[Attribute, ...]) -> list[str]:
-    """Every retrievable attribute's value, decomposed to one atomic concept
-    per value (`_atomic_values`), no `key:` label (see this module's docstring
-    TODO on why that's cut without a settled replacement) — a recognized exact
-    numeric value (`value_type: integer`) is excluded here, since it's handled
-    separately as a global filter (`_collect_numbers`), not as a concept of
-    its own."""
+def _extract_concepts(interpretants: tuple[Interpretant, ...]) -> list[str]:
+    """Every interpretant's value, decomposed to one atomic concept per value
+    (`_atomic_values`) — an interpretant carrying a `query.directive: "filter"`
+    annotation is excluded here, since it's handled separately as a global
+    filter (`_collect_filter_tokens`), not as a concept of its own. Properties
+    (`Sign.properties`/`Manifestation.properties`) are never passed to this
+    function at all — only `Manifestation.interpretants` and
+    `IntersemioticInterpretant.target_interpretants` ever reach it."""
     concepts: list[str] = []
-    for attribute in attributes:
-        if not _is_retrievable(attribute):
+    for interpretant in interpretants:
+        if _filter_token_for(interpretant) is not None:
             continue
-        if attribute.value_type == "integer" and _number_for(attribute.value):
-            continue
-        concepts.extend(_atomic_values(attribute.value))
+        concepts.extend(_atomic_values(interpretant.value))
     return concepts
 
 
-def _collect_numbers(attribute_groups: list[tuple[Attribute, ...]]) -> list[_Number]:
-    """Every recognized exact numeric value (`value_type: integer`) found
-    anywhere across `attribute_groups` — the symbol's own interpretation
-    attributes, and every `corresponds_to` target's properties/semantic facts
-    — converted to a `_Number` and deduplicated by word form, order-preserved
-    by first appearance. Collected globally rather than per-group (see this
-    module's docstring): a real passage can combine a concept from one part
-    of the graph with a number from an entirely different part, so the filter
-    these become (`_fact_queries`) applies to *every* concept, not just the
-    ones that happen to share a group with the number. The value form (e.g.
-    "100") is kept alongside the word form ("hundred") so it can surface as
-    a pair member in its own right (FR28) rather than being discarded once
-    the search text is derived."""
-    numbers: list[_Number] = []
-    seen_words: set[str] = set()
-    for attributes in attribute_groups:
-        for attribute in attributes:
-            if not _is_retrievable(attribute) or attribute.value_type != "integer":
-                continue
-            number = _number_for(attribute.value)
-            if number and number.word not in seen_words:
-                seen_words.add(number.word)
-                numbers.append(number)
-    return numbers
+def _collect_filter_tokens(interpretant_groups: list[tuple[Interpretant, ...]]) -> list[_FilterToken]:
+    """Every recognized exact-value filter token (an interpretant carrying
+    `query.directive == "filter"`) found anywhere across `interpretant_groups`
+    — the manifestation's own interpretants, and every intersemiotic
+    interpretant's `target_interpretants` — converted to a `_FilterToken` and
+    deduplicated by `as_token`, order-preserved by first appearance. Collected
+    globally rather than per-group (see this module's docstring): a real
+    passage can combine a concept from one part of the graph with a filter
+    token from an entirely different part, so the filter these become
+    (`_fact_queries`) applies to *every* concept, not just the ones that
+    happen to share a group with the token. The authored form (e.g. "100") is
+    kept alongside the search form ("hundred") so it can surface as a pair
+    member in its own right (FR28) rather than being discarded once the
+    search text is derived."""
+    tokens: list[_FilterToken] = []
+    seen_as_tokens: set[str] = set()
+    for interpretants in interpretant_groups:
+        for interpretant in interpretants:
+            token = _filter_token_for(interpretant)
+            if token and token.as_token not in seen_as_tokens:
+                seen_as_tokens.add(token.as_token)
+                tokens.append(token)
+    return tokens
 
 
-def _fact_queries(attributes: tuple[Attribute, ...], numbers: list[_Number]) -> list[_Query]:
+def _fact_queries(interpretants: tuple[Interpretant, ...], filter_tokens: list[_FilterToken]) -> list[_Query]:
     """This group's atomic concepts (`_extract_concepts`), each as a plain
-    query, plus — for every number recognized *anywhere* in the current
-    `GraphFacts` (`numbers`, global, not just this group's own) — one
-    additional filtered variant per concept, combined with that number as a
+    query, plus — for every filter token recognized *anywhere* in the current
+    `GraphFacts` (`filter_tokens`, global, not just this group's own) — one
+    additional filtered variant per concept, combined with that token as a
     literal-text filter.
 
     Deliberately a boost, not a hard requirement: an earlier version made a
-    numeric fact *replace* its group's concept queries with filtered-only
+    filter token *replace* its group's concept queries with filtered-only
     versions, which silently returns zero results for any card where no
-    single passage happens to combine the number and the concept — killing
+    single passage happens to combine the token and the concept — killing
     real candidates is worse than an occasional missed boost. Now every
     concept is always searched plainly (nothing is ever lost), and each
     filtered variant only adds an *additional* independent ranking that
     rewards a passage combining both signals — via Reciprocal Rank Fusion
     (`RetrievalPipeline.retrieve`), a passage matching both ranks higher than
     one matching only the concept, without excluding the latter. A group with
-    no concepts of its own contributes no queries here — a lone number with
-    nothing to filter is handled once, globally, by `build_query_texts`."""
-    concepts = _extract_concepts(attributes)
+    no concepts of its own contributes no queries here — a lone filter token
+    with nothing to filter is handled once, globally, by `build_query_texts`."""
+    concepts = _extract_concepts(interpretants)
     queries = [_Query(text=concept) for concept in concepts]
-    for number in numbers:
-        queries += [_Query(text=concept, number=number) for concept in concepts]
+    for token in filter_tokens:
+        queries += [_Query(text=concept, filter_token=token) for concept in concepts]
     return queries
 
 
-def _relationship_query_texts(relationship: RelationshipFact, numbers: list[_Number]) -> list[_Query]:
-    """One query per *individual atomic concept* about a `corresponds_to`
-    target — its own symbol-level properties (e.g. gematria value, meaning)
-    and its own interpretation-level attributes across every tradition it's
-    interpreted under (`target_semantic_facts`, e.g. its Sepher Yetzirah
-    `foundation`). Both are already hydrated by
-    `KuzuGraphStore._get_symbol_relationships`, so this needs no extra graph
-    fetch here.
+def _intersemiotic_query_texts(
+    interpretant: IntersemioticInterpretant, filter_tokens: list[_FilterToken]
+) -> list[_Query]:
+    """One query per *individual atomic concept* about an intersemiotic
+    interpretant's target — its own manifestation-level interpretants across
+    every tradition it is manifested under (`target_interpretants`, e.g. its
+    Sepher Yetzirah `foundation`). Already hydrated by
+    `KuzuGraphStore._get_sign_intersemiotic_interpretants`, so this needs no
+    extra graph fetch here. Never includes the target sign's or its
+    manifestations' `properties` — properties are never used to build
+    retrieval query text (FR8, FR21), at any scope, reached any way.
 
     Deliberately does *not* query the target's bare name (e.g. "Qoph") on its
     own — see this module's docstring TODO on why that's disabled for now."""
-    target = relationship.target_symbol
-    return _fact_queries(target.properties + relationship.target_semantic_facts, numbers)
+    return _fact_queries(interpretant.target_interpretants, filter_tokens)
 
 
 def build_query_texts(graph_facts: GraphFacts) -> list[_Query]:
     """One query per individual atomic concept reachable from the queried
-    symbol (FR8): one per atomic concept in each attribute of the symbol's
-    own interpretation, then for each `corresponds_to` relationship (FR3,
-    FR19), one per individual atomic concept about the target — see this
-    module's docstring for why keeping every concept this isolated matters,
-    for why there's no combined descriptive-identity query (the symbol's own
-    canonical name/display name/summary aren't searched at all), and for why
-    every recognized number anywhere in `graph_facts` becomes a filtered
-    variant of *every* concept, not just the ones in its own group.
-    `RetrievalPipeline.retrieve` embeds and searches every one, then merges
-    the results by rank (RRF), not raw score, within each concept."""
-    symbol, interpretation = graph_facts.symbol, graph_facts.interpretation
-    attribute_groups = [interpretation.attributes]
-    attribute_groups += [
-        relationship.target_symbol.properties + relationship.target_semantic_facts
-        for relationship in symbol.relationships
-    ]
-    numbers = _collect_numbers(attribute_groups)
+    sign (FR8): one per atomic concept in each interpretant of the sign's own
+    manifestation, then for each intersemiotic interpretant (FR3, FR19), one
+    per individual atomic concept about the target — see this module's
+    docstring for why keeping every concept this isolated matters, for why
+    there's no combined descriptive-identity query (a sign's canonical name, a
+    manifestation's display name/denotation, and any properties at any scope
+    aren't searched at all), and for why every recognized filter token
+    anywhere in `graph_facts` becomes a filtered variant of *every* concept,
+    not just the ones in its own group. `RetrievalPipeline.retrieve` embeds
+    and searches every one, then merges the results by rank (RRF), not raw
+    score, within each concept."""
+    sign, manifestation = graph_facts.sign, graph_facts.manifestation
+    interpretant_groups = [manifestation.interpretants]
+    interpretant_groups += [interpretant.target_interpretants for interpretant in sign.intersemiotic_interpretants]
+    filter_tokens = _collect_filter_tokens(interpretant_groups)
 
-    queries = _fact_queries(interpretation.attributes, numbers)
-    for relationship in symbol.relationships:
-        queries += _relationship_query_texts(relationship, numbers)
+    queries = _fact_queries(manifestation.interpretants, filter_tokens)
+    for interpretant in sign.intersemiotic_interpretants:
+        queries += _intersemiotic_query_texts(interpretant, filter_tokens)
 
     if not queries:
-        # No concept anywhere to attach a number filter to (e.g. a symbol whose
-        # only fact is a bare numeric value) — search each number's word form on
-        # its own rather than silently dropping it (a filter with nothing to
-        # filter isn't useful, but the word itself may still be meaningful
-        # search text). Not tagged with `number=`: there's no concept for it to
-        # pair against, so it can't participate in FR27/FR28 convergence anyway.
-        queries += [_Query(text=number.word) for number in numbers]
+        # No concept anywhere to attach a filter token to (e.g. a sign whose
+        # only fact is a bare exact-value interpretant) — search each token's
+        # search form on its own rather than silently dropping it (a filter
+        # with nothing to filter isn't useful, but the token itself may still
+        # be meaningful search text). Not tagged with `filter_token=`: there's
+        # no concept for it to pair against, so it can't participate in
+        # FR27/FR28 convergence anyway.
+        queries += [_Query(text=token.as_token) for token in filter_tokens]
 
     return [query for query in queries if query.text]
 

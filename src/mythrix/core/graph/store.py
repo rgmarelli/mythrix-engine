@@ -1,4 +1,4 @@
-"""KuzuGraphStore: deterministic, parametrized access to the Symbol Graph.
+"""KuzuGraphStore: deterministic, parametrized access to the Sign Graph.
 
 Retrieval methods here are the concrete implementation of the anti-hallucination
 boundary: they only ever run parametrized Cypher built from plain Python control
@@ -21,21 +21,23 @@ from typing import Any
 import kuzu
 
 from mythrix.core.errors import (
-    InterpretationNotFoundError,
+    ManifestationNotFoundError,
+    SignNotFoundError,
     SourceNotFoundError,
-    SymbolNotFoundError,
     TraditionNotFoundError,
 )
 from mythrix.core.graph.schema import create_schema
 from mythrix.core.models import (
-    Attribute,
     Citation,
     GraphFacts,
-    Interpretation,
-    RelationshipFact,
+    Interpretant,
+    IntersemioticInterpretant,
+    Manifestation,
+    Property,
+    QueryDirective,
+    Sign,
+    SignSummary,
     Source,
-    Symbol,
-    SymbolSummary,
     Tradition,
 )
 
@@ -45,23 +47,33 @@ def _s(value: str | None) -> str:
     return value or ""
 
 
-def _attribute_from_row(row: list[Any]) -> Attribute:
-    """Shared by every query that returns `a.id, a.key, a.value, a.value_type,
-    a.position, a.retrievable` in that order — a row layout that recurs across
-    `_fetch_attributes`/`_get_all_interpretation_attributes`."""
-    return Attribute(
+def _property_from_row(row: list[Any]) -> Property:
+    """Shared by every query that returns `p.id, p.key, p.value, p.position` in
+    that order — a row layout that recurs across `_fetch_properties`."""
+    return Property(
         id=row[0],
         key=row[1],
         value=row[2],
-        value_type=_s(row[3]) or "string",
-        position=row[4] or 0,
-        retrievable=row[5] if row[5] is not None else True,
+        position=row[3] or 0,
+    )
+
+
+def _interpretant_from_row(row: list[Any]) -> Interpretant:
+    """Shared by every query that returns `i.id, i.type, i.value, i.position,
+    i.query_directive, i.query_as_token` in that order."""
+    directive, as_token = row[4], row[5]
+    return Interpretant(
+        id=row[0],
+        type=_s(row[1]) or "concept",
+        value=row[2],
+        position=row[3] or 0,
+        query=QueryDirective(directive=directive, as_token=_s(as_token)) if directive else None,
     )
 
 
 class KuzuGraphStore:
     """Owns a Kùzu database connection; exposes idempotent upserts and the
-    deterministic `get_interpretation` retrieval query."""
+    deterministic `get_manifestation` retrieval query."""
 
     def __init__(self, db_path: Path) -> None:
         db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -71,7 +83,7 @@ class KuzuGraphStore:
 
     def _ensure_schema(self) -> None:
         existing = {row[1] for row in self._connection.execute("CALL show_tables() RETURN *")}
-        if "Symbol" not in existing:
+        if "Sign" not in existing:
             create_schema(self._connection)
 
     def _execute(self, query: str, parameters: dict[str, Any]) -> Any:
@@ -99,225 +111,267 @@ class KuzuGraphStore:
         self._execute(
             """
             MERGE (s:Source {id: $id})
-            ON CREATE SET s.title = $title, s.author = $author, s.publication_year = $publication_year,
-                          s.license = $license, s.uri = $uri, s.content_hash = $content_hash,
-                          s.ingested_at = $ingested_at
-            ON MATCH SET s.title = $title, s.author = $author, s.publication_year = $publication_year,
-                         s.license = $license, s.uri = $uri, s.content_hash = $content_hash,
-                         s.ingested_at = $ingested_at
+            ON CREATE SET s.domain = $domain, s.citation_label = $citation_label, s.title = $title,
+                          s.author = $author, s.publication_year = $publication_year,
+                          s.license = $license, s.uri = $uri, s.description = $description,
+                          s.content_hash = $content_hash, s.ingested_at = $ingested_at
+            ON MATCH SET s.domain = $domain, s.citation_label = $citation_label, s.title = $title,
+                         s.author = $author, s.publication_year = $publication_year,
+                         s.license = $license, s.uri = $uri, s.description = $description,
+                         s.content_hash = $content_hash, s.ingested_at = $ingested_at
             """,
             {
                 "id": source.id,
+                "domain": source.domain,
+                "citation_label": source.citation_label,
                 "title": source.title,
                 "author": source.author,
                 "publication_year": source.publication_year,
                 "license": source.license,
                 "uri": source.uri,
+                "description": source.description,
                 "content_hash": source.content_hash,
                 "ingested_at": source.ingested_at,
             },
         )
 
-    def _upsert_attribute(self, attribute: Attribute) -> None:
-        """Shared by both symbol-intrinsic `properties` and interpretation-scoped
-        `attributes` — an `Attribute` node's own fields don't depend on which kind of
-        node points at it; only the `HAS_ATTRIBUTE` edge's source differs."""
+    def _upsert_property(self, prop: Property) -> None:
+        """Shared by both sign-intrinsic and manifestation-scoped `properties` —
+        a `Property` node's own fields don't depend on which kind of node points
+        at it; only the `HAS_PROPERTY` edge's source differs."""
         self._execute(
             """
-            MERGE (a:Attribute {id: $id})
-            ON CREATE SET a.key = $key, a.value = $value, a.value_type = $value_type,
-                          a.position = $position, a.retrievable = $retrievable
-            ON MATCH SET a.key = $key, a.value = $value, a.value_type = $value_type,
-                         a.position = $position, a.retrievable = $retrievable
+            MERGE (p:Property {id: $id})
+            ON CREATE SET p.key = $key, p.value = $value, p.position = $position
+            ON MATCH SET p.key = $key, p.value = $value, p.position = $position
             """,
             {
-                "id": attribute.id,
-                "key": attribute.key,
-                "value": attribute.value,
-                "value_type": attribute.value_type,
-                "position": attribute.position,
-                "retrievable": attribute.retrievable,
+                "id": prop.id,
+                "key": prop.key,
+                "value": prop.value,
+                "position": prop.position,
             },
         )
 
-    def upsert_symbol(self, symbol: Symbol) -> None:
-        """Writes just the Symbol node and its intrinsic `properties` — no
-        Interpretation. Interpretations are optional (a symbol may exist purely as a
+    def _upsert_interpretant(self, interpretant: Interpretant) -> None:
+        self._execute(
+            """
+            MERGE (i:Interpretant {id: $id})
+            ON CREATE SET i.type = $type, i.value = $value,
+                          i.position = $position, i.query_directive = $query_directive,
+                          i.query_as_token = $query_as_token
+            ON MATCH SET i.type = $type, i.value = $value,
+                         i.position = $position, i.query_directive = $query_directive,
+                         i.query_as_token = $query_as_token
+            """,
+            {
+                "id": interpretant.id,
+                "type": interpretant.type,
+                "value": interpretant.value,
+                "position": interpretant.position,
+                "query_directive": interpretant.query.directive if interpretant.query else None,
+                "query_as_token": interpretant.query.as_token if interpretant.query else None,
+            },
+        )
+
+    def upsert_sign(self, sign: Sign) -> None:
+        """Writes just the Sign node and its intrinsic `properties` — no
+        Manifestation. Manifestations are optional (a sign may exist purely as a
         correspondence target/anchor, e.g. a Tree of Life path never given its own
-        tradition-scoped meaning); use `upsert_symbol_with_interpretation` when the
-        symbol does have one to record.
+        tradition-scoped meaning); use `upsert_sign_with_manifestation` when the
+        sign does have one to record.
         """
         self._execute(
             """
-            MERGE (s:Symbol {id: $id})
+            MERGE (s:Sign {id: $id})
             ON CREATE SET s.slug = $slug, s.canonical_name = $canonical_name,
-                          s.symbol_type = $symbol_type, s.notes = $notes
+                          s.sign_type = $sign_type, s.semiotic_system = $semiotic_system, s.notes = $notes
             ON MATCH SET s.slug = $slug, s.canonical_name = $canonical_name,
-                         s.symbol_type = $symbol_type, s.notes = $notes
+                         s.sign_type = $sign_type, s.semiotic_system = $semiotic_system, s.notes = $notes
             """,
             {
-                "id": symbol.id,
-                "slug": symbol.slug,
-                "canonical_name": symbol.canonical_name,
-                "symbol_type": symbol.symbol_type,
-                "notes": symbol.notes,
+                "id": sign.id,
+                "slug": sign.slug,
+                "canonical_name": sign.canonical_name,
+                "sign_type": sign.sign_type,
+                "semiotic_system": sign.semiotic_system,
+                "notes": sign.notes,
             },
         )
 
-        # An Attribute's id is derived from its key (see symbol_loader.py), so
+        # A Property's id is derived from its key (see sign_loader.py), so
         # renaming or removing one in the YAML produces a different id — MERGE
-        # alone would leave the old Attribute node orphaned but still linked
+        # alone would leave the old Property node orphaned but still linked
         # forever. Replace the full set on every load instead of merging it,
         # since each call already carries the complete current properties.
         self._execute(
-            "MATCH (s:Symbol {id: $id})-[e:HAS_ATTRIBUTE]->(a:Attribute) DELETE e, a",
-            {"id": symbol.id},
+            "MATCH (s:Sign {id: $id})-[e:HAS_PROPERTY]->(p:Property) DELETE e, p",
+            {"id": sign.id},
         )
-        for prop in symbol.properties:
-            self._upsert_attribute(prop)
+        for prop in sign.properties:
+            self._upsert_property(prop)
             self._execute(
                 """
-                MATCH (s:Symbol {id: $symbol_id}), (a:Attribute {id: $attribute_id})
-                MERGE (s)-[:HAS_ATTRIBUTE]->(a)
+                MATCH (s:Sign {id: $sign_id}), (p:Property {id: $property_id})
+                MERGE (s)-[:HAS_PROPERTY]->(p)
                 """,
-                {"symbol_id": symbol.id, "attribute_id": prop.id},
+                {"sign_id": sign.id, "property_id": prop.id},
             )
 
-    def upsert_symbol_with_interpretation(self, symbol: Symbol, interpretation: Interpretation) -> None:
-        """Writes the Symbol (via `upsert_symbol`) plus the Interpretation (scoped to
-        `interpretation.tradition`) and all of its tradition-scoped attributes and
-        citations.
+    def upsert_sign_with_manifestation(self, sign: Sign, manifestation: Manifestation) -> None:
+        """Writes the Sign (via `upsert_sign`) plus the Manifestation (scoped to
+        `manifestation.tradition`) and all of its tradition-scoped properties,
+        interpretants, and citations.
 
-        The interpretation's tradition and every cited source must already exist
+        The manifestation's tradition and every cited source must already exist
         (call upsert_tradition/upsert_source first) — this method does not validate
         referential integrity; that's the structured-data loader's job (FR4, FR5).
         """
-        self.upsert_symbol(symbol)
+        self.upsert_sign(sign)
 
         self._execute(
             """
-            MERGE (i:Interpretation {id: $id})
-            ON CREATE SET i.symbol_id = $symbol_id, i.tradition_id = $tradition_id,
-                          i.display_name = $display_name, i.summary = $summary, i.created_at = $created_at
-            ON MATCH SET i.symbol_id = $symbol_id, i.tradition_id = $tradition_id,
-                         i.display_name = $display_name, i.summary = $summary, i.created_at = $created_at
+            MERGE (m:Manifestation {id: $id})
+            ON CREATE SET m.sign_id = $sign_id, m.tradition_id = $tradition_id,
+                          m.display_name = $display_name, m.denotation = $denotation, m.created_at = $created_at
+            ON MATCH SET m.sign_id = $sign_id, m.tradition_id = $tradition_id,
+                         m.display_name = $display_name, m.denotation = $denotation, m.created_at = $created_at
             """,
             {
-                "id": interpretation.id,
-                "symbol_id": symbol.id,
-                "tradition_id": interpretation.tradition.id,
-                "display_name": interpretation.display_name,
-                "summary": interpretation.summary,
-                "created_at": interpretation.created_at,
+                "id": manifestation.id,
+                "sign_id": sign.id,
+                "tradition_id": manifestation.tradition.id,
+                "display_name": manifestation.display_name,
+                "denotation": manifestation.denotation,
+                "created_at": manifestation.created_at,
             },
         )
 
         self._execute(
             """
-            MATCH (s:Symbol {id: $symbol_id}), (i:Interpretation {id: $interpretation_id})
-            MERGE (s)-[:HAS_INTERPRETATION]->(i)
+            MATCH (s:Sign {id: $sign_id}), (m:Manifestation {id: $manifestation_id})
+            MERGE (s)-[:HAS_MANIFESTATION]->(m)
             """,
-            {"symbol_id": symbol.id, "interpretation_id": interpretation.id},
+            {"sign_id": sign.id, "manifestation_id": manifestation.id},
         )
         self._execute(
             """
-            MATCH (i:Interpretation {id: $interpretation_id}), (t:Tradition {id: $tradition_id})
-            MERGE (i)-[:INTERPRETED_IN]->(t)
+            MATCH (m:Manifestation {id: $manifestation_id}), (t:Tradition {id: $tradition_id})
+            MERGE (m)-[:MANIFESTED_IN]->(t)
             """,
-            {"interpretation_id": interpretation.id, "tradition_id": interpretation.tradition.id},
+            {"manifestation_id": manifestation.id, "tradition_id": manifestation.tradition.id},
         )
 
-        # Same reconciliation as `upsert_symbol`'s properties, and for the same
-        # reason: an attribute's id is derived from its key, so a renamed or
-        # removed one would otherwise leave a stale node orphaned but linked.
+        # Same reconciliation as `upsert_sign`'s properties, and for the same
+        # reason: a property/interpretant's id is derived from its key/position,
+        # so a renamed or removed one would otherwise leave a stale node orphaned
+        # but linked.
         self._execute(
-            "MATCH (i:Interpretation {id: $id})-[e:HAS_ATTRIBUTE]->(a:Attribute) DELETE e, a",
-            {"id": interpretation.id},
+            "MATCH (m:Manifestation {id: $id})-[e:HAS_PROPERTY]->(p:Property) DELETE e, p",
+            {"id": manifestation.id},
         )
-        for attribute in interpretation.attributes:
-            self._upsert_attribute(attribute)
+        for prop in manifestation.properties:
+            self._upsert_property(prop)
             self._execute(
                 """
-                MATCH (i:Interpretation {id: $interpretation_id}), (a:Attribute {id: $attribute_id})
-                MERGE (i)-[:HAS_ATTRIBUTE]->(a)
+                MATCH (m:Manifestation {id: $manifestation_id}), (p:Property {id: $property_id})
+                MERGE (m)-[:HAS_PROPERTY]->(p)
                 """,
-                {"interpretation_id": interpretation.id, "attribute_id": attribute.id},
+                {"manifestation_id": manifestation.id, "property_id": prop.id},
             )
 
-        for citation in interpretation.citations:
+        self._execute(
+            "MATCH (m:Manifestation {id: $id})-[e:HAS_INTERPRETANT]->(i:Interpretant) DELETE e, i",
+            {"id": manifestation.id},
+        )
+        for interpretant in manifestation.interpretants:
+            self._upsert_interpretant(interpretant)
             self._execute(
                 """
-                MATCH (i:Interpretation {id: $interpretation_id}), (src:Source {id: $source_id})
-                MERGE (i)-[r:CITES]->(src)
+                MATCH (m:Manifestation {id: $manifestation_id}), (i:Interpretant {id: $interpretant_id})
+                MERGE (m)-[:HAS_INTERPRETANT]->(i)
+                """,
+                {"manifestation_id": manifestation.id, "interpretant_id": interpretant.id},
+            )
+
+        for citation in manifestation.citations:
+            self._execute(
+                """
+                MATCH (m:Manifestation {id: $manifestation_id}), (src:Source {id: $source_id})
+                MERGE (m)-[r:CITES]->(src)
                 ON CREATE SET r.locator = $locator
                 ON MATCH SET r.locator = $locator
                 """,
                 {
-                    "interpretation_id": interpretation.id,
+                    "manifestation_id": manifestation.id,
                     "source_id": citation.source.id,
                     "locator": citation.locator,
                 },
             )
 
-    def reconcile_symbol_interpretations(self, symbol_id: str, current_interpretation_ids: frozenset[str]) -> None:
-        """Deletes any Interpretation still linked to this symbol whose id isn't
-        in `current_interpretation_ids` (plus everything scoped to it — its own
-        attributes, `HAS_INTERPRETATION`/`INTERPRETED_IN`/`CITES` edges).
+    def reconcile_sign_manifestations(self, sign_id: str, current_manifestation_ids: frozenset[str]) -> None:
+        """Deletes any Manifestation still linked to this sign whose id isn't
+        in `current_manifestation_ids` (plus everything scoped to it — its own
+        properties, interpretants, `HAS_MANIFESTATION`/`MANIFESTED_IN`/`CITES` edges).
 
-        An Interpretation's id is derived from its symbol *and* tradition slug
-        (`symbol_loader.py`), so renaming the tradition an interpretation
-        belongs to changes the interpretation's own id — without this, the old
-        node would be left orphaned but still linked forever, the same class
-        of bug attribute-key renames had (see `upsert_symbol`'s reconciliation).
-        Must be called once per symbol with its *complete* current set, after
-        every interpretation for that symbol has been written this load — not
-        from inside `upsert_symbol_with_interpretation` itself, which only ever
-        sees one interpretation at a time and would delete its own siblings.
+        A Manifestation's id is derived from its sign *and* tradition slug
+        (`sign_loader.py`), so renaming the tradition a manifestation belongs to
+        changes the manifestation's own id — without this, the old node would be
+        left orphaned but still linked forever, the same class of bug
+        property/interpretant renames had (see `upsert_sign`'s reconciliation).
+        Must be called once per sign with its *complete* current set, after
+        every manifestation for that sign has been written this load — not
+        from inside `upsert_sign_with_manifestation` itself, which only ever
+        sees one manifestation at a time and would delete its own siblings.
         """
         result = self._execute(
-            "MATCH (:Symbol {id: $id})-[:HAS_INTERPRETATION]->(i:Interpretation) RETURN i.id",
-            {"id": symbol_id},
+            "MATCH (:Sign {id: $id})-[:HAS_MANIFESTATION]->(m:Manifestation) RETURN m.id",
+            {"id": sign_id},
         )
         stale_ids = []
         while result.has_next():
-            (interpretation_id,) = result.get_next()
-            if interpretation_id not in current_interpretation_ids:
-                stale_ids.append(interpretation_id)
-        for interpretation_id in stale_ids:
+            (manifestation_id,) = result.get_next()
+            if manifestation_id not in current_manifestation_ids:
+                stale_ids.append(manifestation_id)
+        for manifestation_id in stale_ids:
             self._execute(
-                "MATCH (i:Interpretation {id: $id})-[e:HAS_ATTRIBUTE]->(a:Attribute) DELETE e, a",
-                {"id": interpretation_id},
+                "MATCH (m:Manifestation {id: $id})-[e:HAS_PROPERTY]->(p:Property) DELETE e, p",
+                {"id": manifestation_id},
             )
-            self._execute("MATCH (i:Interpretation {id: $id}) DETACH DELETE i", {"id": interpretation_id})
+            self._execute(
+                "MATCH (m:Manifestation {id: $id})-[e:HAS_INTERPRETANT]->(i:Interpretant) DELETE e, i",
+                {"id": manifestation_id},
+            )
+            self._execute("MATCH (m:Manifestation {id: $id}) DETACH DELETE m", {"id": manifestation_id})
 
-    def upsert_relationship(
+    def upsert_intersemiotic_interpretant(
         self,
         *,
-        from_symbol_id: str,
-        to_symbol_id: str,
-        relationship_type: str,
-        according_to_tradition_id: str,
+        from_sign_id: str,
+        to_sign_id: str,
+        relationship: str,
+        according_to_id: str,
         description: str = "",
         symmetric: bool = False,
         confidence: str = "attributed",
         source_id: str = "",
     ) -> None:
-        """Idempotent per (from, to, relationship_type, according_to_tradition_id) —
-        re-running with the same identity updates description/confidence/etc. in
-        place; a *different* according_to_tradition_id adds a new, independent claim
-        rather than overwriting the first (FR3; verified in
+        """Idempotent per (from, to, relationship, according_to_id) — re-running
+        with the same identity updates description/confidence/etc. in place; a
+        *different* according_to_id adds a new, independent claim rather than
+        overwriting the first (FR3; verified in
         tests/unit/test_kuzu_multi_edge_risk.py).
 
-        Connects `Symbol -> Symbol` directly, not through either endpoint's
-        `Interpretation` — a symbol with zero interpretations can still be a valid
-        `to_symbol_id`/`from_symbol_id`.
+        Connects `Sign -> Sign` directly, not through either endpoint's
+        `Manifestation` — a sign with zero manifestations can still be a valid
+        `to_sign_id`/`from_sign_id`.
         """
         self._execute(
             """
-            MATCH (a:Symbol {id: $from_id}), (b:Symbol {id: $to_id})
-            MERGE (a)-[r:RELATES_TO {
-                relationship_type: $relationship_type,
-                according_to_tradition_id: $according_to_tradition_id
+            MATCH (a:Sign {id: $from_id}), (b:Sign {id: $to_id})
+            MERGE (a)-[r:INTERSEMIOTIC {
+                relationship: $relationship,
+                according_to_id: $according_to_id
             }]->(b)
             ON CREATE SET r.description = $description, r.symmetric = $symmetric,
                           r.confidence = $confidence, r.source_id = $source_id
@@ -325,10 +379,10 @@ class KuzuGraphStore:
                          r.confidence = $confidence, r.source_id = $source_id
             """,
             {
-                "from_id": from_symbol_id,
-                "to_id": to_symbol_id,
-                "relationship_type": relationship_type,
-                "according_to_tradition_id": according_to_tradition_id,
+                "from_id": from_sign_id,
+                "to_id": to_sign_id,
+                "relationship": relationship,
+                "according_to_id": according_to_id,
                 "description": description,
                 "symmetric": symmetric,
                 "confidence": confidence,
@@ -338,40 +392,44 @@ class KuzuGraphStore:
 
     # -- Retrieval -----------------------------------------------------------------
 
-    def get_interpretation(self, symbol_slug: str, tradition_slug: str) -> GraphFacts:
-        """Deterministic, parametrized retrieval of one symbol's interpretation
+    def get_manifestation(self, sign_slug: str, tradition_slug: str) -> GraphFacts:
+        """Deterministic, parametrized retrieval of one sign's manifestation
         within one tradition (FR9, FR10) — never generated from LLM output."""
-        symbol = self._get_symbol_by_slug(symbol_slug)
+        sign = self._get_sign_by_slug(sign_slug)
         tradition = self._get_tradition_by_slug(tradition_slug)
 
         result = self._execute(
             """
-            MATCH (s:Symbol {id: $symbol_id})-[:HAS_INTERPRETATION]->(i:Interpretation)
-                  -[:INTERPRETED_IN]->(t:Tradition {id: $tradition_id})
-            RETURN i.id, i.display_name, i.summary, i.created_at
+            MATCH (s:Sign {id: $sign_id})-[:HAS_MANIFESTATION]->(m:Manifestation)
+                  -[:MANIFESTED_IN]->(t:Tradition {id: $tradition_id})
+            RETURN m.id, m.display_name, m.denotation, m.created_at
             """,
-            {"symbol_id": symbol.id, "tradition_id": tradition.id},
+            {"sign_id": sign.id, "tradition_id": tradition.id},
         )
         if not result.has_next():
-            raise InterpretationNotFoundError(symbol_slug, tradition_slug)
-        interpretation_id, display_name, summary, created_at = result.get_next()
+            raise ManifestationNotFoundError(sign_slug, tradition_slug)
+        manifestation_id, display_name, denotation, created_at = result.get_next()
 
-        interpretation = Interpretation(
-            id=interpretation_id,
-            symbol_id=symbol.id,
+        manifestation = Manifestation(
+            id=manifestation_id,
+            sign_id=sign.id,
             tradition=tradition,
             display_name=display_name,
-            summary=_s(summary),
-            attributes=self._get_attributes(interpretation_id),
-            citations=self._get_citations(interpretation_id),
+            denotation=_s(denotation),
+            properties=self._get_manifestation_properties(manifestation_id),
+            interpretants=self._get_interpretants(manifestation_id),
+            citations=self._get_citations(manifestation_id),
             created_at=created_at,
         )
-        # Correspondences belong to the symbol, not this specific interpretation (see
-        # Symbol.relationships docstring) — populated here via model_copy since
-        # _get_symbol_by_slug/_get_symbol_by_id deliberately return relationship
-        # targets shallow, to avoid unbounded recursion through RelationshipFact.
-        symbol = symbol.model_copy(update={"relationships": self._get_symbol_relationships(symbol.id)})
-        return GraphFacts(symbol=symbol, interpretation=interpretation)
+        # Intersemiotic interpretants belong to the sign, not this specific
+        # manifestation (see Sign.intersemiotic_interpretants docstring) —
+        # populated here via model_copy since _get_sign_by_slug/_get_sign_by_id
+        # deliberately return relationship targets shallow, to avoid unbounded
+        # recursion through IntersemioticInterpretant.target_sign.
+        sign = sign.model_copy(
+            update={"intersemiotic_interpretants": self._get_sign_intersemiotic_interpretants(sign.id)}
+        )
+        return GraphFacts(sign=sign, manifestation=manifestation)
 
     def list_traditions(self) -> tuple[Tradition, ...]:
         """Every declared `Tradition`, for a web/API picker (FR2 of
@@ -385,67 +443,70 @@ class KuzuGraphStore:
             traditions.append(Tradition(id=row[0], slug=row[1], name=row[2], domain=row[3], description=_s(row[4])))
         return tuple(traditions)
 
-    def list_symbols(self) -> tuple[SymbolSummary, ...]:
-        """Every symbol with at least one interpretation, one row per
-        (symbol, tradition) grouped by symbol slug — a symbol with zero
-        interpretations (FR22) is never returned, so a web/API picker can
-        only ever offer a symbol/tradition pair `get_interpretation` will
+    def list_signs(self) -> tuple[SignSummary, ...]:
+        """Every sign with at least one manifestation, one row per
+        (sign, tradition) grouped by sign slug — a sign with zero
+        manifestations (FR22) is never returned, so a web/API picker can
+        only ever offer a sign/tradition pair `get_manifestation` will
         actually resolve (FR2, FR9 of `specs/query-viewer-web-ui/spec.md`)."""
         result = self._execute(
             """
-            MATCH (s:Symbol)-[:HAS_INTERPRETATION]->(:Interpretation)-[:INTERPRETED_IN]->(t:Tradition)
-            RETURN s.slug, s.canonical_name, s.symbol_type, t.slug
+            MATCH (s:Sign)-[:HAS_MANIFESTATION]->(:Manifestation)-[:MANIFESTED_IN]->(t:Tradition)
+            RETURN s.slug, s.canonical_name, s.sign_type, s.semiotic_system, t.slug
             ORDER BY s.slug
             """,
             {},
         )
-        tradition_slugs_by_symbol: dict[str, list[str]] = {}
-        symbol_row_by_slug: dict[str, tuple[str, str, str]] = {}
+        tradition_slugs_by_sign: dict[str, list[str]] = {}
+        sign_row_by_slug: dict[str, tuple[str, str, str]] = {}
         while result.has_next():
-            slug, canonical_name, symbol_type, tradition_slug = result.get_next()
-            tradition_slugs_by_symbol.setdefault(slug, []).append(tradition_slug)
-            symbol_row_by_slug.setdefault(slug, (canonical_name, symbol_type, slug))
+            slug, canonical_name, sign_type, semiotic_system, tradition_slug = result.get_next()
+            tradition_slugs_by_sign.setdefault(slug, []).append(tradition_slug)
+            sign_row_by_slug.setdefault(slug, (canonical_name, sign_type, semiotic_system))
         return tuple(
-            SymbolSummary(
+            SignSummary(
                 slug=slug,
-                canonical_name=symbol_row_by_slug[slug][0],
-                symbol_type=symbol_row_by_slug[slug][1],
-                tradition_slugs=tuple(tradition_slugs_by_symbol[slug]),
+                canonical_name=sign_row_by_slug[slug][0],
+                sign_type=sign_row_by_slug[slug][1],
+                semiotic_system=sign_row_by_slug[slug][2],
+                tradition_slugs=tuple(tradition_slugs_by_sign[slug]),
             )
-            for slug in tradition_slugs_by_symbol
+            for slug in tradition_slugs_by_sign
         )
 
     # -- Internal lookups -----------------------------------------------------------------
 
-    def _get_symbol_by_slug(self, slug: str) -> Symbol:
+    def _get_sign_by_slug(self, slug: str) -> Sign:
         result = self._execute(
-            "MATCH (s:Symbol {slug: $slug}) RETURN s.id, s.slug, s.canonical_name, s.symbol_type, s.notes",
+            "MATCH (s:Sign {slug: $slug}) RETURN s.id, s.slug, s.canonical_name, s.sign_type, s.semiotic_system, s.notes",
             {"slug": slug},
         )
         if not result.has_next():
-            raise SymbolNotFoundError(slug)
+            raise SignNotFoundError(slug)
         row = result.get_next()
-        return Symbol(
+        return Sign(
             id=row[0],
             slug=row[1],
             canonical_name=row[2],
-            symbol_type=row[3],
-            notes=_s(row[4]),
-            properties=self._get_symbol_properties(row[0]),
+            sign_type=row[3],
+            semiotic_system=_s(row[4]),
+            notes=_s(row[5]),
+            properties=self._get_sign_properties(row[0]),
         )
 
-    def _get_symbol_by_id(self, symbol_id: str) -> Symbol:
+    def _get_sign_by_id(self, sign_id: str) -> Sign:
         row = self._execute(
-            "MATCH (s:Symbol {id: $id}) RETURN s.id, s.slug, s.canonical_name, s.symbol_type, s.notes",
-            {"id": symbol_id},
+            "MATCH (s:Sign {id: $id}) RETURN s.id, s.slug, s.canonical_name, s.sign_type, s.semiotic_system, s.notes",
+            {"id": sign_id},
         ).get_next()
-        return Symbol(
+        return Sign(
             id=row[0],
             slug=row[1],
             canonical_name=row[2],
-            symbol_type=row[3],
-            notes=_s(row[4]),
-            properties=self._get_symbol_properties(row[0]),
+            sign_type=row[3],
+            semiotic_system=_s(row[4]),
+            notes=_s(row[5]),
+            properties=self._get_sign_properties(row[0]),
         )
 
     def get_tradition(self, tradition_slug: str) -> Tradition:
@@ -476,8 +537,8 @@ class KuzuGraphStore:
         before deciding whether an ingest is new, unchanged, or a replacement."""
         result = self._execute(
             "MATCH (src:Source {id: $id}) "
-            "RETURN src.id, src.title, src.author, src.publication_year, src.license, src.uri, "
-            "src.content_hash, src.ingested_at",
+            "RETURN src.id, src.domain, src.citation_label, src.title, src.author, src.publication_year, "
+            "src.license, src.uri, src.description, src.content_hash, src.ingested_at",
             {"id": source_id},
         )
         if not result.has_next():
@@ -487,8 +548,8 @@ class KuzuGraphStore:
     def _get_source_by_id(self, source_id: str) -> Source:
         row = self._execute(
             "MATCH (src:Source {id: $id}) "
-            "RETURN src.id, src.title, src.author, src.publication_year, src.license, src.uri, "
-            "src.content_hash, src.ingested_at",
+            "RETURN src.id, src.domain, src.citation_label, src.title, src.author, src.publication_year, "
+            "src.license, src.uri, src.description, src.content_hash, src.ingested_at",
             {"id": source_id},
         ).get_next()
         return self._source_from_row(row)
@@ -497,65 +558,85 @@ class KuzuGraphStore:
     def _source_from_row(row: list[Any]) -> Source:
         return Source(
             id=row[0],
-            title=row[1],
-            author=row[2],
-            publication_year=row[3],
-            license=_s(row[4]),
-            uri=_s(row[5]),
-            content_hash=_s(row[6]),
-            ingested_at=row[7],
+            domain=_s(row[1]),
+            citation_label=_s(row[2]),
+            title=row[3],
+            author=row[4],
+            publication_year=row[5],
+            license=_s(row[6]),
+            uri=_s(row[7]),
+            description=_s(row[8]),
+            content_hash=_s(row[9]),
+            ingested_at=row[10],
         )
 
-    def _get_attributes(self, interpretation_id: str) -> tuple[Attribute, ...]:
-        """Tradition-scoped interpretive attributes (element, keywords, ...) — FR2."""
-        return self._fetch_attributes("Interpretation", interpretation_id)
+    def _get_interpretants(self, manifestation_id: str) -> tuple[Interpretant, ...]:
+        """Tradition-scoped interpretants (concepts, keywords, exact-value facts, ...) — FR2."""
+        result = self._execute(
+            """
+            MATCH (:Manifestation {id: $id})-[:HAS_INTERPRETANT]->(i:Interpretant)
+            RETURN i.id, i.type, i.value, i.position, i.query_directive, i.query_as_token
+            """,
+            {"id": manifestation_id},
+        )
+        interpretants = []
+        while result.has_next():
+            interpretants.append(_interpretant_from_row(result.get_next()))
+        interpretants.sort(key=lambda interpretant: interpretant.position)
+        return tuple(interpretants)
 
-    def _get_symbol_properties(self, symbol_id: str) -> tuple[Attribute, ...]:
-        """Intrinsic, tradition-independent facts about the symbol itself (alphabet
-        position, numeric value, ...) — distinct from `_get_attributes` above."""
-        return self._fetch_attributes("Symbol", symbol_id)
+    def _get_sign_properties(self, sign_id: str) -> tuple[Property, ...]:
+        """Intrinsic, tradition-independent facts about the sign itself (alphabet
+        position, numeric value, ...) — distinct from `_get_manifestation_properties`."""
+        return self._fetch_properties("Sign", sign_id)
 
-    def _fetch_attributes(self, node_label: str, node_id: str) -> tuple[Attribute, ...]:
+    def _get_manifestation_properties(self, manifestation_id: str) -> tuple[Property, ...]:
+        """Structural facts specific to one tradition's rendering of the sign
+        (e.g. a card's deck position in one specific deck) — distinct from
+        `_get_sign_properties`."""
+        return self._fetch_properties("Manifestation", manifestation_id)
+
+    def _fetch_properties(self, node_label: str, node_id: str) -> tuple[Property, ...]:
         # node_label is one of our own fixed table names, never user input, so it's
         # safe to interpolate directly — Cypher has no parameter binding for labels.
         result = self._execute(
             f"""
-            MATCH (:{node_label} {{id: $id}})-[:HAS_ATTRIBUTE]->(a:Attribute)
-            RETURN a.id, a.key, a.value, a.value_type, a.position, a.retrievable
+            MATCH (:{node_label} {{id: $id}})-[:HAS_PROPERTY]->(p:Property)
+            RETURN p.id, p.key, p.value, p.position
             """,
             {"id": node_id},
         )
-        attributes = []
+        properties = []
         while result.has_next():
-            row = result.get_next()
-            attributes.append(_attribute_from_row(row))
-        attributes.sort(key=lambda attribute: attribute.position)
-        return tuple(attributes)
+            properties.append(_property_from_row(result.get_next()))
+        properties.sort(key=lambda prop: prop.position)
+        return tuple(properties)
 
-    def _get_all_interpretation_attributes(self, symbol_id: str) -> tuple[Attribute, ...]:
-        """Every attribute across *all* of a symbol's interpretations, regardless of
-        tradition — used only to populate `RelationshipFact.target_semantic_facts`
+    def _get_all_manifestation_interpretants(self, sign_id: str) -> tuple[Interpretant, ...]:
+        """Every interpretant across *all* of a sign's manifestations, regardless of
+        tradition — used only to populate `IntersemioticInterpretant.target_interpretants`
         (retrieval-query enrichment, FR8), not treated as a fact about one specific
-        tradition's reading. Two hops (`Symbol -> Interpretation -> Attribute`), unlike
-        `_fetch_attributes`, which only handles a single direct `HAS_ATTRIBUTE` hop."""
+        tradition's reading. Never fetches properties, at either scope — properties are
+        never used to build retrieval query text (FR8, FR21). Two hops
+        (`Sign -> Manifestation -> Interpretant`), unlike `_fetch_properties`/`_get_interpretants`,
+        which only handle a single direct hop."""
         result = self._execute(
             """
-            MATCH (:Symbol {id: $id})-[:HAS_INTERPRETATION]->(:Interpretation)-[:HAS_ATTRIBUTE]->(a:Attribute)
-            RETURN a.id, a.key, a.value, a.value_type, a.position, a.retrievable
+            MATCH (:Sign {id: $id})-[:HAS_MANIFESTATION]->(:Manifestation)-[:HAS_INTERPRETANT]->(i:Interpretant)
+            RETURN i.id, i.type, i.value, i.position, i.query_directive, i.query_as_token
             """,
-            {"id": symbol_id},
+            {"id": sign_id},
         )
-        attributes = []
+        interpretants = []
         while result.has_next():
-            row = result.get_next()
-            attributes.append(_attribute_from_row(row))
-        attributes.sort(key=lambda attribute: attribute.position)
-        return tuple(attributes)
+            interpretants.append(_interpretant_from_row(result.get_next()))
+        interpretants.sort(key=lambda interpretant: interpretant.position)
+        return tuple(interpretants)
 
-    def _get_citations(self, interpretation_id: str) -> tuple[Citation, ...]:
+    def _get_citations(self, manifestation_id: str) -> tuple[Citation, ...]:
         result = self._execute(
-            "MATCH (:Interpretation {id: $id})-[r:CITES]->(src:Source) RETURN src.id, r.locator",
-            {"id": interpretation_id},
+            "MATCH (:Manifestation {id: $id})-[r:CITES]->(src:Source) RETURN src.id, r.locator",
+            {"id": manifestation_id},
         )
         citations = []
         while result.has_next():
@@ -563,43 +644,43 @@ class KuzuGraphStore:
             citations.append(Citation(source=self._get_source_by_id(source_id), locator=_s(locator)))
         return tuple(citations)
 
-    def _get_symbol_relationships(self, symbol_id: str) -> tuple[RelationshipFact, ...]:
-        """This symbol's correspondences to other symbols (FR3, FR19). Targets are
-        fetched shallow via `_get_symbol_by_id` (their own `.relationships` is always
-        `()`, deliberately not recursed further) — but `target_semantic_facts` still
-        pulls in the target's own interpretation-level attributes across every
-        tradition, since that's bounded (an Interpretation has no `corresponds_to` of
-        its own) and valuable for retrieval query construction (FR8)."""
+    def _get_sign_intersemiotic_interpretants(self, sign_id: str) -> tuple[IntersemioticInterpretant, ...]:
+        """This sign's correspondences to other signs (FR3, FR19). Targets are
+        fetched shallow via `_get_sign_by_id` (their own `.intersemiotic_interpretants`
+        is always `()`, deliberately not recursed further) — but `target_interpretants`
+        still pulls in the target's own manifestation-level interpretants across every
+        tradition, since that's bounded (a Manifestation has no intersemiotic
+        interpretants of its own) and valuable for retrieval query construction (FR8)."""
         result = self._execute(
             """
-            MATCH (:Symbol {id: $id})-[r:RELATES_TO]->(s2:Symbol)
-            RETURN r.relationship_type, r.description, r.symmetric, r.confidence,
-                   r.according_to_tradition_id, r.source_id, s2.id
+            MATCH (:Sign {id: $id})-[r:INTERSEMIOTIC]->(s2:Sign)
+            RETURN r.relationship, r.description, r.symmetric, r.confidence,
+                   r.according_to_id, r.source_id, s2.id
             """,
-            {"id": symbol_id},
+            {"id": sign_id},
         )
-        relationships = []
+        interpretants = []
         while result.has_next():
             (
-                relationship_type,
+                relationship,
                 description,
                 symmetric,
                 confidence,
-                according_to_tradition_id,
+                according_to_id,
                 source_id,
-                target_symbol_id,
+                target_sign_id,
             ) = result.get_next()
             citation = Citation(source=self._get_source_by_id(source_id)) if source_id else None
-            relationships.append(
-                RelationshipFact(
-                    relationship_type=relationship_type,
-                    target_symbol=self._get_symbol_by_id(target_symbol_id),
-                    according_to_tradition=self._get_tradition_by_id(according_to_tradition_id),
+            interpretants.append(
+                IntersemioticInterpretant(
+                    relationship=relationship,
+                    target_sign=self._get_sign_by_id(target_sign_id),
+                    according_to=self._get_tradition_by_id(according_to_id),
                     description=_s(description),
                     symmetric=bool(symmetric),
                     confidence=_s(confidence) or "attributed",
                     citation=citation,
-                    target_semantic_facts=self._get_all_interpretation_attributes(target_symbol_id),
+                    target_interpretants=self._get_all_manifestation_interpretants(target_sign_id),
                 )
             )
-        return tuple(relationships)
+        return tuple(interpretants)

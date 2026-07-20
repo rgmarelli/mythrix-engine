@@ -1,0 +1,25 @@
+semiotic_system: hebrew_alef_bet
+sign:
+  name: Tzaddi
+  type: hebrew-letter
+  properties:
+  - key: letter_type
+    value: simple
+  manifestations:
+  - tradition: sepher-yetzirah-gra
+    display_name: Tzaddi
+    interpretants:
+    - type: numeric_value
+      value: '90'
+      query:
+        directive: filter
+        as_token: ninety
+    - type: meaning
+      value: To hunt
+    - type: meaning
+      value: fishhook
+    - type: foundation
+      value: taste
+    - type: constellation
+      value: Aquarius
+    cites: Sepher Yetzirah

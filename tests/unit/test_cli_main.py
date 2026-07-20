@@ -40,8 +40,12 @@ def test_load_symbols_help_lists_expected_options() -> None:
 
 
 def test_load_documents_help_lists_expected_options() -> None:
+    """--tradition/--source-slug are gone — a corpus source's id/domain are
+    authored in its own colocated YAML, discovered automatically (FR6)."""
     result = runner.invoke(app, ["load-documents", "--help"])
 
     assert result.exit_code == 0
-    for option in ("--tradition", "--source-slug", "--chunk-size", "--chunk-overlap", "--dry-run", "--json"):
+    for option in ("--chunk-size", "--chunk-overlap", "--dry-run", "--json"):
         assert option in result.output
+    for removed_option in ("--tradition", "--source-slug"):
+        assert removed_option not in result.output

@@ -1,0 +1,25 @@
+semiotic_system: hebrew_alef_bet
+sign:
+  name: Lamed
+  type: hebrew-letter
+  properties:
+  - key: letter_type
+    value: simple
+  manifestations:
+  - tradition: sepher-yetzirah-gra
+    display_name: Lamed
+    interpretants:
+    - type: numeric_value
+      value: '30'
+      query:
+        directive: filter
+        as_token: thirty
+    - type: meaning
+      value: To learn
+    - type: meaning
+      value: to teach
+    - type: foundation
+      value: coition
+    - type: constellation
+      value: Libra
+    cites: Sepher Yetzirah

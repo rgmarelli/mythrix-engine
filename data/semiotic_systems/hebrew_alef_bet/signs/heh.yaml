@@ -1,0 +1,25 @@
+semiotic_system: hebrew_alef_bet
+sign:
+  name: Heh
+  type: hebrew-letter
+  properties:
+  - key: letter_type
+    value: simple
+  manifestations:
+  - tradition: sepher-yetzirah-gra
+    display_name: Heh
+    interpretants:
+    - type: numeric_value
+      value: '5'
+      query:
+        directive: filter
+        as_token: five
+    - type: meaning
+      value: To sow
+    - type: meaning
+      value: contemplation
+    - type: foundation
+      value: speech
+    - type: constellation
+      value: Aries
+    cites: Sepher Yetzirah

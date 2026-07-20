@@ -7,9 +7,11 @@ can inject arbitrary fake vectors and a real caller (document loader, retrieval
 pipeline) is free to swap embedding backends without touching this module. This
 mirrors the `Embedder` abstraction plan.md's Risks section calls for.
 
-Single `mythrix_sources` collection, not per-tradition, so a future
-cross-tradition query doesn't need to fan out across collections — `tradition`
-and `domain` are metadata filters instead.
+Single `mythrix_sources` collection, not per-domain, so a future
+cross-domain query doesn't need to fan out across collections — `domain` is
+a metadata filter instead. Chunks carry no tradition: every ingested document
+is an independent corpus document (FR7), which has no interpretive tradition
+of its own.
 
 The collection is configured for cosine distance explicitly (rather than
 Chroma's l2 default), since cosine is the standard choice for text embeddings
@@ -38,7 +40,6 @@ class ChunkMetadata(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     source_id: str
-    tradition_slug: str
     domain: str
     embedding_model: str
     ingested_at: str
@@ -47,16 +48,15 @@ class ChunkMetadata(BaseModel):
 class VectorHit(BaseModel):
     """One raw similarity-search result — deliberately lighter than
     `core.models.RetrievedPassage`: it carries only what Chroma itself knows
-    (ids, metadata, text, distance), not the hydrated `Source`/`Tradition`
-    objects a `RetrievedPassage` needs. Joining this against `KuzuGraphStore` to
-    build a full `RetrievedPassage` is `RetrievalPipeline`'s job (T15), not the
-    vector store's."""
+    (ids, metadata, text, distance), not the hydrated `Source` object a
+    `RetrievedPassage` needs. Joining this against `KuzuGraphStore` to build a
+    full `RetrievedPassage` is `RetrievalPipeline`'s job (T15), not the vector
+    store's."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     chunk_id: str
     source_id: str
-    tradition_slug: str
     domain: str
     text: str
     chunk_index: int
@@ -108,13 +108,12 @@ class ChromaVectorStore:
         self,
         query_embedding: list[float],
         *,
-        tradition_slug: str | None = None,
         top_k: int = 6,
         document_contains: str | None = None,
     ) -> list[VectorHit]:
-        """Retrieves the `top_k` chunks nearest `query_embedding`, optionally
-        scoped to one tradition (FR7) — never an unfiltered corpus-wide search
-        when a tradition is known.
+        """Retrieves the `top_k` chunks nearest `query_embedding` from the full
+        corpus (FR7) — there is no tradition to scope by; every ingested
+        document is independent.
 
         `document_contains`, if given, restricts results to chunks whose raw
         text literally contains that substring (Chroma's `where_document`),
@@ -131,12 +130,10 @@ class ChromaVectorStore:
         once without, and combine both result sets itself, rather than
         expecting this method to do that softening on its own.
         """
-        where = {"tradition_slug": tradition_slug} if tradition_slug is not None else None
         where_document = {"$contains": document_contains} if document_contains is not None else None
         result = self._collection.query(
             query_embeddings=[query_embedding],
             n_results=top_k,
-            where=where,
             where_document=where_document,
             include=["documents", "metadatas", "distances"],
         )
@@ -151,7 +148,6 @@ class ChromaVectorStore:
                 VectorHit(
                     chunk_id=chunk_id,
                     source_id=meta["source_id"],
-                    tradition_slug=meta["tradition_slug"],
                     domain=meta["domain"],
                     text=document,
                     chunk_index=meta["chunk_index"],
