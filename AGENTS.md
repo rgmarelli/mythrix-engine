@@ -40,3 +40,12 @@ Rules:
 - Do not include implementation history, migration notes, abandoned approaches, or references to previous versions.
 - Do not copy requirements or specifications into comments.
 - Use Git history for historical context.
+
+## Git
+
+- Keep commit messages concise.
+- The first line should summarize the primary change.
+- Commit bodies should explain intent and major impacts, not enumerate every modified file or implementation detail.
+- Prefer describing the outcome of a change over the sequence of edits performed.
+- Avoid writing commit messages as changelogs or pull request descriptions.
+- Include detailed migration notes, file lists, or implementation history only when explicitly requested.
