@@ -4,7 +4,7 @@ import { PassageCard } from './PassageCard';
 interface Props {
   pair: ConceptPairCandidates;
   selectedPassage: RetrievedPassage | null;
-  onSelectPassage: (passage: RetrievedPassage) => void;
+  onSelectPassage: (passage: RetrievedPassage, concepts: string[]) => void;
 }
 
 /** FR6: each candidate's combined score alongside its per-concept component
@@ -21,7 +21,7 @@ function scoreLabel(candidate: MergedCandidate): string {
 export function PairCandidatesSection({ pair, selectedPassage, onSelectPassage }: Props) {
   return (
     <section className="candidates">
-      <h3>Candidates — [{pair.concepts.join(', ')}]</h3>
+      <h3>Convergence — [{pair.concepts.join(', ')}]</h3>
       <div className="passage-grid">
         {pair.candidates.map((candidate) => (
           <PassageCard
@@ -29,7 +29,7 @@ export function PairCandidatesSection({ pair, selectedPassage, onSelectPassage }
             passage={candidate.passage}
             scoreLabel={scoreLabel(candidate)}
             isSelected={selectedPassage?.chunk_id === candidate.passage.chunk_id}
-            onSelect={onSelectPassage}
+            onSelect={(selected) => onSelectPassage(selected, [...pair.concepts])}
           />
         ))}
       </div>

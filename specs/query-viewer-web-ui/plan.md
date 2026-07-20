@@ -17,9 +17,9 @@ src/mythrix/
     commands/query.py    # run_query() — unchanged behavior, now a thin consumer of core/
     formatting.py         # render_facts_human/json — unchanged behavior
   api/
-    app.py                # FastAPI() + lifespan + CORS + static mount
-    dependencies.py       # get_stores(request)
-    routes.py              # GET /api/traditions, /api/symbols, /api/query
+    app.py                # FastAPI() + lifespan + CORS (GET, POST) + static mount
+    dependencies.py       # get_stores(request), get_chat_client()
+    routes.py              # GET /api/traditions, /api/symbols, /api/query, POST /api/summarize
     errors.py               # MythrixError -> HTTP status mapping
 web/
   src/                    # React + TypeScript + Vite, independent toolchain
@@ -77,6 +77,18 @@ The route's body generator is a plain synchronous generator. Starlette runs a sy
 - `app.py` registers `app.include_router(routes.router, prefix="/api")` before the conditional `app.mount("/", StaticFiles(directory="web/dist", html=True))`. A `Mount("/")` registered first shadows every path, including `/api/*`. `StaticFiles.__init__` raises `RuntimeError` at construction if the directory is missing (`check_dir=True` default) — the mount is guarded by `if Path("web/dist").is_dir():`.
 - OpenAPI: FastAPI's default `/docs`, `/redoc`, `/openapi.json`. `/api/query`'s `responses=` parameter documents the `text/event-stream` content with the event schemas above; its docstring lists the event sequence.
 
+## AI Summary action (FR17-FR19)
+
+`POST /api/summarize` — request `{passage_text: str, concepts: list[str]}`, response `{summary: str}`. Both are plain `pydantic.BaseModel`s local to `routes.py` (API transport shapes, not domain models — nothing in `core/models.py`).
+
+`core/synthesis/prompts.py::render_passage_summary_prompt(text, concepts) -> str` builds a single-passage, marker-free prompt ("Summarize the following passage, focusing on the concepts: ...") — distinct from `SYSTEM_PROMPT`/the retired per-concept synthesis, which used `[G#]`/`[S#]` markers over the full graph-facts/passages context. This is a one-shot summary of text the caller already has in hand, not a citation-bearing claim to validate.
+
+`api/dependencies.py::get_chat_client() -> ChatClient` constructs an `OllamaChatClient` (`core/synthesis/chain.py`, previously unused on any live path) fresh per request, unlike `get_stores`. `generation_model` (`core/config.py`) has no default, and `OllamaChatClient.__init__` validates the model against Ollama synchronously — building it once at process startup (alongside `Stores`, in `lifespan`) would fail API startup for every deployment that never sets a generation model or never clicks AI Summary. Building it lazily means the cost (and failure mode) is paid only when the action is actually used.
+
+`summarize_passage` (`routes.py`) takes `chat_client: ChatClient = Depends(get_chat_client)`, builds the prompt, and returns `chat_client.invoke(prompt)` wrapped in the response model. `ModelUnavailableError`/`ModelRequestError` raised by either the dependency or `.invoke()` are caught by the same registered `MythrixError` exception handler as every other route (502, FR19) — no separate error path needed.
+
+`app.py`'s `CORSMiddleware` allows `["GET", "POST"]` (was `["GET"]`) — the only mutating-looking request in v1, though it triggers no write to `.mythrix/`; it only calls out to Ollama.
+
 ## Dependencies
 
 - `fastapi` — new direct dependency.
@@ -85,7 +97,13 @@ The route's body generator is a plain synchronous generator. Starlette runs a sy
 
 ## Frontend
 
-`web/` — React + TypeScript + Vite, independent toolchain and build. `api/client.ts` opens `new EventSource` against `/api/query` (all parameters in the URL, native GET support). Component state accumulates per SSE event: `graphFacts`, `conceptCandidates[]`, `pairCandidates[]`, appended as events land — sections render as their data arrives, not after a single blocking fetch. `PassageCard` renders source attribution and score only, never passage text (FR4); `PassageDetailPanel` is the only place text renders, set directly from the clicked card's already-denormalized passage object.
+`web/` — React + TypeScript + Vite, independent toolchain and build. `api/client.ts` opens `new EventSource` against `/api/query` (all parameters in the URL, native GET support). Component state accumulates per SSE event: `graphFacts`, `conceptCandidates[]`, `pairCandidates[]`, appended as events land — sections render as their data arrives, not after a single blocking fetch. `PassageCard` renders source attribution (`{source.id} - {locator}`, e.g. `douay-rheims-bible - Genesis 9` — the source id plus locator, not the repeated full title/author) and score only, never passage text (FR4).
+
+`GraphFactsPanel` renders, per correspondence, the target symbol's own `properties` and the relationship's `target_semantic_facts` nested under the correspondence line (FR16) — the target of a correspondence carries facts of its own (e.g. The Sun's `hebrew_letter` correspondence to Qoph brings in Qoph's `numeric_value`/`meaning` properties and `foundation`/`constellation` semantic facts), not just the bare relationship claim.
+
+`App.tsx` tracks which concept(s) a selected passage came from (`selectedConcepts: string[]`) alongside `selectedPassage` — a per-concept section passes `[candidates.concept]`, a pair section passes `pair.concepts` — so `PassageDetailPanel` knows what to scope an AI Summary request to (FR17). `PassageDetailPanel` is rendered with `key={selectedPassage?.chunk_id}` so React remounts it fresh on every new selection, resetting its internal summary/loading/error state rather than carrying a stale summary over to the next passage.
+
+`PassageDetailPanel` (FR5, FR17-FR19) orders its content metadata-first: the `Source`/`Locator`/`Tradition`/`Score` `<dl>` above the passage text, so the citation is visible without scrolling past the passage. Below the text, an "AI Summary — {concepts}" button calls `api/client.ts::summarizePassage(text, concepts)` (`POST /api/summarize`) and renders the returned summary, or a client-visible error on failure (FR19), without touching the rest of the displayed query result. `.passage-detail` is bounded to `max-height: calc(100svh - 2rem)` with `overflow-y: auto` so a long passage scrolls inside the panel instead of extending past the viewport with no way to reach the rest of it.
 
 ## Dev/prod serving
 

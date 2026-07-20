@@ -17,7 +17,7 @@
 - A web UI for `load-symbols`/`load-documents` — structured-data and document loading stay CLI-only.
 - Authentication, multi-user access, or any access control.
 - Write operations of any kind from the web UI.
-- A conversational or chat-style interface.
+- A conversational or chat-style interface. The AI Summary action (FR17-FR19) is a single-turn, stateless request per passage, not a conversation — it carries no history and no memory across requests.
 - A UI for comparing multiple interpretive traditions of the same symbol against each other.
 - Concurrent execution of the backend API process and a `load-symbols`/`load-documents` CLI invocation against the same `.mythrix/` directory.
 
@@ -31,6 +31,13 @@
 - FR4: Every displayed passage card shows its source attribution and score; passage text is never shown in the main results view, not even truncated — full verbatim text is available only after selecting the passage (FR5).
 - FR5: A user can select a displayed passage to view its full verbatim text and complete citation/source detail in a dedicated panel, with no client-side truncation.
 - FR6: Concept-pair convergence groups display each candidate's combined score and its per-concept component scores, distinguishing exact-value matches from semantic-similarity matches.
+- FR16: For each correspondence shown in graph facts, the display includes the target symbol's own intrinsic properties and any semantic facts recorded for that correspondence, not only the correspondence claim itself.
+
+### AI Summary
+
+- FR17: A user can request an AI-generated summary of a selected passage, scoped to the concept(s) it was retrieved for.
+- FR18: A summary request sends only the selected passage's retrieved text and its associated concept(s) to the generation model — no graph facts, no other passages.
+- FR19: A summarization request that cannot reach the generation model returns a distinct, client-visible error, without altering or clearing the already-displayed query result.
 
 ### Backend API
 

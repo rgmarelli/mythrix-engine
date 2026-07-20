@@ -24,6 +24,20 @@ export function fetchSymbols(): Promise<SymbolSummary[]> {
   return fetchJson('/api/symbols');
 }
 
+export async function summarizePassage(passageText: string, concepts: string[]): Promise<string> {
+  const response = await fetch(`${API_BASE_URL}/api/summarize`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ passage_text: passageText, concepts }),
+  });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as { detail?: string } | null;
+    throw new Error(body?.detail ?? `Summarize request failed (${response.status})`);
+  }
+  const data = (await response.json()) as { summary: string };
+  return data.summary;
+}
+
 export interface QueryStreamHandlers {
   onGraphFacts: (data: GraphFacts) => void;
   onConceptCandidates: (data: ConceptCandidates) => void;

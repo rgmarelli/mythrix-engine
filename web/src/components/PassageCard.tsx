@@ -18,7 +18,8 @@ export function PassageCard({ passage, scoreLabel, isSelected, onSelect }: Props
       onClick={() => onSelect(passage)}
     >
       <span className="attribution">
-        {passage.source.title}, {passage.source.author}
+        {passage.source.id}
+        {passage.locator && ` - ${passage.locator}`}
       </span>
       <span className="score">{scoreLabel}</span>
       <span className="hint">click to view →</span>

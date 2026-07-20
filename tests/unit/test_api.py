@@ -13,7 +13,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from mythrix.api.app import create_app
-from mythrix.api.dependencies import get_stores
+from mythrix.api.dependencies import get_chat_client, get_stores
 from mythrix.core.bootstrap import Stores
 from mythrix.core.errors import ModelUnavailableError
 from mythrix.core.graph.store import KuzuGraphStore
@@ -21,6 +21,25 @@ from mythrix.core.models import Attribute, Interpretation, Source, Symbol, Tradi
 from mythrix.core.vector.store import ChromaVectorStore
 
 RIDER_WAITE = Tradition(id="rider-waite", slug="rider-waite", name="Rider-Waite-Smith", domain="tarot")
+
+
+class FakeChatClient:
+    generation_model = "fake-chat"
+
+    def __init__(self, response: str = "a summary") -> None:
+        self.response = response
+        self.last_prompt: str | None = None
+
+    def invoke(self, prompt: str) -> str:
+        self.last_prompt = prompt
+        return self.response
+
+
+class UnavailableChatClient:
+    generation_model = "fake-chat"
+
+    def invoke(self, prompt: str) -> str:  # noqa: ARG002
+        raise ModelUnavailableError(self.generation_model)
 
 
 class FakeEmbedder:
@@ -133,3 +152,30 @@ def test_query_unreachable_embedder_is_a_mid_stream_error_event(
     assert events[-1][0] == "error"
     assert "detail" in events[-1][1]
     assert not any(event_type == "done" for event_type, _ in events)
+
+
+def test_summarize_passage_returns_chat_client_response(
+    graph_store: KuzuGraphStore, vector_store: ChromaVectorStore
+) -> None:
+    client = _client(graph_store, vector_store)
+    fake_chat_client = FakeChatClient(response="Sudden upheaval, focused on collapse.")
+    client.app.dependency_overrides[get_chat_client] = lambda: fake_chat_client
+
+    response = client.post("/api/summarize", json={"passage_text": "The tower falls.", "concepts": ["collapse"]})
+
+    assert response.status_code == 200
+    assert response.json() == {"summary": "Sudden upheaval, focused on collapse."}
+    assert "collapse" in fake_chat_client.last_prompt
+    assert "The tower falls." in fake_chat_client.last_prompt
+
+
+def test_summarize_passage_unavailable_model_is_502(
+    graph_store: KuzuGraphStore, vector_store: ChromaVectorStore
+) -> None:
+    client = _client(graph_store, vector_store)
+    client.app.dependency_overrides[get_chat_client] = lambda: UnavailableChatClient()
+
+    response = client.post("/api/summarize", json={"passage_text": "The tower falls.", "concepts": ["collapse"]})
+
+    assert response.status_code == 502
+    assert "detail" in response.json()

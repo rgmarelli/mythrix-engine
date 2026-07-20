@@ -189,6 +189,8 @@ main {
   position: sticky;
   top: 1rem;
   align-self: start;
+  max-height: calc(100svh - 2rem);
+  overflow-y: auto;
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 1rem;
@@ -219,6 +221,34 @@ main {
 
 .passage-detail dd {
   margin: 0;
+}
+
+.ai-summary {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.ai-summary button {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+.ai-summary button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.summary-text {
+  margin: 0.75rem 0 0;
+  white-space: pre-wrap;
+  font-style: italic;
 }
 
 .error {

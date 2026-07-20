@@ -12,12 +12,14 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from pydantic.json_schema import models_json_schema
 
-from mythrix.api.dependencies import get_stores
+from mythrix.api.dependencies import get_chat_client, get_stores
 from mythrix.core.bootstrap import Stores
 from mythrix.core.config import Settings
 from mythrix.core.errors import MythrixError
 from mythrix.core.models import ConceptCandidates, ConceptPairCandidates, GraphFacts, SymbolSummary, Tradition
 from mythrix.core.query_service import stream_query
+from mythrix.core.synthesis.chain import ChatClient
+from mythrix.core.synthesis.prompts import render_passage_summary_prompt
 
 router = APIRouter()
 
@@ -125,3 +127,26 @@ def query(
     )
     first_type, first_payload = next(generator)
     return StreamingResponse(_sse_body(first_type, first_payload, generator), media_type="text/event-stream")
+
+
+class SummarizeRequest(BaseModel):
+    passage_text: str
+    concepts: list[str]
+
+
+class SummarizeResponse(BaseModel):
+    summary: str
+
+
+@router.post("/summarize", response_model=SummarizeResponse)
+def summarize_passage(
+    payload: SummarizeRequest, chat_client: ChatClient = Depends(get_chat_client)
+) -> SummarizeResponse:
+    """One ad-hoc generation call for a single already-retrieved passage,
+    triggered by the web UI's AI Summary button — distinct from `/api/query`,
+    which invokes no generation model (FR29). `ModelUnavailableError`/
+    `ModelRequestError` raised by `get_chat_client`/`chat_client.invoke` are
+    handled by the same registered `MythrixError` exception handler as every
+    other route (502)."""
+    prompt = render_passage_summary_prompt(payload.passage_text, tuple(payload.concepts))
+    return SummarizeResponse(summary=chat_client.invoke(prompt))

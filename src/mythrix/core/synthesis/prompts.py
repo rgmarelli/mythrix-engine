@@ -66,6 +66,17 @@ def render_graph_facts_block(graph_facts: GraphFacts) -> str:
     return "GRAPH FACTS\n" + "\n".join(f"[G{i + 1}] {line}" for i, line in enumerate(lines))
 
 
+def render_passage_summary_prompt(text: str, concepts: tuple[str, ...]) -> str:
+    """A single ad-hoc summarization prompt for one already-retrieved passage,
+    focused on the concept(s) it was retrieved for — the web UI's per-passage
+    AI Summary action (`api/routes.py::summarize_passage`). Distinct from
+    `SYSTEM_PROMPT`/the retired per-concept synthesis: no markers, no
+    GRAPH FACTS/PASSAGES framing, one passage at a time, on demand rather
+    than on every query (FR29 still governs the `query` path itself)."""
+    concept_list = ", ".join(concepts)
+    return f'Summarize the following passage, focusing on the concepts: {concept_list}.\n\nPassage:\n"{text}"'
+
+
 def render_passages_block(passages: tuple[RetrievedPassage, ...], *, max_chars: int | None = None) -> str:
     """`max_chars` truncates each passage's *displayed* text — used only for
     human-readable CLI output (`cli/formatting.py`), never for `--json`

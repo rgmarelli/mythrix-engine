@@ -25,6 +25,15 @@ export function GraphFactsPanel({ graphFacts }: Props) {
         {'": '}
         {interpretation.summary}
       </p>
+      {symbol.properties.length > 0 && (
+        <ul>
+          {symbol.properties.map((property) => (
+            <li key={property.id}>
+              Property — {property.key}: {property.value}
+            </li>
+          ))}
+        </ul>
+      )}
       {interpretation.attributes.length > 0 && (
         <ul>
           {interpretation.attributes.map((attribute) => (
@@ -36,13 +45,30 @@ export function GraphFactsPanel({ graphFacts }: Props) {
       )}
       {symbol.relationships.length > 0 && (
         <ul>
-          {symbol.relationships.map((relationship, index) => (
-            <li key={`${relationship.relationship_type}-${relationship.target_symbol.slug}-${index}`}>
-              Correspondence — {relationship.relationship_type}: relates to "
-              {relationship.target_symbol.canonical_name}", according to{' '}
-              {relationship.according_to_tradition.name}.
-            </li>
-          ))}
+          {symbol.relationships.map((relationship, index) => {
+            const target = relationship.target_symbol;
+            const hasTargetFacts = target.properties.length > 0 || relationship.target_semantic_facts.length > 0;
+            return (
+              <li key={`${relationship.relationship_type}-${target.slug}-${index}`}>
+                Correspondence — {relationship.relationship_type}: relates to "{target.canonical_name}", according
+                to {relationship.according_to_tradition.name}.
+                {hasTargetFacts && (
+                  <ul>
+                    {target.properties.map((property) => (
+                      <li key={property.id}>
+                        {target.canonical_name} property — {property.key}: {property.value}
+                      </li>
+                    ))}
+                    {relationship.target_semantic_facts.map((fact) => (
+                      <li key={fact.id}>
+                        {target.canonical_name} attribute — {fact.key}: {fact.value}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>

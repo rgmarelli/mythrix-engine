@@ -19,6 +19,7 @@ function App() {
   const [conceptCandidates, setConceptCandidates] = useState<ConceptCandidates[]>([]);
   const [pairCandidates, setPairCandidates] = useState<ConceptPairCandidates[]>([]);
   const [selectedPassage, setSelectedPassage] = useState<RetrievedPassage | null>(null);
+  const [selectedConcepts, setSelectedConcepts] = useState<string[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
 
@@ -30,6 +31,11 @@ function App() {
     return () => stopStreamRef.current?.();
   }, []);
 
+  function selectPassage(passage: RetrievedPassage, concepts: string[]) {
+    setSelectedPassage(passage);
+    setSelectedConcepts(concepts);
+  }
+
   function handleSubmit() {
     stopStreamRef.current?.();
 
@@ -37,6 +43,7 @@ function App() {
     setConceptCandidates([]);
     setPairCandidates([]);
     setSelectedPassage(null);
+    setSelectedConcepts([]);
     setStreamError(null);
     setIsStreaming(true);
 
@@ -77,7 +84,7 @@ function App() {
               key={candidates.concept}
               candidates={candidates}
               selectedPassage={selectedPassage}
-              onSelectPassage={setSelectedPassage}
+              onSelectPassage={selectPassage}
             />
           ))}
           {pairCandidates.map((pair) => (
@@ -85,14 +92,14 @@ function App() {
               key={pair.concepts.join('::')}
               pair={pair}
               selectedPassage={selectedPassage}
-              onSelectPassage={setSelectedPassage}
+              onSelectPassage={selectPassage}
             />
           ))}
           {isStreaming && <p className="streaming-indicator">Streaming…</p>}
           {streamError && <p className="error">{streamError}</p>}
         </div>
 
-        <PassageDetailPanel passage={selectedPassage} />
+        <PassageDetailPanel key={selectedPassage?.chunk_id ?? 'empty'} passage={selectedPassage} concepts={selectedConcepts} />
       </main>
     </div>
   );

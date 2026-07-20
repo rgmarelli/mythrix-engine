@@ -38,3 +38,22 @@
 - [x] T25: Manual check — unknown symbol/tradition surfaces a visible pre-stream error; embedder failure surfaces a visible mid-stream error.
 - [x] T26: Manual check — `/docs` shows typed schemas for `/api/traditions`/`/api/symbols` and a documented `text/event-stream` response for `/api/query`.
 - [x] T27: Manual check — running `load-symbols` while the API is up fails fast with the Kùzu lock error.
+
+## Post-review UI fixes
+
+- [x] T28: Rename section headings — "Candidates" → "Passages" (per-concept) / "Convergence" (per-pair) — in `ConceptCandidatesSection.tsx`/`PairCandidatesSection.tsx`.
+- [x] T29: `GraphFactsPanel.tsx` — render each correspondence's target symbol's own `properties` and the relationship's `target_semantic_facts`, nested under the correspondence line; render the queried symbol's own `properties` above the interpretation attributes (FR16).
+- [x] T30: `PassageCard.tsx` — show `{source.id} - {locator}` instead of `{source.title}, {source.author}`.
+- [x] T31: `index.css` — bound `.passage-detail` to `max-height: calc(100svh - 2rem)` with `overflow-y: auto`.
+- [x] T32: `PassageDetailPanel.tsx` — reorder metadata `<dl>` above the passage text.
+
+## AI Summary action
+
+- [x] T33: `core/synthesis/prompts.py::render_passage_summary_prompt(text, concepts)`.
+- [x] T34: `api/dependencies.py::get_chat_client()` — per-request `OllamaChatClient`.
+- [x] T35: `api/routes.py` — `SummarizeRequest`/`SummarizeResponse`, `POST /api/summarize`.
+- [x] T36: `api/app.py` — `CORSMiddleware.allow_methods` includes `POST`.
+- [x] T37: `tests/unit/test_api.py` — `/api/summarize` success (fake chat client) and model-unavailable 502.
+- [x] T38: `App.tsx` — track `selectedConcepts` alongside `selectedPassage`; pass through from both section components.
+- [x] T39: `api/client.ts::summarizePassage`; `PassageDetailPanel.tsx` — AI Summary button, loading/error/result states, remounted via `key={chunk_id}` per selection.
+- [x] T40: Manual check — AI Summary button against real Ollama (`qwen2.5:3b`) produces a passage-focused summary end to end.
