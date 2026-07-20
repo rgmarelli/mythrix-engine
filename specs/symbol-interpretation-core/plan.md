@@ -103,16 +103,18 @@ class Property(MythrixModel):
     position: int = 0
 
 class QueryDirective(MythrixModel):
-    """A curator-authored retrieval instruction on one Interpretant (FR8, FR28).
-    `directive` is free text; v1 code interprets only `"filter"`."""
+    """A curator-authored retrieval instruction on one Interpretant (FR8, FR28, FR30).
+    `directive` is free text; v1 code interprets `"filter"` (requires `as_token`)
+    and `"skip"` (`as_token` unused)."""
     directive: str
-    as_token: str
+    as_token: str = ""
 
 class Interpretant(MythrixModel):
     """A conceptual token evoked by a sign within one manifestation — always
     eligible for retrieval query construction (FR8, FR24) unless it carries a
     `query.directive: "filter"` annotation, in which case it is applied as a
-    literal-text filter instead of a plain query (FR28)."""
+    literal-text filter instead of a plain query (FR28), or a `"skip"`
+    annotation, in which case it takes no part in retrieval at all (FR30)."""
     id: str
     type: str = "concept"
     value: str
@@ -228,7 +230,7 @@ class PropertyEntry(LoaderModel):
 
 class QueryDirectiveEntry(LoaderModel):
     directive: str
-    as_token: str
+    as_token: str = ""
 
 class InterpretantEntry(LoaderModel):
     type: str = "concept"
@@ -294,6 +296,8 @@ Two-pass loading (`build_plan()` then `_write_plan()`) is unchanged in structure
 Similarity-search query text is built entirely from already-retrieved `GraphFacts` — an `Interpretant.value`, never from `Sign.properties`/`Manifestation.properties`, never from `Sign.canonical_name`/`Manifestation.display_name`/`Manifestation.denotation`, and never from raw user input (FR8). One query per individual atomic concept: one per `_atomic_values`-split value in each of the manifestation's own `interpretants`, then for every `intersemiotic_interpretants` entry (FR3, FR19), one per atomic concept in `target_interpretants` — the target sign's own `properties` are excluded from this at every call site, including inside an intersemiotic-interpretant's target, which is the one behavior change relative to the prior implementation (previously a relationship target's `properties` were folded in via `target.properties + relationship.target_semantic_facts`; they are not folded in here).
 
 An interpretant carrying `query.directive == "filter"` is excluded from the plain-concept list and instead contributes a `_FilterToken(value=interpretant.value, as_token=interpretant.query.as_token)`. Every recognized filter token anywhere in the current `GraphFacts` — the manifestation's own interpretants and every intersemiotic target's `target_interpretants` — is collected once (`_collect_filter_tokens`), deduplicated by `as_token`, and applied as an *additional* `document_contains` literal-text filter query to every plain concept query, regardless of which group produced the token; the plain query for every concept is always issued as well, so a filter token never causes a concept's ordinary result set to be replaced or suppressed.
+
+An interpretant carrying `query.directive == "skip"` (FR30) is excluded from `_extract_concepts` outright (`_is_skipped`) — no plain query, and (unlike `"filter"`) no `_FilterToken` either, since `_filter_token_for` only recognizes `"filter"`. It never reaches `build_query_texts`'s output, `_search_deep_pools`, `retrieve_fragments`, or any facet/pair grouping downstream.
 
 Concept-scoped retrieval (FR24): every `_Query` sharing the same `Interpretant.value` shares that value as its grouping key (`concept`); hits within a concept are combined by Reciprocal Rank Fusion (`_RRF_K = 60`) across only that concept's own queries, searched to `match_pool_size` depth and displayed to `top_k`.
 

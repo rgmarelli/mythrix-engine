@@ -90,16 +90,19 @@ class Property(MythrixModel):
 
 
 class QueryDirective(MythrixModel):
-    """A curator-authored retrieval instruction on one `Interpretant` (FR8, FR28).
+    """A curator-authored retrieval instruction on one `Interpretant` (FR8, FR28, FR30).
 
-    `directive` is a free-text hint, not an enforced enum — v1 code interprets only
+    `directive` is a free-text hint, not an enforced enum — v1 code interprets
     `"filter"`, which marks this interpretant as an exact value: it is excluded from
     the plain concept query text and instead applied as an additional literal-text
-    filter using `as_token`.
+    filter using `as_token`; and `"skip"`, which excludes this interpretant from
+    retrieval entirely — no plain query and no literal-text filter — while it
+    remains an ordinary fact elsewhere in the Sign Graph. `as_token` is required
+    for `"filter"` and unused for `"skip"`.
     """
 
     directive: str
-    as_token: str
+    as_token: str = ""
 
 
 class Interpretant(MythrixModel):

@@ -22,4 +22,7 @@ sign:
       value: sight
     - type: constellation
       value: Cancer
+      query:
+        directive: filter
+        as_token: Cancer
     cites: Sepher Yetzirah

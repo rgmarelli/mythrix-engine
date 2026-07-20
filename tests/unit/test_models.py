@@ -137,6 +137,17 @@ def test_interpretant_query_directive_round_trip() -> None:
     assert restored.query.as_token == "hundred"
 
 
+def test_interpretant_skip_directive_defaults_as_token_to_empty_string() -> None:
+    """FR30: a `"skip"` directive has no use for `as_token` — it's optional,
+    not required like `"filter"`'s."""
+    interpretant = Interpretant(
+        id="interp-meaning", type="meaning", value="eye of the needle", query=QueryDirective(directive="skip")
+    )
+
+    assert interpretant.query is not None
+    assert interpretant.query.as_token == ""
+
+
 def test_property_has_no_retrievable_field() -> None:
     """Properties are never used to build retrieval query text regardless of
     scope — there is no per-fact opt-out flag left to set (unlike the retired

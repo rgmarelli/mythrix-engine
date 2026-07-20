@@ -281,6 +281,31 @@ def test_query_texts_add_a_gematria_filtered_variant_without_dropping_the_plain_
     assert not any("simple" in t for t in texts)  # Qoph's own properties never feed query text either
 
 
+def test_query_texts_skip_directive_produces_no_query_at_all() -> None:
+    """FR30: an interpretant carrying `query.directive: "skip"` contributes no
+    query of any kind — neither a plain concept query nor a filter token —
+    unlike `"filter"`, which still contributes the filtered variant."""
+    manifestation_with_skip = THE_TOWER_MANIFESTATION.model_copy(
+        update={
+            "interpretants": (
+                Interpretant(id="interp-element", type="element", value="Fire"),
+                Interpretant(
+                    id="interp-skipped",
+                    type="meaning",
+                    value="eye of the needle",
+                    query=QueryDirective(directive="skip"),
+                ),
+            )
+        }
+    )
+    graph_facts = GraphFacts(sign=THE_TOWER, manifestation=manifestation_with_skip)
+
+    query_texts = build_query_texts(graph_facts)
+
+    assert query_texts == [("Fire", None)]
+    assert not any("needle" in q.text for q in query_texts)
+
+
 def test_retrieve_searches_the_full_corpus_with_no_scoping_filter(graph_store: KuzuGraphStore) -> None:
     """FR7: retrieval is never scoped by tradition — there is no tradition
     parameter left on `similarity_search` to pass one through."""

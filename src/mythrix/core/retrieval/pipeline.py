@@ -46,6 +46,17 @@ one that only matches the concept. See `_fact_queries`. Because that filter is a
 the token — which is what lets it appear as a first-class member of a concept
 pair (FR28, see "Concept-pair convergence" below).
 
+An interpretant carrying `query.directive: "skip"` (FR30) is the simpler,
+harder case: no query, plain or filtered, is ever built for it — it takes no
+part in retrieval at all, present only as an ordinary fact elsewhere in the
+Sign Graph. Distinct from `"filter"`: a filter interpretant becomes an
+additional literal-text query, contributing membership without a score; a
+skip interpretant contributes nothing to retrieval whatsoever. For a
+correspondence-sourced meaning with no reliable literal form in the corpus and
+too diffuse a semantic signal to be worth searching on its own (unlike a
+gematria value, which has both), skip removes it cleanly instead of leaving it
+to compete as a noisy, low-value concept. See `_extract_concepts`.
+
 A real query (The Sun, corresponding to the Hebrew letter Qoph) drove every
 round of this design, in order: embedding "laughter" (Qoph's Sepher Yetzirah
 foundation) completely alone ranked the one Bible passage it should surface at
@@ -553,17 +564,25 @@ def _filter_token_for(interpretant: Interpretant) -> _FilterToken | None:
     return None
 
 
+def _is_skipped(interpretant: Interpretant) -> bool:
+    """True for an interpretant carrying a `query.directive == "skip"`
+    annotation (FR30) — excluded from retrieval entirely, unlike a `"filter"`
+    interpretant, which still contributes a literal-text filter query."""
+    return interpretant.query is not None and interpretant.query.directive == "skip"
+
+
 def _extract_concepts(interpretants: tuple[Interpretant, ...]) -> list[str]:
     """Every interpretant's value, decomposed to one atomic concept per value
     (`_atomic_values`) — an interpretant carrying a `query.directive: "filter"`
     annotation is excluded here, since it's handled separately as a global
-    filter (`_collect_filter_tokens`), not as a concept of its own. Properties
-    (`Sign.properties`/`Manifestation.properties`) are never passed to this
-    function at all — only `Manifestation.interpretants` and
+    filter (`_collect_filter_tokens`), not as a concept of its own; one
+    carrying `"skip"` (FR30) is excluded outright, contributing no query of any
+    kind. Properties (`Sign.properties`/`Manifestation.properties`) are never
+    passed to this function at all — only `Manifestation.interpretants` and
     `IntersemioticInterpretant.target_interpretants` ever reach it."""
     concepts: list[str] = []
     for interpretant in interpretants:
-        if _filter_token_for(interpretant) is not None:
+        if _is_skipped(interpretant) or _filter_token_for(interpretant) is not None:
             continue
         concepts.extend(_atomic_values(interpretant.value))
     return concepts

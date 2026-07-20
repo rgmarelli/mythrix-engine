@@ -22,4 +22,7 @@ sign:
       value: speech
     - type: constellation
       value: Aries
+      query:
+        directive: filter
+        as_token: Aries
     cites: Sepher Yetzirah
