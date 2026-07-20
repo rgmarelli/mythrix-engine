@@ -22,7 +22,18 @@ from pathlib import Path
 import pytest
 
 from mythrix.core.graph.store import KuzuGraphStore
-from mythrix.core.models import Attribute, GraphFacts, Interpretation, RelationshipFact, Source, Symbol, Tradition
+from mythrix.core.models import (
+    Attribute,
+    ConceptCandidates,
+    ConceptPairCandidates,
+    GraphFacts,
+    Interpretation,
+    RelationshipFact,
+    RetrievalContext,
+    Source,
+    Symbol,
+    Tradition,
+)
 from mythrix.core.retrieval.pipeline import RetrievalPipeline, _combined_score, build_query_texts
 from mythrix.core.vector.store import VectorHit
 
@@ -650,6 +661,34 @@ def test_pair_candidates_emitted_for_a_chunk_shared_by_two_concepts(graph_store:
     assert len(pair.candidates) == 1
     assert pair.candidates[0].passage.chunk_id == "shared"
     assert {m.concept for m in pair.candidates[0].matches} == {"Fire", "Fish"}
+
+
+def test_iter_candidates_yields_concept_candidates_before_pair_candidates(graph_store: KuzuGraphStore) -> None:
+    """`iter_candidates` is the incremental form `retrieve()` collects in
+    full — every concept's `ConceptCandidates` comes out before any
+    `ConceptPairCandidates`, and collecting the whole generator reproduces
+    exactly what `retrieve()` returns."""
+    graph_facts = _relationship_graph_facts()
+    shared_hit_for_fire = _make_hit("shared", distance=0.2)
+    shared_hit_for_fish = _make_hit("shared", distance=0.3)
+    vector_store = SequencedVectorStore([[shared_hit_for_fire], [shared_hit_for_fish]])
+    pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
+
+    items = list(pipeline.iter_candidates(graph_facts))
+
+    kinds = [type(item) for item in items]
+    assert kinds.count(ConceptCandidates) == 2
+    assert kinds.count(ConceptPairCandidates) == 1
+    assert kinds.index(ConceptPairCandidates) > kinds.index(ConceptCandidates)
+
+    reconstructed = RetrievalContext(
+        graph_facts=graph_facts,
+        concept_candidates=tuple(i for i in items if isinstance(i, ConceptCandidates)),
+        pair_candidates=tuple(i for i in items if isinstance(i, ConceptPairCandidates)),
+    )
+    vector_store_2 = SequencedVectorStore([[shared_hit_for_fire], [shared_hit_for_fish]])
+    pipeline_2 = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store_2, embedder=FakeEmbedder())
+    assert reconstructed == pipeline_2.retrieve(graph_facts)
 
 
 def test_no_pair_candidates_when_no_chunk_is_shared(graph_store: KuzuGraphStore) -> None:

@@ -166,6 +166,18 @@ class Interpretation(MythrixModel):
     created_at: datetime
 
 
+class SymbolSummary(MythrixModel):
+    """A lightweight listing of one symbol, for a picker to choose a
+    symbol/tradition pair guaranteed to have an interpretation (FR9 of
+    `specs/query-viewer-web-ui/spec.md`) — not a full `Symbol` (no
+    `properties`/`relationships`), since a picker has no use for either."""
+
+    slug: str
+    canonical_name: str
+    symbol_type: str
+    tradition_slugs: tuple[str, ...] = ()
+
+
 class GraphFacts(MythrixModel):
     """Deterministic result of a single graph query: one symbol, resolved for one
     tradition (v1 query scope, FR9)."""

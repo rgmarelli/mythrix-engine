@@ -169,6 +169,7 @@ from __future__ import annotations
 
 import itertools
 import math
+from collections.abc import Iterator
 from typing import NamedTuple
 
 from mythrix.core.embedding import Embedder
@@ -277,9 +278,30 @@ class RetrievalPipeline:
 
     def retrieve(self, graph_facts: GraphFacts) -> RetrievalContext:
         """Deterministic Kùzu-then-Chroma retrieval (FR9): `graph_facts` must
-        already be the result of `KuzuGraphStore.get_interpretation` — this
-        method never touches Kùzu's query surface itself, only the resulting
-        facts, plus `KuzuGraphStore.get_source`/`get_tradition` to hydrate hits.
+        already be the result of `KuzuGraphStore.get_interpretation`. Thin
+        consumer of `iter_candidates` — collects every `ConceptCandidates`/
+        `ConceptPairCandidates` it yields into one `RetrievalContext`, same
+        shape and ordering as before this method was split in two."""
+        concept_candidates: list[ConceptCandidates] = []
+        pair_candidates: list[ConceptPairCandidates] = []
+        for item in self.iter_candidates(graph_facts):
+            if isinstance(item, ConceptCandidates):
+                concept_candidates.append(item)
+            else:
+                pair_candidates.append(item)
+
+        return RetrievalContext(
+            graph_facts=graph_facts,
+            concept_candidates=tuple(concept_candidates),
+            pair_candidates=tuple(pair_candidates),
+        )
+
+    def iter_candidates(self, graph_facts: GraphFacts) -> Iterator[ConceptCandidates | ConceptPairCandidates]:
+        """Yields each concept's `ConceptCandidates` as soon as its Chroma
+        searches finish, then every `ConceptPairCandidates` group once every
+        concept has been searched — the incremental form `retrieve()` above
+        collects in full, and the API's streaming query endpoint consumes
+        directly (`core/query_service.py::stream_query`).
 
         Runs one similarity search per query from `build_query_texts` (one
         per individual atomic concept, some carrying an exact-value text
@@ -315,7 +337,6 @@ class RetrievalPipeline:
         for query, embedding in zip(queries, query_embeddings, strict=True):
             queries_by_concept.setdefault(query.text, []).append((query, embedding))
 
-        concept_candidates = []
         deep_hits_by_concept: dict[str, dict[str, VectorHit]] = {}
         number_chunk_ids: dict[str, set[str]] = {}
 
@@ -345,15 +366,9 @@ class RetrievalPipeline:
             display_hits = [best_hit_by_chunk_id[chunk_id] for chunk_id in deep_chunk_ids[: self._top_k]]
             passages = tuple(self._hydrate(hit) for hit in display_hits if _similarity_score(hit) >= self._min_score)
             if passages:
-                concept_candidates.append(ConceptCandidates(concept=concept, passages=passages))
+                yield ConceptCandidates(concept=concept, passages=passages)
 
-        pair_candidates = self._build_pair_candidates(deep_hits_by_concept, number_chunk_ids)
-
-        return RetrievalContext(
-            graph_facts=graph_facts,
-            concept_candidates=tuple(concept_candidates),
-            pair_candidates=pair_candidates,
-        )
+        yield from self._build_pair_candidates(deep_hits_by_concept, number_chunk_ids)
 
     def _build_pair_candidates(
         self,

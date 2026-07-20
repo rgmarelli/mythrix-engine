@@ -281,3 +281,24 @@ def test_interpretation_not_found_raises_when_symbol_and_tradition_exist_but_unl
     _seed_fixture(store)
     with pytest.raises(InterpretationNotFoundError):
         store.get_interpretation("the-tower", "golden-dawn-kabbalah")
+
+
+def test_list_traditions_returns_every_tradition_sorted_by_slug(store: KuzuGraphStore) -> None:
+    _seed_fixture(store)
+    traditions = store.list_traditions()
+    assert [t.slug for t in traditions] == ["golden-dawn-kabbalah", "pre-golden-dawn", "rider-waite"]
+
+
+def test_list_symbols_excludes_symbols_with_zero_interpretations(store: KuzuGraphStore) -> None:
+    _seed_fixture(store)
+    summaries = {s.slug: s for s in store.list_symbols()}
+    assert "path-tiphareth-yesod" not in summaries
+    assert set(summaries) == {"the-tower", "hebrew-letter-peh", "hebrew-letter-ayin"}
+
+
+def test_list_symbols_reports_every_tradition_a_symbol_is_interpreted_in(store: KuzuGraphStore) -> None:
+    _seed_fixture(store)
+    the_tower = next(s for s in store.list_symbols() if s.slug == "the-tower")
+    assert the_tower.canonical_name == "The Tower"
+    assert the_tower.symbol_type == "major-arcana"
+    assert the_tower.tradition_slugs == ("rider-waite",)

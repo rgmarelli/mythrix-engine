@@ -35,6 +35,7 @@ from mythrix.core.models import (
     RelationshipFact,
     Source,
     Symbol,
+    SymbolSummary,
     Tradition,
 )
 
@@ -371,6 +372,48 @@ class KuzuGraphStore:
         # targets shallow, to avoid unbounded recursion through RelationshipFact.
         symbol = symbol.model_copy(update={"relationships": self._get_symbol_relationships(symbol.id)})
         return GraphFacts(symbol=symbol, interpretation=interpretation)
+
+    def list_traditions(self) -> tuple[Tradition, ...]:
+        """Every declared `Tradition`, for a web/API picker (FR2 of
+        `specs/query-viewer-web-ui/spec.md`)."""
+        result = self._execute(
+            "MATCH (t:Tradition) RETURN t.id, t.slug, t.name, t.domain, t.description ORDER BY t.slug", {}
+        )
+        traditions = []
+        while result.has_next():
+            row = result.get_next()
+            traditions.append(Tradition(id=row[0], slug=row[1], name=row[2], domain=row[3], description=_s(row[4])))
+        return tuple(traditions)
+
+    def list_symbols(self) -> tuple[SymbolSummary, ...]:
+        """Every symbol with at least one interpretation, one row per
+        (symbol, tradition) grouped by symbol slug — a symbol with zero
+        interpretations (FR22) is never returned, so a web/API picker can
+        only ever offer a symbol/tradition pair `get_interpretation` will
+        actually resolve (FR2, FR9 of `specs/query-viewer-web-ui/spec.md`)."""
+        result = self._execute(
+            """
+            MATCH (s:Symbol)-[:HAS_INTERPRETATION]->(:Interpretation)-[:INTERPRETED_IN]->(t:Tradition)
+            RETURN s.slug, s.canonical_name, s.symbol_type, t.slug
+            ORDER BY s.slug
+            """,
+            {},
+        )
+        tradition_slugs_by_symbol: dict[str, list[str]] = {}
+        symbol_row_by_slug: dict[str, tuple[str, str, str]] = {}
+        while result.has_next():
+            slug, canonical_name, symbol_type, tradition_slug = result.get_next()
+            tradition_slugs_by_symbol.setdefault(slug, []).append(tradition_slug)
+            symbol_row_by_slug.setdefault(slug, (canonical_name, symbol_type, slug))
+        return tuple(
+            SymbolSummary(
+                slug=slug,
+                canonical_name=symbol_row_by_slug[slug][0],
+                symbol_type=symbol_row_by_slug[slug][1],
+                tradition_slugs=tuple(tradition_slugs_by_symbol[slug]),
+            )
+            for slug in tradition_slugs_by_symbol
+        )
 
     # -- Internal lookups -----------------------------------------------------------------
 

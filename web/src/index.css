@@ -1,0 +1,234 @@
+:root {
+  --text: #2a2730;
+  --text-h: #08060d;
+  --bg: #fff;
+  --panel-bg: #faf9fc;
+  --border: #e0dee5;
+  --accent: #7c3aed;
+  --accent-bg: rgba(124, 58, 237, 0.08);
+  --error: #b3261e;
+  --error-bg: rgba(179, 38, 30, 0.08);
+
+  font: 16px/145% system-ui, 'Segoe UI', Roboto, sans-serif;
+  color-scheme: light dark;
+  color: var(--text);
+  background: var(--bg);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text: #d4d2d8;
+    --text-h: #f3f4f6;
+    --bg: #16171d;
+    --panel-bg: #1c1d24;
+    --border: #34333c;
+    --accent: #c084fc;
+    --accent-bg: rgba(192, 132, 252, 0.12);
+    --error: #f2867e;
+    --error-bg: rgba(242, 134, 126, 0.12);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+h1,
+h2,
+h3 {
+  color: var(--text-h);
+  font-weight: 600;
+  margin: 0 0 0.5em;
+}
+
+h1 {
+  font-size: 1.5rem;
+}
+
+h2 {
+  font-size: 1.1rem;
+}
+
+h3 {
+  font-size: 1rem;
+}
+
+.app {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+}
+
+header {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.picker {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.picker label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.picker select,
+.picker button {
+  font: inherit;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--panel-bg);
+  color: var(--text-h);
+}
+
+.picker button {
+  background: var(--accent);
+  color: #fff;
+  border-color: transparent;
+  cursor: pointer;
+}
+
+.picker button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+}
+
+@media (min-width: 900px) {
+  main {
+    grid-template-columns: 2fr 1fr;
+  }
+}
+
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  min-width: 0;
+}
+
+.graph-facts,
+.candidates {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  background: var(--panel-bg);
+}
+
+.graph-facts ul,
+.candidates ul {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+}
+
+.passage-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.passage-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  text-align: left;
+  min-width: 220px;
+  max-width: 280px;
+  padding: 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+
+.passage-card:hover {
+  border-color: var(--accent);
+}
+
+.passage-card.selected {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.passage-card .attribution {
+  font-weight: 500;
+  color: var(--text-h);
+}
+
+.passage-card .score {
+  font-size: 0.85rem;
+  opacity: 0.8;
+}
+
+.passage-card .hint {
+  font-size: 0.75rem;
+  opacity: 0.6;
+}
+
+.passage-detail {
+  position: sticky;
+  top: 1rem;
+  align-self: start;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  background: var(--panel-bg);
+}
+
+.passage-detail.empty {
+  opacity: 0.7;
+  font-style: italic;
+}
+
+.passage-detail .text {
+  white-space: pre-wrap;
+  margin: 0 0 1rem;
+}
+
+.passage-detail dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25rem 0.75rem;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.passage-detail dt {
+  opacity: 0.7;
+}
+
+.passage-detail dd {
+  margin: 0;
+}
+
+.error {
+  color: var(--error);
+  background: var(--error-bg);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+}
+
+.streaming-indicator {
+  opacity: 0.7;
+  font-style: italic;
+}
