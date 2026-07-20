@@ -44,6 +44,22 @@ class Settings(BaseSettings):
     a real ~6979-token prompt was cut to `prompt_eval_count: 2050` at the default,
     which read as the model hallucinating when it had simply never seen most of its
     own supplied context.
+
+    `retrieval_min_score` defaults to `0.45`, not `0.0` — confirmed empirically
+    against a real query (The Sun/Rider-Waite, `nomic-embed-text`, 1621-chunk
+    corpus): the distribution of match scores across all retrieved fragments is a
+    smooth, single-humped curve from ~0.36 to ~0.55 with no natural gap between
+    "real" and "noise" matches, mean/median both ~0.44. At `0.0`, every candidate
+    within `retrieval_match_pool_size` counts toward convergence regardless of how
+    weak its score is, which let a long, topically broad chunk (Deuteronomy 33, an
+    imagery-dense passage) register as converging on 8 of 10 interpretants at once
+    — none of them individually strong (each below or barely at that interpretant's
+    own weakest top-6 corpus-wide score). `0.45` sits at the observed median; on the
+    same query it cut that chunk's convergence from 8 interpretants to 3 (the ones
+    with genuinely above-median scores) and the total eligible-fragment count from
+    44 to 25, without a principled "correct" cutoff existing in the data — override
+    per-request via `/api/query`'s `min_score` param or `mythrix query --min-score`
+    if this default doesn't suit a particular corpus.
     """
 
     model_config = SettingsConfigDict(env_prefix="MYTHRIX_", env_file=".env", extra="ignore")
@@ -56,5 +72,5 @@ class Settings(BaseSettings):
     retrieval_top_k: int = 6
     retrieval_match_pool_size: int = 30
     merge_top_k: int = 6
-    retrieval_min_score: float = 0.0
+    retrieval_min_score: float = 0.45
     generation_num_ctx: int = 8192

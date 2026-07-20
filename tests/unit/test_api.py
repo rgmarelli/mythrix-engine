@@ -5,7 +5,6 @@
 real `KuzuGraphStore`/`ChromaVectorStore` against `tmp_path`, a fake
 embedder. Mirrors `tests/unit/test_cli_query.py`'s fixture pattern."""
 
-import json
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -18,7 +17,8 @@ from mythrix.core.bootstrap import Stores
 from mythrix.core.errors import ModelUnavailableError
 from mythrix.core.graph.store import KuzuGraphStore
 from mythrix.core.models import Interpretant, Manifestation, Sign, Source, Tradition
-from mythrix.core.vector.store import ChromaVectorStore
+from mythrix.core.vector.chunking import Chunk
+from mythrix.core.vector.store import ChromaVectorStore, ChunkMetadata
 
 RIDER_WAITE = Tradition(id="rider-waite", slug="rider-waite", name="Rider-Waite-Smith", domain="tarot")
 
@@ -106,16 +106,6 @@ def _client(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore, embedd
     return TestClient(app)
 
 
-def _parse_sse(body: str) -> list[tuple[str, dict]]:
-    events = []
-    for block in body.strip().split("\n\n"):
-        if not block:
-            continue
-        event_line, data_line = block.split("\n", 1)
-        events.append((event_line.removeprefix("event: "), json.loads(data_line.removeprefix("data: "))))
-    return events
-
-
 def test_list_traditions(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore) -> None:
     client = _client(graph_store, vector_store)
     response = client.get("/api/traditions")
@@ -135,38 +125,102 @@ def test_list_symbols_excludes_signs_with_no_manifestation(
     assert body[0]["tradition_slugs"] == ["rider-waite"]
 
 
-def test_query_streams_graph_facts_then_done(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore) -> None:
+def test_query_returns_facets_and_fragments(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore) -> None:
     client = _client(graph_store, vector_store)
-    with client.stream("GET", "/api/query", params={"symbol": "the-tower", "tradition": "rider-waite"}) as response:
-        assert response.status_code == 200
-        assert response.headers["content-type"].startswith("text/event-stream")
-        events = _parse_sse(response.read().decode())
-
-    assert events[0][0] == "graph_facts"
-    assert events[0][1]["sign"]["slug"] == "the-tower"
-    assert events[-1] == ("done", {})
-    assert all(event_type in {"concept_candidates", "pair_candidates"} for event_type, _ in events[1:-1])
+    response = client.get("/api/query", params={"symbol": "the-tower", "tradition": "rider-waite"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body == {"facets": {"sources": [], "interpretants": []}, "fragments": []}
 
 
-def test_query_unknown_symbol_is_a_pre_stream_404(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore) -> None:
+def test_query_unknown_symbol_returns_404(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore) -> None:
     client = _client(graph_store, vector_store)
     response = client.get("/api/query", params={"symbol": "nonexistent", "tradition": "rider-waite"})
     assert response.status_code == 404
     assert "detail" in response.json()
 
 
-def test_query_unreachable_embedder_is_a_mid_stream_error_event(
+def test_query_unreachable_embedder_returns_502(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore) -> None:
+    client = _client(graph_store, vector_store, embedder=UnreachableEmbedder())
+    response = client.get("/api/query", params={"symbol": "the-tower", "tradition": "rider-waite"})
+    assert response.status_code == 502
+    assert "detail" in response.json()
+
+
+def test_query_returns_a_fragment_converging_on_every_matching_interpretant(
     graph_store: KuzuGraphStore, vector_store: ChromaVectorStore
 ) -> None:
-    client = _client(graph_store, vector_store, embedder=UnreachableEmbedder())
-    with client.stream("GET", "/api/query", params={"symbol": "the-tower", "tradition": "rider-waite"}) as response:
-        assert response.status_code == 200
-        events = _parse_sse(response.read().decode())
+    """A fragment matched by two interpretants appears once, with both
+    recorded in `matches` — the concrete case `specs/query-viewer-facet-redesign`
+    exists for. Both of the-sun's interpretants embed identically here
+    (`FakeEmbedder` returns a fixed vector for any text), and the corpus has
+    exactly one chunk, so that chunk is the top hit for both."""
+    graph_store.upsert_sign_with_manifestation(
+        Sign(
+            id="the-sun",
+            slug="the-sun",
+            canonical_name="The Sun",
+            sign_type="major-arcana",
+            semiotic_system="tarot",
+        ),
+        Manifestation(
+            id="the-sun::rider-waite",
+            sign_id="the-sun",
+            tradition=RIDER_WAITE,
+            display_name="The Sun",
+            interpretants=(
+                Interpretant(id="interp-a", type="concept", value="joy"),
+                Interpretant(id="interp-b", type="concept", value="vitality"),
+            ),
+            created_at=datetime(2026, 1, 1, tzinfo=UTC),
+        ),
+    )
+    vector_store.add_chunks(
+        [Chunk(index=0, text="Rejoice, for the light has come.", char_start=0, char_end=33, locator="Ch. 1")],
+        embeddings=[[1.0, 0.0]],
+        metadata=ChunkMetadata(
+            source_id="waite", domain="tarot", embedding_model="fake-embed", ingested_at="2026-01-01T00:00:00Z"
+        ),
+    )
 
-    assert events[0][0] == "graph_facts"
-    assert events[-1][0] == "error"
-    assert "detail" in events[-1][1]
-    assert not any(event_type == "done" for event_type, _ in events)
+    client = _client(graph_store, vector_store)
+    response = client.get("/api/query", params={"symbol": "the-sun", "tradition": "rider-waite"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body["fragments"]) == 1
+    fragment = body["fragments"][0]
+    assert fragment["locator"] == "Ch. 1"
+    assert {m["interpretant"] for m in fragment["matches"]} == {"joy", "vitality"}
+    assert fragment["convergence_count"] == 2
+    assert body["facets"]["sources"] == [{"id": "waite", "label": "The Pictorial Key to the Tarot", "count": 1}]
+    interpretant_counts = {f["value"]: f["count"] for f in body["facets"]["interpretants"]}
+    assert interpretant_counts == {"joy": 1, "vitality": 1}
+
+
+def test_query_min_score_param_overrides_the_settings_default(
+    graph_store: KuzuGraphStore, vector_store: ChromaVectorStore
+) -> None:
+    """`min_score` is a per-request override (checked with `is None`, not
+    truthiness, since `0.0` is a meaningful explicit value): an identical
+    query/chunk embedding here always scores `1.0`, so a `min_score` above
+    that excludes it even though it clears `Settings.retrieval_min_score`'s
+    own default (`0.45`)."""
+    vector_store.add_chunks(
+        [Chunk(index=0, text="The Tower represents sudden upheaval.", char_start=0, char_end=38)],
+        embeddings=[[1.0, 0.0]],
+        metadata=ChunkMetadata(
+            source_id="waite", domain="tarot", embedding_model="fake-embed", ingested_at="2026-01-01T00:00:00Z"
+        ),
+    )
+    client = _client(graph_store, vector_store)
+
+    response = client.get(
+        "/api/query", params={"symbol": "the-tower", "tradition": "rider-waite", "min_score": 1.5}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["fragments"] == []
 
 
 def test_summarize_passage_returns_chat_client_response(

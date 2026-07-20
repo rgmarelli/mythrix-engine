@@ -1,7 +1,7 @@
 """`MythrixError`-family to HTTP status mapping (FR9, FR10 of
-`specs/query-viewer-web-ui/spec.md`). Covers every route directly, and
-`/api/query`'s pre-stream failures (see `routes.py`'s docstring on why a
-mid-stream failure surfaces as an `error` SSE event instead)."""
+`specs/query-viewer-web-ui/spec.md`). Covers every route directly, including
+`/api/query`, which returns its whole response in one JSON payload — no
+separate mid-request error path to handle."""
 
 from __future__ import annotations
 

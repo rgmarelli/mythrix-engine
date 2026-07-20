@@ -184,13 +184,19 @@ from mythrix.core.models import (
     ConceptCandidates,
     ConceptMatchScore,
     ConceptPairCandidates,
+    Facets,
+    Fragment,
+    FragmentMatch,
+    FragmentQueryResult,
     GraphFacts,
     Interpretant,
+    InterpretantFacet,
     IntersemioticInterpretant,
     MergedCandidate,
     RetrievalContext,
     RetrievedPassage,
     Source,
+    SourceFacet,
 )
 from mythrix.core.vector.store import ChromaVectorStore, VectorHit
 
@@ -273,11 +279,10 @@ class RetrievalPipeline:
         )
 
     def iter_candidates(self, graph_facts: GraphFacts) -> Iterator[ConceptCandidates | ConceptPairCandidates]:
-        """Yields each concept's `ConceptCandidates` as soon as its Chroma
-        searches finish, then every `ConceptPairCandidates` group once every
-        concept has been searched — the incremental form `retrieve()` above
-        collects in full, and the API's streaming query endpoint consumes
-        directly (`core/query_service.py::stream_query`).
+        """Yields each concept's `ConceptCandidates`, then every
+        `ConceptPairCandidates` group — the incremental form `retrieve()`
+        above collects in full. Every concept's deep pool
+        (`_search_deep_pools`) is searched before the first item is yielded.
 
         Runs one similarity search per query from `build_query_texts` (one
         per individual atomic concept, some carrying an exact-value text
@@ -305,6 +310,27 @@ class RetrievalPipeline:
         Each pair's candidates are ranked by `_combined_score` and cut to
         `merge_top_k`.
         """
+        deep_hits_by_concept, filter_token_chunk_ids = self._search_deep_pools(graph_facts)
+
+        for concept, pool in deep_hits_by_concept.items():
+            display_hits = list(pool.values())[: self._top_k]
+            passages = tuple(self._hydrate(hit) for hit in display_hits if _similarity_score(hit) >= self._min_score)
+            if passages:
+                yield ConceptCandidates(concept=concept, passages=passages)
+
+        yield from self._build_pair_candidates(deep_hits_by_concept, filter_token_chunk_ids)
+
+    def _search_deep_pools(
+        self, graph_facts: GraphFacts
+    ) -> tuple[dict[str, dict[str, VectorHit]], dict[str, set[str]]]:
+        """Runs every query from `build_query_texts`, Reciprocal-Rank-Fusing hits
+        *within* each concept's own queries only (never across concepts), to
+        `match_pool_size` depth. Returns `(deep_hits_by_concept, filter_token_chunk_ids)`
+        — the two structures `iter_candidates` built inline before this
+        extraction, and that `retrieve_fragments` also needs. Each concept's
+        `dict[chunk_id, VectorHit]` preserves RRF-rank order (insertion order),
+        so a caller taking its first `top_k` entries gets the same displayed
+        slice `iter_candidates`'s `ConceptCandidates` would."""
         self._lookup_cache: dict[str, Source] = {}
 
         queries = build_query_texts(graph_facts)
@@ -342,12 +368,75 @@ class RetrievalPipeline:
             deep_chunk_ids = ranked_chunk_ids[: self._match_pool_size]
             deep_hits_by_concept[concept] = {chunk_id: best_hit_by_chunk_id[chunk_id] for chunk_id in deep_chunk_ids}
 
-            display_hits = [best_hit_by_chunk_id[chunk_id] for chunk_id in deep_chunk_ids[: self._top_k]]
-            passages = tuple(self._hydrate(hit) for hit in display_hits if _similarity_score(hit) >= self._min_score)
-            if passages:
-                yield ConceptCandidates(concept=concept, passages=passages)
+        return deep_hits_by_concept, filter_token_chunk_ids
 
-        yield from self._build_pair_candidates(deep_hits_by_concept, filter_token_chunk_ids)
+    def retrieve_fragments(self, graph_facts: GraphFacts) -> FragmentQueryResult:
+        """Fragment-centric counterpart to `retrieve()`/`iter_candidates()`
+        (`specs/query-viewer-facet-redesign`): one row per chunk, deduplicated,
+        each carrying every interpretant that converged on it, for any number
+        of interpretants — not just pairs. Uses the same underlying search as
+        `iter_candidates` (`_search_deep_pools`); only what's aggregated and
+        returned differs.
+
+        A chunk is eligible if it ranks within some concept's own displayed
+        `top_k` slice, `min_score`-filtered — the same cutoff `ConceptCandidates`
+        uses. Once eligible, its full match list is built by checking every
+        concept's *deep* pool (`match_pool_size` depth), so a fragment's
+        convergence count doesn't depend on which concept happened to make it
+        eligible.
+
+        Fragments are ranked by `convergence_count`, not raw match count: an
+        exact-value match (FR28) is a literal-containment guarantee, not a
+        semantic signal, and can fire on any chunk containing a common
+        token (e.g. a gematria filter's "hundred") regardless of thematic
+        relevance — counting it the same as a real semantic match let a
+        handful of high-frequency filter tokens dominate the "most converged"
+        ranking. `matches` itself is untouched; every match, including
+        exact-value ones, still appears there and in `Facets.interpretants`."""
+        deep_hits_by_concept, filter_token_chunk_ids = self._search_deep_pools(graph_facts)
+
+        eligible_hit_by_chunk_id: dict[str, VectorHit] = {}
+        for pool in deep_hits_by_concept.values():
+            for chunk_id, hit in list(pool.items())[: self._top_k]:
+                if _similarity_score(hit) >= self._min_score:
+                    eligible_hit_by_chunk_id.setdefault(chunk_id, hit)
+
+        fragments = [
+            self._build_fragment(chunk_id, hit, deep_hits_by_concept, filter_token_chunk_ids)
+            for chunk_id, hit in eligible_hit_by_chunk_id.items()
+        ]
+        fragments.sort(key=lambda fragment: (fragment.convergence_count, _max_match_score(fragment)), reverse=True)
+        return FragmentQueryResult(facets=_build_facets(fragments), fragments=tuple(fragments))
+
+    def _build_fragment(
+        self,
+        chunk_id: str,
+        representative_hit: VectorHit,
+        deep_hits_by_concept: dict[str, dict[str, VectorHit]],
+        filter_token_chunk_ids: dict[str, set[str]],
+    ) -> Fragment:
+        matches: list[FragmentMatch] = []
+        for concept, pool in deep_hits_by_concept.items():
+            hit = pool.get(chunk_id)
+            if hit is not None and _similarity_score(hit) >= self._min_score:
+                matches.append(FragmentMatch(interpretant=concept, score=_similarity_score(hit)))
+        for filter_value, chunk_ids in filter_token_chunk_ids.items():
+            if chunk_id in chunk_ids:
+                matches.append(FragmentMatch(interpretant=filter_value, score=0.0, exact_value=True))
+
+        passage = self._hydrate(representative_hit)
+        return Fragment(
+            chunk_id=passage.chunk_id,
+            source=passage.source,
+            text=passage.text,
+            locator=passage.locator,
+            chunk_index=passage.chunk_index,
+            char_start=passage.char_start,
+            char_end=passage.char_end,
+            embedding_model=passage.embedding_model,
+            matches=tuple(matches),
+            convergence_count=sum(1 for match in matches if not match.exact_value),
+        )
 
     def _build_pair_candidates(
         self,
@@ -581,6 +670,39 @@ def build_query_texts(graph_facts: GraphFacts) -> list[_Query]:
         queries += [_Query(text=token.as_token) for token in filter_tokens]
 
     return [query for query in queries if query.text]
+
+
+def _max_match_score(fragment: Fragment) -> float:
+    """A fragment's best individual match score, for ranking fragments tied
+    on convergence count. `exact_value` matches carry no meaningful score
+    (0.0) and never win this comparison over a semantic match."""
+    return max((match.score for match in fragment.matches), default=0.0)
+
+
+def _build_facets(fragments: list[Fragment]) -> Facets:
+    """One `SourceFacet` per distinct source and one `InterpretantFacet` per
+    distinct interpretant, counted across the already-eligible fragment list
+    — first-seen order, so facet order tracks fragment rank order."""
+    source_counts: dict[str, SourceFacet] = {}
+    for fragment in fragments:
+        existing = source_counts.get(fragment.source.id)
+        label = fragment.source.title
+        if existing is None:
+            source_counts[fragment.source.id] = SourceFacet(id=fragment.source.id, label=label, count=1)
+        else:
+            source_counts[fragment.source.id] = existing.model_copy(update={"count": existing.count + 1})
+
+    interpretant_counts: dict[str, int] = {}
+    for fragment in fragments:
+        for match in fragment.matches:
+            interpretant_counts[match.interpretant] = interpretant_counts.get(match.interpretant, 0) + 1
+
+    return Facets(
+        sources=tuple(source_counts.values()),
+        interpretants=tuple(
+            InterpretantFacet(value=value, count=count) for value, count in interpretant_counts.items()
+        ),
+    )
 
 
 def _similarity_score(hit: VectorHit) -> float:

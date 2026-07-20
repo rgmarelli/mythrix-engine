@@ -1,7 +1,7 @@
 """Unit tests for `core/query_service.py`: `execute_query` (the CLI's
-retrieval logic, extracted) and `stream_query` (the API's incremental form).
-Real `KuzuGraphStore`/`ChromaVectorStore` against `tmp_path`, a fake embedder
-— no running Ollama needed, mirroring `tests/unit/test_cli_query.py`."""
+retrieval logic, extracted) and `query_fragments` (the API's fragment-centric
+form). Real `KuzuGraphStore`/`ChromaVectorStore` against `tmp_path`, a fake
+embedder — no running Ollama needed, mirroring `tests/unit/test_cli_query.py`."""
 
 from datetime import UTC, datetime
 from pathlib import Path
@@ -10,8 +10,16 @@ import pytest
 
 from mythrix.core.errors import SignNotFoundError
 from mythrix.core.graph.store import KuzuGraphStore
-from mythrix.core.models import Interpretant, Manifestation, RetrievalContext, Sign, Source, Tradition
-from mythrix.core.query_service import execute_query, stream_query
+from mythrix.core.models import (
+    FragmentQueryResult,
+    Interpretant,
+    Manifestation,
+    RetrievalContext,
+    Sign,
+    Source,
+    Tradition,
+)
+from mythrix.core.query_service import execute_query, query_fragments
 from mythrix.core.vector.store import ChromaVectorStore
 
 RIDER_WAITE = Tradition(id="rider-waite", slug="rider-waite", name="Rider-Waite-Smith", domain="tarot")
@@ -89,38 +97,30 @@ def test_execute_query_propagates_mythrix_error(graph_store: KuzuGraphStore, vec
         )
 
 
-def test_stream_query_yields_graph_facts_first_then_concept_candidates(
+def test_query_fragments_returns_a_fragment_query_result(
     graph_store: KuzuGraphStore, vector_store: ChromaVectorStore
 ) -> None:
-    events = list(
-        stream_query(
-            symbol="the-tower",
-            tradition="rider-waite",
-            graph_store=graph_store,
-            vector_store=vector_store,
-            embedder=FakeEmbedder(),
-            **_kwargs(),
-        )
-    )
-    assert events[0][0] == "graph_facts"
-    assert events[0][1]["sign"]["slug"] == "the-tower"
-    assert all(event_type in {"concept_candidates", "pair_candidates"} for event_type, _ in events[1:])
-
-
-def test_stream_query_raises_before_first_yield_on_unknown_symbol(
-    graph_store: KuzuGraphStore, vector_store: ChromaVectorStore
-) -> None:
-    """The graph lookup happens before the generator's first `yield` — a
-    caller priming the generator with one `next()` call sees the error there,
-    not mid-iteration (this is what lets the API return a normal 404 instead
-    of a mid-stream error event)."""
-    gen = stream_query(
-        symbol="nonexistent",
+    result = query_fragments(
+        symbol="the-tower",
         tradition="rider-waite",
         graph_store=graph_store,
         vector_store=vector_store,
         embedder=FakeEmbedder(),
         **_kwargs(),
     )
+    assert isinstance(result, FragmentQueryResult)
+    assert result.fragments == ()
+    assert result.facets.sources == ()
+    assert result.facets.interpretants == ()
+
+
+def test_query_fragments_propagates_mythrix_error(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore) -> None:
     with pytest.raises(SignNotFoundError):
-        next(gen)
+        query_fragments(
+            symbol="nonexistent",
+            tradition="rider-waite",
+            graph_store=graph_store,
+            vector_store=vector_store,
+            embedder=FakeEmbedder(),
+            **_kwargs(),
+        )

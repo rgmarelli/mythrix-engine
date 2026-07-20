@@ -777,3 +777,162 @@ def test_combined_score_clamps_negative_components_instead_of_raising() -> None:
     root, and contributes no conjunctive strength."""
     assert _combined_score((-0.4, 0.6)) == pytest.approx(0.0)
     assert _combined_score((-0.4, -0.6)) == pytest.approx(0.0)
+
+
+# --- Fragment-centric retrieval (specs/query-viewer-facet-redesign) ---
+
+
+def test_retrieve_fragments_dedupes_a_chunk_matched_by_two_concepts(graph_store: KuzuGraphStore) -> None:
+    """A chunk retrieved by two concepts appears once in `fragments`, with
+    both recorded in its `matches` — the N-way generalization of
+    `ConceptPairCandidates`, for exactly two concepts here."""
+    graph_facts = _intersemiotic_graph_facts()
+    shared_hit_for_fire = _make_hit("shared", distance=0.2)
+    shared_hit_for_fish = _make_hit("shared", distance=0.3)
+    vector_store = SequencedVectorStore([[shared_hit_for_fire], [shared_hit_for_fish]])
+    pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
+
+    result = pipeline.retrieve_fragments(graph_facts)
+
+    assert len(result.fragments) == 1
+    fragment = result.fragments[0]
+    assert fragment.chunk_id == "shared"
+    assert {m.interpretant for m in fragment.matches} == {"Fire", "Fish"}
+
+
+def test_retrieve_fragments_excludes_a_chunk_outside_every_concepts_own_top_k(graph_store: KuzuGraphStore) -> None:
+    """A chunk that never ranks within any concept's own displayed `top_k`
+    slice is absent from `fragments`, even if two concepts' deeper pools both
+    contain it — the accepted narrowing versus `ConceptPairCandidates`, which
+    detects convergence at `match_pool_size` depth regardless of display
+    rank."""
+    graph_facts = _intersemiotic_graph_facts()
+    fire_hits = [_make_hit(f"fire-filler-{i}", distance=0.05 + i * 0.01) for i in range(8)]
+    fire_hits.append(_make_hit("buried", distance=0.5))  # ranked 9th for "Fire"
+    fish_hits = [_make_hit(f"fish-filler-{i}", distance=0.05 + i * 0.01) for i in range(8)]
+    fish_hits.append(_make_hit("buried", distance=0.5))  # ranked 9th for "Fish" too
+    vector_store = SequencedVectorStore([fire_hits, fish_hits])
+    pipeline = RetrievalPipeline(
+        graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder(), top_k=6, match_pool_size=30
+    )
+
+    result = pipeline.retrieve_fragments(graph_facts)
+
+    assert "buried" not in [f.chunk_id for f in result.fragments]
+
+
+def test_retrieve_fragments_includes_a_match_beyond_its_own_top_k(graph_store: KuzuGraphStore) -> None:
+    """A chunk eligible via one concept's displayed top-k still picks up a
+    match for a second concept whose own displayed top-k didn't include it,
+    as long as it's within that second concept's deeper pool — this is what
+    keeps a fragment's convergence count accurate regardless of display
+    cutoffs."""
+    graph_facts = _intersemiotic_graph_facts()
+    converge_hit_for_fire = _make_hit("converge", distance=0.1)  # rank 1 for "Fire"
+    fish_hits = [_make_hit(f"fish-filler-{i}", distance=0.05 + i * 0.01) for i in range(8)]
+    fish_hits.append(_make_hit("converge", distance=0.5))  # ranked 9th for "Fish"
+    vector_store = SequencedVectorStore([[converge_hit_for_fire], fish_hits])
+    pipeline = RetrievalPipeline(
+        graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder(), top_k=6, match_pool_size=30
+    )
+
+    result = pipeline.retrieve_fragments(graph_facts)
+
+    fragment = next(f for f in result.fragments if f.chunk_id == "converge")
+    assert {m.interpretant for m in fragment.matches} == {"Fire", "Fish"}
+
+
+def test_retrieve_fragments_min_score_excludes_only_the_failing_concepts_match(
+    graph_store: KuzuGraphStore,
+) -> None:
+    """A per-match `min_score` failure drops only that concept's own match,
+    not the whole fragment — the fragment stays eligible via whichever
+    concept's own score clears the threshold."""
+    graph_facts = _intersemiotic_graph_facts()
+    weak_fire_hit = _make_hit("shared", distance=1.9)  # score -0.9, fails min_score
+    strong_fish_hit = _make_hit("shared", distance=0.1)  # score 0.9, passes
+    vector_store = SequencedVectorStore([[weak_fire_hit], [strong_fish_hit]])
+    pipeline = RetrievalPipeline(
+        graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder(), min_score=0.5
+    )
+
+    result = pipeline.retrieve_fragments(graph_facts)
+
+    assert len(result.fragments) == 1
+    fragment = result.fragments[0]
+    assert [m.interpretant for m in fragment.matches] == ["Fish"]
+
+
+def test_retrieve_fragments_exact_value_match_is_never_min_score_filtered(graph_store: KuzuGraphStore) -> None:
+    """FR28's exact-value guarantee carries no meaningful score (hardcoded
+    `0.0`) — it must still appear in `matches` even under a `min_score` that
+    would exclude a semantic match scoring that low."""
+    graph_facts = _gematria_intersemiotic_graph_facts()
+    fish_and_hundred_hit = _make_hit("fish-and-hundred", distance=0.3)  # Fish's own score: 0.7
+    # 4 calls: Fire(None), Fire(hundred), Fish(None), Fish(hundred) — the hit
+    # is only returned by Fish's filtered query.
+    vector_store = SequencedVectorStore([[], [], [], [fish_and_hundred_hit]])
+    pipeline = RetrievalPipeline(
+        graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder(), min_score=0.3
+    )
+
+    result = pipeline.retrieve_fragments(graph_facts)
+
+    fragment = next(f for f in result.fragments if f.chunk_id == "fish-and-hundred")
+    matches_by_interpretant = {m.interpretant: m for m in fragment.matches}
+    assert matches_by_interpretant["Fish"].score == pytest.approx(0.7)
+    assert matches_by_interpretant["100"].exact_value is True
+    assert matches_by_interpretant["100"].score == 0.0
+
+
+def test_retrieve_fragments_facets_count_eligible_fragments(graph_store: KuzuGraphStore) -> None:
+    """`facets.sources`/`facets.interpretants` counts are derived from the
+    eligible fragment set — a source's count is how many fragments came from
+    it, an interpretant's count is how many fragments it matched."""
+    graph_facts = _intersemiotic_graph_facts()
+    shared_hit_for_fire = _make_hit("shared", distance=0.2)
+    shared_hit_for_fish = _make_hit("shared", distance=0.3)
+    vector_store = SequencedVectorStore([[shared_hit_for_fire], [shared_hit_for_fish]])
+    pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
+
+    result = pipeline.retrieve_fragments(graph_facts)
+
+    assert len(result.facets.sources) == 1
+    assert result.facets.sources[0].id == "waite-pictorial-key"
+    assert result.facets.sources[0].count == 1
+    interpretant_counts = {f.value: f.count for f in result.facets.interpretants}
+    assert interpretant_counts == {"Fire": 1, "Fish": 1}
+
+
+def test_retrieve_fragments_ranks_by_convergence_count_then_score(graph_store: KuzuGraphStore) -> None:
+    """FR4: fragments are ranked by convergence count descending, ties broken
+    by score — a fragment matched by two concepts outranks one matched by
+    only one, even when the single-concept fragment's own score is higher."""
+    graph_facts = _intersemiotic_graph_facts()
+    single_match_hit = _make_hit("single-match", distance=0.05)  # best raw score, only matches "Fire"
+    converging_hit_for_fire = _make_hit("converges", distance=0.3)
+    converging_hit_for_fish = _make_hit("converges", distance=0.3)
+    vector_store = SequencedVectorStore([[single_match_hit, converging_hit_for_fire], [converging_hit_for_fish]])
+    pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
+
+    result = pipeline.retrieve_fragments(graph_facts)
+
+    assert [f.chunk_id for f in result.fragments] == ["converges", "single-match"]
+
+
+def test_retrieve_fragments_convergence_count_excludes_exact_value_matches(graph_store: KuzuGraphStore) -> None:
+    """FR3: `convergence_count` counts only semantic matches — a fragment
+    matched by one real concept plus an exact-value filter token reports
+    `matches` of length 2 but `convergence_count` of 1, and does not
+    outrank a fragment genuinely matched by two semantic concepts."""
+    graph_facts = _gematria_intersemiotic_graph_facts()
+    fire_and_hundred_hit = _make_hit("fire-and-hundred", distance=0.3)  # matches "Fire" + exact-value "100"
+    # 4 calls: Fire(None), Fire(hundred), Fish(None), Fish(hundred).
+    vector_store = SequencedVectorStore([[fire_and_hundred_hit], [fire_and_hundred_hit], [], []])
+    pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
+
+    result = pipeline.retrieve_fragments(graph_facts)
+
+    fragment = next(f for f in result.fragments if f.chunk_id == "fire-and-hundred")
+    assert len(fragment.matches) == 2
+    assert fragment.convergence_count == 1

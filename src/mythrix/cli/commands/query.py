@@ -75,6 +75,7 @@ def query(
         int | None,
         typer.Option("--match-pool", help="Override retrieval_match_pool_size — depth searched for pair convergence"),
     ] = None,
+    min_score: Annotated[float | None, typer.Option("--min-score", help="Override retrieval_min_score")] = None,
     as_json: Annotated[bool, typer.Option("--json", help="Structured JSON output (FR16)")] = False,
 ) -> None:
     settings = Settings()
@@ -89,7 +90,7 @@ def query(
         top_k=top_k or settings.retrieval_top_k,
         match_pool_size=match_pool or settings.retrieval_match_pool_size,
         merge_top_k=settings.merge_top_k,
-        min_score=settings.retrieval_min_score,
+        min_score=min_score if min_score is not None else settings.retrieval_min_score,
         as_json=as_json,
     )
     raise typer.Exit(code=exit_code)

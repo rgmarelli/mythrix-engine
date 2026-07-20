@@ -365,3 +365,76 @@ class RetrievalContext(MythrixModel):
         displayed cutoffs. Callers needing every passage the query touched must read
         `pair_candidates` too."""
         return tuple(passage for candidates in self.concept_candidates for passage in candidates.passages)
+
+
+class FragmentMatch(MythrixModel):
+    """One interpretant's claim on a fragment, within the fragment-centric API
+    response (`specs/query-viewer-facet-redesign`). `exact_value` carries the
+    same meaning as `ConceptMatchScore.exact_value`: a `query.directive:
+    "filter"` interpretant reaches a fragment via a literal-text filter, not
+    embedding similarity, so its `score` is not comparable to a semantic
+    match's."""
+
+    interpretant: str
+    score: float = 0.0
+    exact_value: bool = False
+
+
+class Fragment(MythrixModel):
+    """One retrieved chunk, exactly once, carrying every interpretant that
+    converged on it — the fragment-centric counterpart to `RetrievedPassage`
+    (which is grouped by concept) and to `MergedCandidate` (which is limited
+    to pairs). Carries no top-level `score`; every interpretant's own score
+    lives on its `FragmentMatch` in `matches`.
+
+    `convergence_count` is the number of `matches` whose `exact_value` is
+    `False` — an exact-value match is a literal-containment guarantee, not a
+    similarity judgment (see `RetrievalPipeline`'s docstring on why a filter
+    token "contributes membership but no score" to a concept pair), so it is
+    still reported in `matches` but excluded here to keep the convergence
+    badge and ranking from being inflated by a common literal token."""
+
+    chunk_id: str
+    source: Source
+    text: str
+    locator: str = ""
+    chunk_index: int = 0
+    char_start: int = 0
+    char_end: int = 0
+    embedding_model: str = ""
+    matches: tuple[FragmentMatch, ...] = ()
+    convergence_count: int = 0
+
+
+class SourceFacet(MythrixModel):
+    """One Sources-facet option: a corpus source and how many fragments in
+    the current result come from it."""
+
+    id: str
+    label: str
+    count: int
+
+
+class InterpretantFacet(MythrixModel):
+    """One Interpretants-facet option: an interpretant value and how many
+    distinct fragments it matched in the current result."""
+
+    value: str
+    count: int
+
+
+class Facets(MythrixModel):
+    """Both facet rows for one query result."""
+
+    sources: tuple[SourceFacet, ...] = ()
+    interpretants: tuple[InterpretantFacet, ...] = ()
+
+
+class FragmentQueryResult(MythrixModel):
+    """Whole-response shape for the fragment-centric query endpoint
+    (`specs/query-viewer-facet-redesign`) — facets plus a ranked, deduplicated
+    fragment list. Replaces `RetrievalContext` on the API path only; the CLI's
+    `--json`/human output still uses `RetrievalContext` via `execute_query`."""
+
+    facets: Facets
+    fragments: tuple[Fragment, ...] = ()
