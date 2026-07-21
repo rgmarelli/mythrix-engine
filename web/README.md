@@ -1,6 +1,6 @@
 # Mythrix Query Viewer (web/)
 
-React + TypeScript + Vite frontend for the query viewer. Independent toolchain from the Python package — see `specs/query-viewer-web-ui/plan.md` for the full contract with `src/mythrix/api/`.
+React + TypeScript + Vite frontend for the query viewer. Independent toolchain from the Python package — see `specs/symbol-interpretation-core/plan.md` ("Web viewer and backend API") for the full contract with `src/mythrix/api/`.
 
 ## Dev
 

@@ -2,7 +2,7 @@
 
 - **Status**: Accepted
 - **Date**: 2026-07-21
-- **Realized by**: `specs/convergence-rollup-retrieval/spec.md` FR5–FR7; Non-goals
+- **Realized by**: `specs/symbol-interpretation-core/spec.md` FR35–FR37; Non-goals
 
 ## Context
 

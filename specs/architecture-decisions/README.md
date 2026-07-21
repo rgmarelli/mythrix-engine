@@ -19,6 +19,6 @@ changed decision is a new ADR that supersedes an earlier one, not an edit.
 | [0004](0004-absolute-floor-and-lexical-specificity-ranking.md) | Rank by lexical-IDF-weighted score over raw, floor-gated match strength; isolated matches are first-class | Accepted |
 | [0005](0005-vector-store-chroma-and-lexical-store-path.md) | Keep local Chroma for the vector channel; identify `sqlite-vec`+FTS5 as the migration path if the lexical/df and verse-scale needs outgrow it | Accepted |
 
-Primary sources for these records: `specs/convergence-rollup-retrieval/spec.md`
-(the factual requirements these decisions produced) and the empirical benchmarks
-run against the live Douay-Rheims and Sefer HaBahir corpora (July 2026).
+Primary sources for these records: `specs/symbol-interpretation-core/spec.md`
+(the factual requirements these decisions produced, FR31–FR48) and the empirical
+benchmarks run against the live Douay-Rheims and Sefer HaBahir corpora (July 2026).

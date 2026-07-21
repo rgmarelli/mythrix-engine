@@ -2,7 +2,7 @@
 
 - **Status**: Accepted
 - **Date**: 2026-07-21
-- **Realized by**: `specs/convergence-rollup-retrieval/spec.md` Non-goals (local store)
+- **Realized by**: `specs/symbol-interpretation-core/spec.md` Non-goals (local store)
 
 ## Context
 

@@ -2,7 +2,7 @@
 
 - **Status**: Accepted
 - **Date**: 2026-07-21
-- **Realized by**: `specs/convergence-rollup-retrieval/spec.md` FR1–FR3, FR9–FR11
+- **Realized by**: `specs/symbol-interpretation-core/spec.md` FR31–FR33, FR39–FR41
 
 ## Context
 
