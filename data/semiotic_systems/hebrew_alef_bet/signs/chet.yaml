@@ -1,30 +1,30 @@
 semiotic_system: hebrew_alef_bet
 sign:
-  name: Teth
+  name: Chet
   type: hebrew-letter
   properties:
   - key: letter_type
     value: simple
   manifestations:
   - tradition: sepher-yetzirah-gra
-    display_name: Teth
+    display_name: Chet
     interpretants:
     - type: numeric_value
-      value: '9'
+      value: '8'
       query:
         directive: filter
-        as_token: nine
+        as_token: eight
     - type: meaning
-      value: Inclination
+      value: Fear
     - type: meaning
-      value: staff
-    - type: meaning
-      value: below
+      value: life
     - type: foundation
-      value: hearing
+      value: sight
     - type: constellation
-      value: Leo
+      value: Cancer
       query:
         directive: filter
-        as_token: Leo
+        as_token: Cancer
+    - type: spelling
+      value: Chet
     cites: Sepher Yetzirah

@@ -26,4 +26,6 @@ sign:
       value: Ugliness
     - type: planet
       value: Jupiter
+    - type: spelling
+      value: Tav
     cites: Sepher Yetzirah

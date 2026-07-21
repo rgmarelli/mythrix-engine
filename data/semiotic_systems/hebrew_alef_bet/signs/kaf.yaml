@@ -1,30 +1,31 @@
 semiotic_system: hebrew_alef_bet
 sign:
-  name: Zayin
+  name: Kaf
   type: hebrew-letter
   properties:
   - key: letter_type
-    value: simple
+    value: double
   manifestations:
   - tradition: sepher-yetzirah-gra
-    display_name: Zayin
+    display_name: Kaf
     interpretants:
     - type: numeric_value
-      value: '7'
+      value: '20'
       query:
         directive: filter
-        as_token: seven
+        as_token: twenty
     - type: meaning
-      value: Weapon
+      value: Palm of the hand
     - type: meaning
-      value: sword
+      value: cloud
+    - type: meaning
+      value: power to suppress
     - type: foundation
-      value: motion
-    - type: constellation
-      value: Gemini
-      query:
-        directive: filter
-        as_token: Gemini
+      value: Life
+    - type: transpose
+      value: Death
+    - type: planet
+      value: Venus
     - type: spelling
-      value: Zayin
+      value: Kaf
     cites: Sepher Yetzirah

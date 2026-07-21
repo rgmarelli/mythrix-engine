@@ -26,4 +26,6 @@ sign:
       value: Poverty
     - type: planet
       value: Mars
+    - type: spelling
+      value: Gimel
     cites: Sepher Yetzirah

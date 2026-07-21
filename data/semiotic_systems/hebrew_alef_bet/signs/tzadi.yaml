@@ -1,28 +1,30 @@
 semiotic_system: hebrew_alef_bet
 sign:
-  name: Heh
+  name: Tzadi
   type: hebrew-letter
   properties:
   - key: letter_type
     value: simple
   manifestations:
   - tradition: sepher-yetzirah-gra
-    display_name: Heh
+    display_name: Tzadi
     interpretants:
     - type: numeric_value
-      value: '5'
+      value: '90'
       query:
         directive: filter
-        as_token: five
+        as_token: ninety
     - type: meaning
-      value: To sow
+      value: To hunt
     - type: meaning
-      value: contemplation
+      value: fishhook
     - type: foundation
-      value: speech
+      value: taste
     - type: constellation
-      value: Aries
+      value: Aquarius
       query:
         directive: filter
-        as_token: Aries
+        as_token: Aquarius
+    - type: spelling
+      value: Tzadi
     cites: Sepher Yetzirah

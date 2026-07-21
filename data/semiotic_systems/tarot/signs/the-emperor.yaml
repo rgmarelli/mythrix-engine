@@ -23,7 +23,7 @@ sign:
     cites: 'Waite, Pictorial Key to the Tarot, Part II: The Doctrine Behind the Veil, IV. The Emperor'
     intersemiotic_interpretants:
     - target_system: hebrew_alef_bet
-      target_sign: Daleth
+      target_sign: Dalet
       relationship: hebrew_letter
       according_to: marelli
   - tradition: marseille
@@ -50,6 +50,6 @@ sign:
     cites: Papus, Le Tarot des Bohémiens, The Emperor
     intersemiotic_interpretants:
     - target_system: hebrew_alef_bet
-      target_sign: Daleth
+      target_sign: Dalet
       relationship: hebrew_letter
       according_to: marelli

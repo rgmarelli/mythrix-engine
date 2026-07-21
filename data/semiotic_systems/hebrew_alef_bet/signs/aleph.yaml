@@ -24,4 +24,6 @@ sign:
       value: Air
     - type: foundation
       value: Breath
+    - type: spelling
+      value: Aleph
     cites: Sepher Yetzirah

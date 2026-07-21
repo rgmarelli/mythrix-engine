@@ -24,4 +24,6 @@ sign:
       value: Earth
     - type: foundation
       value: Water
+    - type: spelling
+      value: Mem
     cites: Sepher Yetzirah

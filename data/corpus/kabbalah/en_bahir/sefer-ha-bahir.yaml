@@ -1,0 +1,19 @@
+source:
+  id: "en_bahir"
+  domain: kabbalah
+  citation_label: "Bahir"
+  title: "Sefer HaBahir (English, §§1-200)"
+  author: "Attributed to Nehunya ben HaKanah"
+  publication_year: 2026
+  license: "CC0"
+  uri: "https://www.sefaria.org/Sefer_HaBahir"
+  description: >
+    Sefer HaBahir ("The Book of Brightness"), an anonymous pseudepigraphic
+    mystical work traditionally attributed to the first-century sage Nehunya
+    ben HaKanah and dated by modern scholarship to the early 13th century,
+    marking the literary debut of Kabbalah. Sections 1-82 use Sefaria's CC0
+    Community Translation; sections 83-200 are a fresh English translation
+    made directly from the public-domain Hebrew (Torat Emet edition), so the
+    complete text is free of translation-copyright restrictions. Ingested as
+    an independent primary-source corpus, not as an interpretive tradition of
+    any symbol system.

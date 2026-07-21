@@ -1,30 +1,30 @@
 semiotic_system: hebrew_alef_bet
 sign:
-  name: Qoph
+  name: He
   type: hebrew-letter
   properties:
   - key: letter_type
     value: simple
   manifestations:
   - tradition: sepher-yetzirah-gra
-    display_name: Qoph
+    display_name: He
     interpretants:
     - type: numeric_value
-      value: '100'
+      value: '5'
       query:
         directive: filter
-        as_token: hundred
+        as_token: five
     - type: meaning
-      value: Monkey
+      value: To sow
     - type: meaning
-      value: eye of the needle
-      query:
-        directive: skip
+      value: contemplation
     - type: foundation
-      value: laughter
+      value: speech
     - type: constellation
-      value: Pisces
+      value: Aries
       query:
         directive: filter
-        as_token: Pisces
+        as_token: Aries
+    - type: spelling
+      value: He
     cites: Sepher Yetzirah
