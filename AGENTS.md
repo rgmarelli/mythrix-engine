@@ -32,7 +32,22 @@ Rules:
 - Trivial changes (typo fixes, dependency bumps, formatting) don't need the full flow—use judgment, but default to writing a spec when in doubt.
 - Keep `plan.md` and `tasks.md` during feature planning and implementation. Do not delete them automatically after tests pass, implementation completion, or code review. Remove them only after the user explicitly confirms that the feature is complete.
 
+## Architecture Decision Records (ADRs)
+
+- Record significant architectural and design decisions as ADRs under `specs/architecture-decisions/`.
+- Create an ADR when a decision has meaningful, long-term impact on the architecture, system boundaries, technology choices, data flow, or operational characteristics.
+- Do not create ADRs for routine implementation details, minor refactorings, or decisions that are local and easily reversible.
+- During feature planning, identify architectural decisions that warrant an ADR. Create or update the ADR before implementation when the decision affects the architecture beyond the scope of the feature.
+- The `plan.md` explains how a specific feature or change will be implemented. An ADR explains why a significant architectural decision was made and remains relevant beyond that feature.
+- Each ADR should include:
+  - **Context** — the problem or forces driving the decision.
+  - **Decision** — the chosen approach.
+  - **Consequences** — the expected benefits, trade-offs, and limitations.
+- Keep ADRs concise and focused on the decision and its rationale.
+- Once accepted, do not rewrite an ADR to reflect later changes. Supersede it with a new ADR when a decision changes.
+
 ## Code Documentation
+
 - Prefer clear code over explanatory comments.
 - Avoid long comments that explain obvious code flow or restate the architecture.
 - Keep comments and docstrings focused on current behavior and design decisions.
