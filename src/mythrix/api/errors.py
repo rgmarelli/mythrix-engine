@@ -16,10 +16,11 @@ from mythrix.core.errors import (
     ModelUnavailableError,
     MythrixError,
     SignNotFoundError,
+    SourceNotFoundError,
     TraditionNotFoundError,
 )
 
-_NOT_FOUND = (SignNotFoundError, TraditionNotFoundError, ManifestationNotFoundError)
+_NOT_FOUND = (SignNotFoundError, TraditionNotFoundError, ManifestationNotFoundError, SourceNotFoundError)
 _MODEL_UNREACHABLE = (ModelUnavailableError, ModelRequestError, EmbeddingModelMismatchError)
 _VALIDATION_ERROR = (IngestValidationError,)
 

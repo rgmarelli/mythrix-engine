@@ -1,4 +1,12 @@
-import type { Hotspot, HotspotQueryResult, Region, RegionQueryResult, SignSummary, Tradition } from './types';
+import type {
+  Hotspot,
+  HotspotQueryResult,
+  HotspotSegment,
+  Region,
+  RegionQueryResult,
+  SignSummary,
+  Tradition,
+} from './types';
 
 const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL ?? '';
 
@@ -71,4 +79,25 @@ export async function fetchQuery(
   }
   const result = (await response.json()) as RegionQueryResult;
   return { facets: result.facets, hotspots: result.regions.map(toHotspot) };
+}
+
+// Coordinate-based range lookup behind the Add Context action
+// (specs/hotspot-context-expansion/plan.md) — no query embedding, no
+// similarity ranking; distinct from `fetchQuery`.
+export async function fetchSegments(
+  sourceId: string,
+  startOrdinal: number,
+  endOrdinal: number,
+): Promise<HotspotSegment[]> {
+  const params = new URLSearchParams({
+    source_id: sourceId,
+    start_ordinal: String(startOrdinal),
+    end_ordinal: String(endOrdinal),
+  });
+  const response = await fetch(`${API_BASE_URL}/api/segments?${params.toString()}`);
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as { detail?: string } | null;
+    throw new Error(body?.detail ?? `Segments request failed (${response.status})`);
+  }
+  return response.json() as Promise<HotspotSegment[]>;
 }

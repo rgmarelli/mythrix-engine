@@ -405,11 +405,19 @@ class Segment(MythrixModel):
     """One structurally-bounded constituent unit of a `Region` — a verse or a
     numbered section, verbatim (`convergence-rollup-retrieval` FR16). A
     region's `segments` carries each match-carrying segment once, deduped by
-    `ordinal`, regardless of how many interpretants matched it."""
+    `ordinal`, regardless of how many interpretants matched it.
+
+    `section` names the enclosing chapter/numbered-section locator (e.g.
+    `"Genesis 20"`) a source's segmenter attaches to each chunk, empty for a
+    source with no declared structure — carried here so a consumer (the web
+    viewer's Add Context action, `hotspot-context-expansion`) can tell whether
+    a neighboring segment shares this one's chapter without a second lookup.
+    """
 
     ordinal: int
     locator: str
     text: str
+    section: str = ""
 
 
 class Match(MythrixModel):

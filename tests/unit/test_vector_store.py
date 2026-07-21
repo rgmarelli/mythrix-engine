@@ -174,6 +174,50 @@ def test_document_contains_still_matches_the_word_within_a_phrase(store: ChromaV
     assert len(hits) == 1
 
 
+def test_get_segments_returns_the_ordinal_range_sorted(store: ChromaVectorStore) -> None:
+    chunks = [
+        Chunk(index=i, text=f"verse {i}", char_start=0, char_end=7, ordinal=i, section="Genesis 20") for i in range(5)
+    ]
+    store.add_chunks(chunks, embeddings=[[1.0, 0.0]] * 5, metadata=_metadata(source_id="s1"))
+
+    segments = store.get_segments("s1", start_ordinal=1, end_ordinal=3)
+
+    assert [s.ordinal for s in segments] == [1, 2, 3]
+    assert [s.text for s in segments] == ["verse 1", "verse 2", "verse 3"]
+    assert all(s.section == "Genesis 20" for s in segments)
+
+
+def test_get_segments_excludes_other_sources(store: ChromaVectorStore) -> None:
+    store.add_chunks(
+        [Chunk(index=0, text="from s1", char_start=0, char_end=7, ordinal=0)],
+        embeddings=[[1.0, 0.0]],
+        metadata=_metadata(source_id="s1"),
+    )
+    store.add_chunks(
+        [Chunk(index=0, text="from s2", char_start=0, char_end=7, ordinal=0)],
+        embeddings=[[1.0, 0.0]],
+        metadata=_metadata(source_id="s2"),
+    )
+
+    segments = store.get_segments("s1", start_ordinal=0, end_ordinal=0)
+
+    assert [s.text for s in segments] == ["from s1"]
+
+
+def test_get_segments_out_of_range_returns_empty(store: ChromaVectorStore) -> None:
+    chunk = Chunk(index=0, text="only verse", char_start=0, char_end=10, ordinal=0)
+    store.add_chunks([chunk], embeddings=[[1.0, 0.0]], metadata=_metadata(source_id="s1"))
+
+    assert store.get_segments("s1", start_ordinal=5, end_ordinal=10) == []
+
+
+def test_get_segments_start_after_end_returns_empty_without_querying(store: ChromaVectorStore) -> None:
+    chunk = Chunk(index=0, text="only verse", char_start=0, char_end=10, ordinal=0)
+    store.add_chunks([chunk], embeddings=[[1.0, 0.0]], metadata=_metadata(source_id="s1"))
+
+    assert store.get_segments("s1", start_ordinal=3, end_ordinal=1) == []
+
+
 def test_document_frequency_counts_word_bounded_matches(store: ChromaVectorStore) -> None:
     chunks = [
         Chunk(index=0, text="he lived for 50 years", char_start=0, char_end=22),

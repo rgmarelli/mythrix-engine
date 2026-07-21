@@ -191,6 +191,44 @@ class ChromaVectorStore:
             )
         return hits
 
+    def get_segments(self, source_id: str, *, start_ordinal: int, end_ordinal: int) -> list[Chunk]:
+        """Every chunk of `source_id` with `ordinal` in `[start_ordinal,
+        end_ordinal]`, sorted ascending by ordinal — a coordinate lookup for
+        the web viewer's Add Context action (`hotspot-context-expansion`),
+        not a similarity search: no query embedding, no ranking, no distance.
+
+        `start_ordinal > end_ordinal` returns `[]` without querying, so a
+        caller can pass an already-empty range (e.g. probing one step past a
+        source's last segment) without a special case.
+        """
+        if start_ordinal > end_ordinal:
+            return []
+
+        result = self._collection.get(
+            where={
+                "$and": [
+                    {"source_id": {"$eq": source_id}},
+                    {"ordinal": {"$gte": start_ordinal}},
+                    {"ordinal": {"$lte": end_ordinal}},
+                ]
+            },
+            include=["documents", "metadatas"],
+        )
+        chunks = [
+            Chunk(
+                index=meta["chunk_index"],
+                text=document,
+                char_start=meta["char_start"],
+                char_end=meta["char_end"],
+                locator=meta.get("locator") or "",
+                ordinal=meta.get("ordinal") or 0,
+                section=meta.get("section") or "",
+            )
+            for document, meta in zip(result["documents"], result["metadatas"], strict=True)
+        ]
+        chunks.sort(key=lambda chunk: chunk.ordinal)
+        return chunks
+
     def delete_by_source(self, source_id: str) -> None:
         """Removes every chunk previously ingested for `source_id` — the
         "replace" half of FR23's changed-file path."""
