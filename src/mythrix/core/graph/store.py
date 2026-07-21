@@ -114,11 +114,13 @@ class KuzuGraphStore:
             ON CREATE SET s.domain = $domain, s.citation_label = $citation_label, s.title = $title,
                           s.author = $author, s.publication_year = $publication_year,
                           s.license = $license, s.uri = $uri, s.description = $description,
-                          s.content_hash = $content_hash, s.ingested_at = $ingested_at
+                          s.content_hash = $content_hash, s.ingested_at = $ingested_at,
+                          s.structure_scheme = $structure_scheme
             ON MATCH SET s.domain = $domain, s.citation_label = $citation_label, s.title = $title,
                          s.author = $author, s.publication_year = $publication_year,
                          s.license = $license, s.uri = $uri, s.description = $description,
-                         s.content_hash = $content_hash, s.ingested_at = $ingested_at
+                         s.content_hash = $content_hash, s.ingested_at = $ingested_at,
+                         s.structure_scheme = $structure_scheme
             """,
             {
                 "id": source.id,
@@ -132,6 +134,7 @@ class KuzuGraphStore:
                 "description": source.description,
                 "content_hash": source.content_hash,
                 "ingested_at": source.ingested_at,
+                "structure_scheme": source.structure_scheme,
             },
         )
 
@@ -538,7 +541,7 @@ class KuzuGraphStore:
         result = self._execute(
             "MATCH (src:Source {id: $id}) "
             "RETURN src.id, src.domain, src.citation_label, src.title, src.author, src.publication_year, "
-            "src.license, src.uri, src.description, src.content_hash, src.ingested_at",
+            "src.license, src.uri, src.description, src.content_hash, src.ingested_at, src.structure_scheme",
             {"id": source_id},
         )
         if not result.has_next():
@@ -549,7 +552,7 @@ class KuzuGraphStore:
         row = self._execute(
             "MATCH (src:Source {id: $id}) "
             "RETURN src.id, src.domain, src.citation_label, src.title, src.author, src.publication_year, "
-            "src.license, src.uri, src.description, src.content_hash, src.ingested_at",
+            "src.license, src.uri, src.description, src.content_hash, src.ingested_at, src.structure_scheme",
             {"id": source_id},
         ).get_next()
         return self._source_from_row(row)
@@ -568,6 +571,7 @@ class KuzuGraphStore:
             description=_s(row[8]),
             content_hash=_s(row[9]),
             ingested_at=row[10],
+            structure_scheme=_s(row[11]),
         )
 
     def _get_interpretants(self, manifestation_id: str) -> tuple[Interpretant, ...]:

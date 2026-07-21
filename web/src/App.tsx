@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fetchQuery, fetchSymbols, fetchTraditions } from './api/client';
-import type { Fragment, FragmentQueryResult, SignSummary, Tradition } from './api/types';
+import type { Hotspot, HotspotQueryResult, SignSummary, Tradition } from './api/types';
 import { FacetRow } from './components/FacetRow';
-import { FragmentDetailPanel } from './components/FragmentDetailPanel';
+import { HotspotDetailPanel } from './components/HotspotDetailPanel';
 import { HotspotList } from './components/HotspotList';
 import { SignTraditionPicker } from './components/SignTraditionPicker';
 
-function tieBreakScore(fragment: Fragment, activeInterpretant: string | null): number {
+function tieBreakScore(hotspot: Hotspot, activeInterpretant: string | null): number {
   if (activeInterpretant !== null) {
-    const match = fragment.matches.find((m) => m.interpretant === activeInterpretant);
+    const match = hotspot.matches.find((m) => m.interpretant === activeInterpretant);
     if (match) return match.score;
   }
-  return Math.max(0, ...fragment.matches.map((m) => m.score));
+  return Math.max(0, ...hotspot.matches.map((m) => m.score));
 }
 
 // Mirrors `Settings.retrieval_min_score`'s default (`src/mythrix/core/config.py`)
@@ -21,10 +21,10 @@ const DEFAULT_MIN_SCORE = 0.45;
 
 function hotspotHeaderText(sourceLabel: string | null, interpretantValue: string | null): string {
   if (interpretantValue !== null && sourceLabel !== null) {
-    return `Fragments matching "${interpretantValue}" in ${sourceLabel} — ranked by total interpretants converging in each fragment`;
+    return `Hotspots matching "${interpretantValue}" in ${sourceLabel} — ranked by total interpretants converging in each hotspot`;
   }
   if (interpretantValue !== null) {
-    return `Fragments matching "${interpretantValue}" — ranked by total interpretants converging in each fragment`;
+    return `Hotspots matching "${interpretantValue}" — ranked by total interpretants converging in each hotspot`;
   }
   if (sourceLabel !== null) {
     return `Hotspots in ${sourceLabel} — ranked by distinct interpretants matched`;
@@ -42,13 +42,13 @@ function App() {
   const [selectedTradition, setSelectedTradition] = useState('');
   const [minScore, setMinScore] = useState<number | null>(null);
 
-  const [queryResult, setQueryResult] = useState<FragmentQueryResult | null>(null);
+  const [queryResult, setQueryResult] = useState<HotspotQueryResult | null>(null);
   const [isQuerying, setIsQuerying] = useState(false);
   const [queryError, setQueryError] = useState<string | null>(null);
 
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
   const [selectedInterpretant, setSelectedInterpretant] = useState<string | null>(null);
-  const [selectedFragmentId, setSelectedFragmentId] = useState<string | null>(null);
+  const [selectedRegionId, setSelectedRegionId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchTraditions().then(setTraditions).catch((error: Error) => setLoadError(error.message));
@@ -64,37 +64,37 @@ function App() {
     try {
       const result = await fetchQuery(selectedSymbol, selectedTradition, { minScore: minScore ?? undefined });
       setQueryResult(result);
-      setSelectedFragmentId(result.fragments[0]?.chunk_id ?? null);
+      setSelectedRegionId(result.hotspots[0]?.regionId ?? null);
     } catch (error) {
       setQueryResult(null);
-      setSelectedFragmentId(null);
+      setSelectedRegionId(null);
       setQueryError(error instanceof Error ? error.message : 'Query failed.');
     } finally {
       setIsQuerying(false);
     }
   }
 
-  const rankedFragments = useMemo(() => {
+  const rankedHotspots = useMemo(() => {
     if (!queryResult) return [];
-    const filtered = queryResult.fragments.filter(
-      (fragment) =>
-        (selectedSourceId === null || fragment.source.id === selectedSourceId) &&
-        (selectedInterpretant === null || fragment.matches.some((m) => m.interpretant === selectedInterpretant)),
+    const filtered = queryResult.hotspots.filter(
+      (hotspot) =>
+        (selectedSourceId === null || hotspot.source.id === selectedSourceId) &&
+        (selectedInterpretant === null || hotspot.matches.some((m) => m.interpretant === selectedInterpretant)),
     );
     return [...filtered].sort((a, b) => {
-      if (a.convergence_count !== b.convergence_count) return b.convergence_count - a.convergence_count;
+      if (a.convergenceCount !== b.convergenceCount) return b.convergenceCount - a.convergenceCount;
       return tieBreakScore(b, selectedInterpretant) - tieBreakScore(a, selectedInterpretant);
     });
   }, [queryResult, selectedSourceId, selectedInterpretant]);
 
   useEffect(() => {
-    if (!rankedFragments.some((fragment) => fragment.chunk_id === selectedFragmentId)) {
-      setSelectedFragmentId(rankedFragments[0]?.chunk_id ?? null);
+    if (!rankedHotspots.some((hotspot) => hotspot.regionId === selectedRegionId)) {
+      setSelectedRegionId(rankedHotspots[0]?.regionId ?? null);
     }
-  }, [rankedFragments, selectedFragmentId]);
+  }, [rankedHotspots, selectedRegionId]);
 
-  const selectedFragment = rankedFragments.find((fragment) => fragment.chunk_id === selectedFragmentId) ?? null;
-  const selectedIndex = selectedFragment ? rankedFragments.indexOf(selectedFragment) : -1;
+  const selectedHotspot = rankedHotspots.find((hotspot) => hotspot.regionId === selectedRegionId) ?? null;
+  const selectedIndex = selectedHotspot ? rankedHotspots.indexOf(selectedHotspot) : -1;
 
   const selectedSourceLabel = queryResult?.facets.sources.find((s) => s.id === selectedSourceId)?.label ?? null;
 
@@ -128,7 +128,7 @@ function App() {
             <FacetRow
               title="Sources"
               allLabel="All sources"
-              allCount={queryResult.fragments.length}
+              allCount={queryResult.hotspots.length}
               options={queryResult.facets.sources.map((s) => ({ id: s.id, label: s.label, count: s.count }))}
               selected={selectedSourceId}
               onSelect={setSelectedSourceId}
@@ -136,7 +136,7 @@ function App() {
             <FacetRow
               title="Interpretants"
               allLabel="All"
-              allCount={queryResult.fragments.length}
+              allCount={queryResult.hotspots.length}
               options={queryResult.facets.interpretants.map((i) => ({ id: i.value, label: i.value, count: i.count }))}
               selected={selectedInterpretant}
               onSelect={setSelectedInterpretant}
@@ -145,22 +145,22 @@ function App() {
             <div className="results-grid">
               <HotspotList
                 headerText={hotspotHeaderText(selectedSourceLabel, selectedInterpretant)}
-                fragments={rankedFragments}
-                selectedChunkId={selectedFragmentId}
-                onSelect={setSelectedFragmentId}
+                hotspots={rankedHotspots}
+                selectedRegionId={selectedRegionId}
+                onSelect={setSelectedRegionId}
               />
-              <FragmentDetailPanel
-                key={selectedFragment?.chunk_id ?? 'empty'}
-                fragment={selectedFragment}
+              <HotspotDetailPanel
+                key={selectedHotspot?.regionId ?? 'empty'}
+                hotspot={selectedHotspot}
                 activeInterpretant={selectedInterpretant}
                 canGoPrev={selectedIndex > 0}
-                canGoNext={selectedIndex >= 0 && selectedIndex < rankedFragments.length - 1}
+                canGoNext={selectedIndex >= 0 && selectedIndex < rankedHotspots.length - 1}
                 onPrev={() => {
-                  if (selectedIndex > 0) setSelectedFragmentId(rankedFragments[selectedIndex - 1].chunk_id);
+                  if (selectedIndex > 0) setSelectedRegionId(rankedHotspots[selectedIndex - 1].regionId);
                 }}
                 onNext={() => {
-                  if (selectedIndex >= 0 && selectedIndex < rankedFragments.length - 1) {
-                    setSelectedFragmentId(rankedFragments[selectedIndex + 1].chunk_id);
+                  if (selectedIndex >= 0 && selectedIndex < rankedHotspots.length - 1) {
+                    setSelectedRegionId(rankedHotspots[selectedIndex + 1].regionId);
                   }
                 }}
               />

@@ -1,20 +1,20 @@
-import type { Fragment } from '../api/types';
-import { convergenceLabel, fragmentTitle } from '../utils/fragment';
+import type { Hotspot } from '../api/types';
+import { convergenceLabel, hotspotTitle } from '../utils/hotspot';
 
 interface Props {
-  fragment: Fragment;
+  hotspot: Hotspot;
   isActive: boolean;
   onSelect: () => void;
 }
 
-export function HotspotCard({ fragment, isActive, onSelect }: Props) {
+export function HotspotCard({ hotspot, isActive, onSelect }: Props) {
   return (
     <button type="button" className={isActive ? 'hotspot-card active' : 'hotspot-card'} onClick={onSelect}>
       <div className="hotspot-card-header">
-        <span className="title">{fragmentTitle(fragment)}</span>
-        <span className="badge">{convergenceLabel(fragment.convergence_count)}</span>
+        <span className="title">{hotspotTitle(hotspot)}</span>
+        <span className="badge">{convergenceLabel(hotspot.convergenceCount)}</span>
       </div>
-      <span className="subtitle">{fragment.matches.map((match) => match.interpretant).join(', ')}</span>
+      <span className="subtitle">{hotspot.matches.map((match) => match.interpretant).join(', ')}</span>
     </button>
   );
 }

@@ -196,16 +196,17 @@ from mythrix.core.models import (
     ConceptMatchScore,
     ConceptPairCandidates,
     Facets,
-    Fragment,
-    FragmentMatch,
-    FragmentQueryResult,
     GraphFacts,
     Interpretant,
     InterpretantFacet,
     IntersemioticInterpretant,
+    Match,
     MergedCandidate,
+    Region,
+    RegionQueryResult,
     RetrievalContext,
     RetrievedPassage,
+    Segment,
     Source,
     SourceFacet,
 )
@@ -216,6 +217,14 @@ from mythrix.core.vector.store import ChromaVectorStore, VectorHit
 # *within* its own query, not on how many queries happened to surface it or
 # how that query's raw score distribution compares to another's.
 _RRF_K = 60
+
+# An exact-token match (FR7) is a literal containment guarantee, not a
+# similarity judgment — it carries no comparable magnitude of its own, so it
+# enters region scoring (FR13) at a fixed strength rather than a computed one.
+# 1.0 matches the ceiling of `_similarity_score`'s `[-1, 1]` range: a
+# guaranteed containment is treated as at least as strong as a perfect
+# semantic match.
+_EXACT_MATCH_STRENGTH = 1.0
 
 
 class _FilterToken(NamedTuple):
@@ -260,6 +269,8 @@ class RetrievalPipeline:
         match_pool_size: int = 30,
         merge_top_k: int = 6,
         min_score: float = 0.0,
+        region_window_size: int = 3,
+        region_min_interpretants: int = 1,
     ) -> None:
         self._graph_store = graph_store
         self._vector_store = vector_store
@@ -268,6 +279,8 @@ class RetrievalPipeline:
         self._match_pool_size = match_pool_size
         self._merge_top_k = merge_top_k
         self._min_score = min_score
+        self._region_window_size = region_window_size
+        self._region_min_interpretants = region_min_interpretants
 
     def retrieve(self, graph_facts: GraphFacts) -> RetrievalContext:
         """Deterministic Kùzu-then-Chroma retrieval (FR9): `graph_facts` must
@@ -321,7 +334,7 @@ class RetrievalPipeline:
         Each pair's candidates are ranked by `_combined_score` and cut to
         `merge_top_k`.
         """
-        deep_hits_by_concept, filter_token_chunk_ids = self._search_deep_pools(graph_facts)
+        deep_hits_by_concept, filter_token_chunk_ids, _ = self._search_deep_pools(graph_facts)
 
         for concept, pool in deep_hits_by_concept.items():
             display_hits = list(pool.values())[: self._top_k]
@@ -333,15 +346,24 @@ class RetrievalPipeline:
 
     def _search_deep_pools(
         self, graph_facts: GraphFacts
-    ) -> tuple[dict[str, dict[str, VectorHit]], dict[str, set[str]]]:
+    ) -> tuple[dict[str, dict[str, VectorHit]], dict[str, set[str]], dict[str, VectorHit]]:
         """Runs every query from `build_query_texts`, Reciprocal-Rank-Fusing hits
         *within* each concept's own queries only (never across concepts), to
-        `match_pool_size` depth. Returns `(deep_hits_by_concept, filter_token_chunk_ids)`
-        — the two structures `iter_candidates` built inline before this
-        extraction, and that `retrieve_fragments` also needs. Each concept's
-        `dict[chunk_id, VectorHit]` preserves RRF-rank order (insertion order),
-        so a caller taking its first `top_k` entries gets the same displayed
-        slice `iter_candidates`'s `ConceptCandidates` would."""
+        `match_pool_size` depth. Returns `(deep_hits_by_concept,
+        filter_token_chunk_ids, all_hits_by_chunk_id)` — the first two
+        structures `iter_candidates` built inline before this extraction; the
+        third is every hit any query returned, before RRF trims each
+        concept's own pool to `match_pool_size`. `retrieve_regions` needs
+        that unfiltered map: an exact-token match's chunk can be a genuine
+        filter hit (`document_contains` is a hard containment guarantee)
+        without ever surviving into any *concept's* RRF-ranked pool — a real
+        case is Genesis 21:5 ("hundred"), which never ranks highly enough
+        for "child" on its own to make that concept's top `match_pool_size`,
+        so resolving its coordinates only through `deep_hits_by_concept`
+        would silently drop the match. Each concept's `dict[chunk_id,
+        VectorHit]` preserves RRF-rank order (insertion order), so a caller
+        taking its first `top_k` entries gets the same displayed slice
+        `iter_candidates`'s `ConceptCandidates` would."""
         self._lookup_cache: dict[str, Source] = {}
 
         queries = build_query_texts(graph_facts)
@@ -353,6 +375,7 @@ class RetrievalPipeline:
 
         deep_hits_by_concept: dict[str, dict[str, VectorHit]] = {}
         filter_token_chunk_ids: dict[str, set[str]] = {}
+        all_hits_by_chunk_id: dict[str, VectorHit] = {}
 
         for concept, concept_queries in queries_by_concept.items():
             best_hit_by_chunk_id: dict[str, VectorHit] = {}
@@ -369,6 +392,7 @@ class RetrievalPipeline:
                     existing = best_hit_by_chunk_id.get(hit.chunk_id)
                     if existing is None or hit.distance < existing.distance:
                         best_hit_by_chunk_id[hit.chunk_id] = hit
+                        all_hits_by_chunk_id[hit.chunk_id] = hit
                     rrf_score_by_chunk_id[hit.chunk_id] = rrf_score_by_chunk_id.get(hit.chunk_id, 0.0) + 1.0 / (
                         _RRF_K + rank
                     )
@@ -379,75 +403,110 @@ class RetrievalPipeline:
             deep_chunk_ids = ranked_chunk_ids[: self._match_pool_size]
             deep_hits_by_concept[concept] = {chunk_id: best_hit_by_chunk_id[chunk_id] for chunk_id in deep_chunk_ids}
 
-        return deep_hits_by_concept, filter_token_chunk_ids
+        return deep_hits_by_concept, filter_token_chunk_ids, all_hits_by_chunk_id
 
-    def retrieve_fragments(self, graph_facts: GraphFacts) -> FragmentQueryResult:
-        """Fragment-centric counterpart to `retrieve()`/`iter_candidates()`
-        (`specs/query-viewer-facet-redesign`): one row per chunk, deduplicated,
-        each carrying every interpretant that converged on it, for any number
-        of interpretants — not just pairs. Uses the same underlying search as
-        `iter_candidates` (`_search_deep_pools`); only what's aggregated and
-        returned differs.
+    def retrieve_regions(self, graph_facts: GraphFacts) -> RegionQueryResult:
+        """Region-centric retrieval (`convergence-rollup-retrieval` FR9-FR18):
+        rolls up floor-clearing interpretant matches over contiguous windows
+        of one source's segments, ranked by a specificity-weighted score.
 
-        A chunk is eligible if it ranks within some concept's own displayed
-        `top_k` slice, `min_score`-filtered — the same cutoff `ConceptCandidates`
-        uses. Once eligible, its full match list is built by checking every
-        concept's *deep* pool (`match_pool_size` depth), so a fragment's
-        convergence count doesn't depend on which concept happened to make it
-        eligible.
+        Uses the same underlying search as `iter_candidates`
+        (`_search_deep_pools`); only what's aggregated and returned differs:
+        a match is kept only if it clears `min_score` (FR6) — no ranking cutoff
+        substitutes for it — then matches are grouped into regions by
+        contiguous ordinal within `region_window_size` (FR10). Within a
+        region, an interpretant that matched more than one of its segments
+        keeps only its single best match (FR9, FR13) — summing every
+        per-segment occurrence would let a passage repeating one token across
+        many adjacent segments (e.g. a genealogy chapter repeating "hundred")
+        inflate its score by simple repetition, exactly the list-like-passage
+        failure mode ADR 0004 already rejected at the ranking-formula level.
+        That single best match still anchors to the specific segment it
+        occurred at (FR17). A region is eligible when its count of distinct
+        *concept* interpretants — an exact-token match is a literal-containment
+        guarantee, not a semantic signal, and is excluded from this count so a
+        common filter token can't make an otherwise-unmatched region eligible —
+        reaches `region_min_interpretants`; the default of 1 makes an isolated
+        strong match a valid, rankable region on its own (FR11)."""
+        deep_hits_by_concept, filter_token_chunk_ids, hit_by_chunk_id = self._search_deep_pools(graph_facts)
+        surface_form_by_token_value = _filter_token_surface_forms(graph_facts)
 
-        Fragments are ranked by `convergence_count`, not raw match count: an
-        exact-value match (FR28) is a literal-containment guarantee, not a
-        semantic signal, and can fire on any chunk containing a common
-        token (e.g. a gematria filter's "hundred") regardless of thematic
-        relevance — counting it the same as a real semantic match let a
-        handful of high-frequency filter tokens dominate the "most converged"
-        ranking. `matches` itself is untouched; every match, including
-        exact-value ones, still appears there and in `Facets.interpretants`."""
-        deep_hits_by_concept, filter_token_chunk_ids = self._search_deep_pools(graph_facts)
+        matches_by_segment: dict[tuple[str, int], list[Match]] = {}
+        hit_by_segment: dict[tuple[str, int], VectorHit] = {}
 
-        eligible_hit_by_chunk_id: dict[str, VectorHit] = {}
-        for pool in deep_hits_by_concept.values():
-            for chunk_id, hit in list(pool.items())[: self._top_k]:
-                if _similarity_score(hit) >= self._min_score:
-                    eligible_hit_by_chunk_id.setdefault(chunk_id, hit)
-
-        fragments = [
-            self._build_fragment(chunk_id, hit, deep_hits_by_concept, filter_token_chunk_ids)
-            for chunk_id, hit in eligible_hit_by_chunk_id.items()
-        ]
-        fragments.sort(key=lambda fragment: (fragment.convergence_count, _max_match_score(fragment)), reverse=True)
-        return FragmentQueryResult(facets=_build_facets(fragments), fragments=tuple(fragments))
-
-    def _build_fragment(
-        self,
-        chunk_id: str,
-        representative_hit: VectorHit,
-        deep_hits_by_concept: dict[str, dict[str, VectorHit]],
-        filter_token_chunk_ids: dict[str, set[str]],
-    ) -> Fragment:
-        matches: list[FragmentMatch] = []
         for concept, pool in deep_hits_by_concept.items():
-            hit = pool.get(chunk_id)
-            if hit is not None and _similarity_score(hit) >= self._min_score:
-                matches.append(FragmentMatch(interpretant=concept, score=_similarity_score(hit)))
-        for filter_value, chunk_ids in filter_token_chunk_ids.items():
-            if chunk_id in chunk_ids:
-                matches.append(FragmentMatch(interpretant=filter_value, score=0.0, exact_value=True))
+            for hit in pool.values():
+                score = _similarity_score(hit)
+                if score < self._min_score:
+                    continue
+                key = (hit.source_id, hit.ordinal)
+                hit_by_segment.setdefault(key, hit)
+                matches_by_segment.setdefault(key, []).append(
+                    Match(interpretant=concept, kind="concept", score=score, segment_ordinal=hit.ordinal)
+                )
 
-        passage = self._hydrate(representative_hit)
-        return Fragment(
-            chunk_id=passage.chunk_id,
-            source=passage.source,
-            text=passage.text,
-            locator=passage.locator,
-            chunk_index=passage.chunk_index,
-            char_start=passage.char_start,
-            char_end=passage.char_end,
-            embedding_model=passage.embedding_model,
-            matches=tuple(matches),
-            convergence_count=sum(1 for match in matches if not match.exact_value),
-        )
+        for filter_value, chunk_ids in filter_token_chunk_ids.items():
+            for chunk_id in chunk_ids:
+                hit = hit_by_chunk_id.get(chunk_id)
+                if hit is None:
+                    continue
+                key = (hit.source_id, hit.ordinal)
+                hit_by_segment.setdefault(key, hit)
+                matches_by_segment.setdefault(key, []).append(
+                    Match(interpretant=filter_value, kind="exact", exact_value=True, segment_ordinal=hit.ordinal)
+                )
+
+        ordinals_by_source: dict[str, set[int]] = {}
+        for source_id, ordinal in matches_by_segment:
+            ordinals_by_source.setdefault(source_id, set()).add(ordinal)
+
+        weight_cache: dict[str, float] = {}
+
+        def weight_for(match: Match) -> float:
+            surface_form = surface_form_by_token_value.get(match.interpretant, match.interpretant)
+            if surface_form not in weight_cache:
+                weight_cache[surface_form] = self._specificity_weight(surface_form)
+            return weight_cache[surface_form]
+
+        regions: list[Region] = []
+        for source_id, ordinals in ordinals_by_source.items():
+            for cluster in _cluster_ordinals(ordinals, self._region_window_size):
+                region_segments: list[Segment] = []
+                best_match_by_interpretant: dict[str, Match] = {}
+                for ordinal in cluster:
+                    key = (source_id, ordinal)
+                    hit = hit_by_segment[key]
+                    region_segments.append(Segment(ordinal=ordinal, locator=hit.locator, text=hit.text))
+                    for match in matches_by_segment[key]:
+                        existing = best_match_by_interpretant.get(match.interpretant)
+                        if existing is None or match.score > existing.score:
+                            best_match_by_interpretant[match.interpretant] = match
+
+                region_matches = list(best_match_by_interpretant.values())
+                concept_interpretants = {match.interpretant for match in region_matches if match.kind == "concept"}
+                if len(concept_interpretants) < self._region_min_interpretants:
+                    continue
+
+                score = sum(
+                    weight_for(match) * (match.score if match.kind == "concept" else _EXACT_MATCH_STRENGTH)
+                    for match in region_matches
+                )
+
+                representative_hit = hit_by_segment[(source_id, cluster[0])]
+                regions.append(
+                    Region(
+                        region_id=f"{source_id}::{cluster[0]}-{cluster[-1]}",
+                        source=self._source_for(representative_hit),
+                        locator=_region_locator(tuple(region_segments)),
+                        score=score,
+                        convergence_count=len(concept_interpretants),
+                        segments=tuple(region_segments),
+                        matches=tuple(region_matches),
+                    )
+                )
+
+        regions.sort(key=lambda region: region.score, reverse=True)
+        return RegionQueryResult(facets=_build_region_facets(regions), regions=tuple(regions))
 
     def _build_pair_candidates(
         self,
@@ -517,6 +576,22 @@ class RetrievalPipeline:
             return
         candidates.sort(key=lambda candidate: candidate.combined_score, reverse=True)
         groups.append(ConceptPairCandidates(concepts=concepts, candidates=tuple(candidates[: self._merge_top_k])))
+
+    def _specificity_weight(self, surface_form: str) -> float:
+        """A rarer literal surface form yields a strictly higher weight
+        (`convergence-rollup-retrieval` FR12/FR14): `log(N / df(surface_form))`,
+        `N` the total number of ingested segments and `df` the count of
+        segments literally containing `surface_form` on whole-word boundaries
+        (`ChromaVectorStore.document_frequency`, never a count derived from
+        dense embedding scores — ADR 0004 found that diffuse and misleading).
+        `df` is floored at 1 (a surface form absent from the corpus is treated
+        as at least as rare as one appearing exactly once, not infinitely
+        rare) so this never divides by zero or takes `log(0)`."""
+        corpus_size = self._vector_store.count()
+        if corpus_size <= 0:
+            return 0.0
+        df = max(self._vector_store.document_frequency(surface_form), 1)
+        return math.log(corpus_size / df)
 
     def _hydrate(self, hit: VectorHit) -> RetrievedPassage:
         return RetrievedPassage(
@@ -691,29 +766,68 @@ def build_query_texts(graph_facts: GraphFacts) -> list[_Query]:
     return [query for query in queries if query.text]
 
 
-def _max_match_score(fragment: Fragment) -> float:
-    """A fragment's best individual match score, for ranking fragments tied
-    on convergence count. `exact_value` matches carry no meaningful score
-    (0.0) and never win this comparison over a semantic match."""
-    return max((match.score for match in fragment.matches), default=0.0)
+def _filter_token_surface_forms(graph_facts: GraphFacts) -> dict[str, str]:
+    """Maps every recognized filter token's curator-authored `value` (the
+    form used as `Match.interpretant`, e.g. `"100"`) to its searched
+    `as_token` (the literal form actually present in the corpus, e.g.
+    `"hundred"`) — specificity weighting for a token interpretant must use
+    the searched form (plan.md area E), not the authored one, since that's
+    what `document_frequency` actually counts."""
+    sign, manifestation = graph_facts.sign, graph_facts.manifestation
+    interpretant_groups = [manifestation.interpretants]
+    interpretant_groups += [interpretant.target_interpretants for interpretant in sign.intersemiotic_interpretants]
+    return {token.value: token.as_token for token in _collect_filter_tokens(interpretant_groups)}
 
 
-def _build_facets(fragments: list[Fragment]) -> Facets:
-    """One `SourceFacet` per distinct source and one `InterpretantFacet` per
-    distinct interpretant, counted across the already-eligible fragment list
-    — first-seen order, so facet order tracks fragment rank order."""
-    source_counts: dict[str, SourceFacet] = {}
-    for fragment in fragments:
-        existing = source_counts.get(fragment.source.id)
-        label = fragment.source.title
-        if existing is None:
-            source_counts[fragment.source.id] = SourceFacet(id=fragment.source.id, label=label, count=1)
+def _cluster_ordinals(ordinals: set[int], window_size: int) -> list[list[int]]:
+    """Chains eligible ordinals (already known to be from the same source)
+    into contiguous regions: sorted ascending, an ordinal joins the region in
+    progress when it is within `window_size` of that region's most recent
+    ordinal, else it starts a new region (FR10) — so a region can span more
+    than `window_size` end-to-end when matches occur in a close-packed chain,
+    the same way `symbol-interpretation-core`'s Genesis 20:18-21:6 finding
+    crosses more than one fixed-size window."""
+    ordered = sorted(ordinals)
+    clusters: list[list[int]] = []
+    for ordinal in ordered:
+        if clusters and ordinal - clusters[-1][-1] <= window_size:
+            clusters[-1].append(ordinal)
         else:
-            source_counts[fragment.source.id] = existing.model_copy(update={"count": existing.count + 1})
+            clusters.append([ordinal])
+    return clusters
+
+
+def _region_locator(segments: tuple[Segment, ...]) -> str:
+    """A single-segment region reuses that segment's own locator. A
+    multi-segment region merges the first and last locator's trailing part
+    when they share a common prefix (`"Genesis 21:5"` + `"Genesis 21:6"` ->
+    `"Genesis 21:5–6"`, matching plan.md's worked contract); otherwise the two
+    full locators are joined, still unambiguous."""
+    if len(segments) == 1:
+        return segments[0].locator
+    first, last = segments[0].locator, segments[-1].locator
+    prefix = first.rpartition(":")[0]
+    if prefix and last.startswith(prefix + ":"):
+        return f"{first}–{last[len(prefix) + 1 :]}"
+    return f"{first}–{last}"
+
+
+def _build_region_facets(regions: list[Region]) -> Facets:
+    """One `SourceFacet` per distinct source and one `InterpretantFacet` per
+    distinct interpretant, counted across the already-eligible region list —
+    the region-centric counterpart to `_build_facets`."""
+    source_counts: dict[str, SourceFacet] = {}
+    for region in regions:
+        existing = source_counts.get(region.source.id)
+        label = region.source.title
+        if existing is None:
+            source_counts[region.source.id] = SourceFacet(id=region.source.id, label=label, count=1)
+        else:
+            source_counts[region.source.id] = existing.model_copy(update={"count": existing.count + 1})
 
     interpretant_counts: dict[str, int] = {}
-    for fragment in fragments:
-        for match in fragment.matches:
+    for region in regions:
+        for match in region.matches:
             interpretant_counts[match.interpretant] = interpretant_counts.get(match.interpretant, 0) + 1
 
     return Facets(

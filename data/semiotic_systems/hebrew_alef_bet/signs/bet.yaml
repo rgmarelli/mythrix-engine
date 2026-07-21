@@ -1,13 +1,13 @@
 semiotic_system: hebrew_alef_bet
 sign:
-  name: Beth
+  name: Bet
   type: hebrew-letter
   properties:
   - key: letter_type
     value: double
   manifestations:
   - tradition: sepher-yetzirah-gra
-    display_name: Beth
+    display_name: Bet
     interpretants:
     - type: numeric_value
       value: '2'
@@ -22,4 +22,6 @@ sign:
       value: Folly
     - type: planet
       value: Moon
+    - type: spelling
+      value: Bet
     cites: Sepher Yetzirah

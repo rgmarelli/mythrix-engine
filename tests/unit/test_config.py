@@ -16,6 +16,8 @@ def test_defaults() -> None:
     assert settings.merge_top_k == 6
     assert settings.retrieval_min_score == 0.45
     assert settings.generation_num_ctx == 8192
+    assert settings.region_window_size == 3
+    assert settings.region_min_interpretants == 1
 
 
 def test_env_var_overrides_default(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -60,3 +62,13 @@ def test_match_pool_size_and_merge_top_k_can_be_overridden(monkeypatch: pytest.M
 
     assert settings.retrieval_match_pool_size == 50
     assert settings.merge_top_k == 10
+
+
+def test_region_window_size_and_min_interpretants_can_be_overridden(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MYTHRIX_REGION_WINDOW_SIZE", "5")
+    monkeypatch.setenv("MYTHRIX_REGION_MIN_INTERPRETANTS", "2")
+
+    settings = Settings(_env_file=None)  # type: ignore[call-arg]
+
+    assert settings.region_window_size == 5
+    assert settings.region_min_interpretants == 2

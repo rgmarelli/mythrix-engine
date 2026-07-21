@@ -1,5 +1,5 @@
 """Unit tests for `core/query_service.py`: `execute_query` (the CLI's
-retrieval logic, extracted) and `query_fragments` (the API's fragment-centric
+retrieval logic, extracted) and `query_regions` (the API's region-centric
 form). Real `KuzuGraphStore`/`ChromaVectorStore` against `tmp_path`, a fake
 embedder — no running Ollama needed, mirroring `tests/unit/test_cli_query.py`."""
 
@@ -11,15 +11,15 @@ import pytest
 from mythrix.core.errors import SignNotFoundError
 from mythrix.core.graph.store import KuzuGraphStore
 from mythrix.core.models import (
-    FragmentQueryResult,
     Interpretant,
     Manifestation,
+    RegionQueryResult,
     RetrievalContext,
     Sign,
     Source,
     Tradition,
 )
-from mythrix.core.query_service import execute_query, query_fragments
+from mythrix.core.query_service import execute_query, query_regions
 from mythrix.core.vector.store import ChromaVectorStore
 
 RIDER_WAITE = Tradition(id="rider-waite", slug="rider-waite", name="Rider-Waite-Smith", domain="tarot")
@@ -70,6 +70,12 @@ def _kwargs(**overrides) -> dict:  # noqa: ANN003
     return defaults
 
 
+def _region_kwargs(**overrides) -> dict:  # noqa: ANN003
+    defaults = {**_kwargs(), "region_window_size": 3, "region_min_interpretants": 1}
+    defaults.update(overrides)
+    return defaults
+
+
 def test_execute_query_returns_a_retrieval_context(
     graph_store: KuzuGraphStore, vector_store: ChromaVectorStore
 ) -> None:
@@ -97,30 +103,30 @@ def test_execute_query_propagates_mythrix_error(graph_store: KuzuGraphStore, vec
         )
 
 
-def test_query_fragments_returns_a_fragment_query_result(
+def test_query_regions_returns_a_region_query_result(
     graph_store: KuzuGraphStore, vector_store: ChromaVectorStore
 ) -> None:
-    result = query_fragments(
+    result = query_regions(
         symbol="the-tower",
         tradition="rider-waite",
         graph_store=graph_store,
         vector_store=vector_store,
         embedder=FakeEmbedder(),
-        **_kwargs(),
+        **_region_kwargs(),
     )
-    assert isinstance(result, FragmentQueryResult)
-    assert result.fragments == ()
+    assert isinstance(result, RegionQueryResult)
+    assert result.regions == ()
     assert result.facets.sources == ()
     assert result.facets.interpretants == ()
 
 
-def test_query_fragments_propagates_mythrix_error(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore) -> None:
+def test_query_regions_propagates_mythrix_error(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore) -> None:
     with pytest.raises(SignNotFoundError):
-        query_fragments(
+        query_regions(
             symbol="nonexistent",
             tradition="rider-waite",
             graph_store=graph_store,
             vector_store=vector_store,
             embedder=FakeEmbedder(),
-            **_kwargs(),
+            **_region_kwargs(),
         )

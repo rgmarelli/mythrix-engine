@@ -1,27 +1,27 @@
 semiotic_system: hebrew_alef_bet
 sign:
-  name: Daleth
+  name: Pe
   type: hebrew-letter
   properties:
   - key: letter_type
     value: double
   manifestations:
   - tradition: sepher-yetzirah-gra
-    display_name: Daleth
+    display_name: Pe
     interpretants:
     - type: numeric_value
-      value: '4'
+      value: '80'
       query:
         directive: filter
-        as_token: four
+        as_token: eighty
     - type: meaning
-      value: Door
-    - type: meaning
-      value: poor man
+      value: Mouth
     - type: foundation
-      value: Seed
+      value: Dominance
     - type: transpose
-      value: Desolation
+      value: Subjugation
     - type: planet
-      value: Sun
+      value: Mercury
+    - type: spelling
+      value: Pe
     cites: Sepher Yetzirah

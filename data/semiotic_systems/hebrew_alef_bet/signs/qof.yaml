@@ -1,28 +1,32 @@
 semiotic_system: hebrew_alef_bet
 sign:
-  name: Tzaddi
+  name: Qof
   type: hebrew-letter
   properties:
   - key: letter_type
     value: simple
   manifestations:
   - tradition: sepher-yetzirah-gra
-    display_name: Tzaddi
+    display_name: Qof
     interpretants:
     - type: numeric_value
-      value: '90'
+      value: '100'
       query:
         directive: filter
-        as_token: ninety
+        as_token: hundred
     - type: meaning
-      value: To hunt
+      value: Monkey
     - type: meaning
-      value: fishhook
+      value: eye of the needle
+      query:
+        directive: skip
     - type: foundation
-      value: taste
+      value: laughter
     - type: constellation
-      value: Aquarius
+      value: Pisces
       query:
         directive: filter
-        as_token: Aquarius
+        as_token: Pisces
+    - type: spelling
+      value: Qof
     cites: Sepher Yetzirah

@@ -22,4 +22,6 @@ sign:
       value: War
     - type: planet
       value: Saturn
+    - type: spelling
+      value: Resh
     cites: Sepher Yetzirah

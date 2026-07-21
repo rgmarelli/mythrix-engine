@@ -1,8 +1,8 @@
 """`--json` output payload shape for `RetrievalContext` (FR16) — shared by
 `cli/formatting.py::render_facts_json`; nothing else in `core/` or `api/`
-uses this (the API's `/api/query` payload is `FragmentQueryResult`, built by
-`query_service.py::query_fragments`, see
-`specs/query-viewer-facet-redesign/plan.md`)."""
+uses this (the API's `/api/query` payload is `RegionQueryResult`, built by
+`query_service.py::query_regions`, see
+`specs/convergence-rollup-retrieval/plan.md`)."""
 
 from __future__ import annotations
 

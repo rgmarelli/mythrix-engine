@@ -21,6 +21,7 @@ from mythrix.core.graph.store import KuzuGraphStore
 from mythrix.core.loaders.sign_schema import SourceFile
 from mythrix.core.models import Source
 from mythrix.core.vector.chunking import chunk_text
+from mythrix.core.vector.segmentation import segment_text
 from mythrix.core.vector.store import ChromaVectorStore, ChunkMetadata
 
 _EMBED_BATCH_SIZE = 64
@@ -62,6 +63,10 @@ def load_document(
     `Source.domain`, not a caller-supplied argument — a chunk's domain is a
     fact about its source, not a fact about the call site.
 
+    When the source declares a `structure_scheme` (`convergence-rollup-retrieval`
+    FR1), ingestion routes through that structural segmenter instead of the
+    fixed word-count `chunk_text`; `chunk_size`/`chunk_overlap` are then unused.
+
     Raises `SourceNotFoundError` if `source_id` hasn't been declared yet
     (FR6) — a document is never ingested for a source nobody registered.
     """
@@ -75,7 +80,10 @@ def load_document(
     if source.content_hash:
         vector_store.delete_by_source(source_id)
 
-    chunks = chunk_text(content, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+    if source.structure_scheme:
+        chunks = segment_text(content, scheme=source.structure_scheme)
+    else:
+        chunks = chunk_text(content, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     if chunks:
         embeddings = _embed_in_batches(embedder, [chunk.text for chunk in chunks])
         metadata = ChunkMetadata(
@@ -107,6 +115,7 @@ def _parse_corpus_source(yaml_path: Path) -> Source:
         license=parsed.source.license,
         uri=parsed.source.uri,
         description=parsed.source.description,
+        structure_scheme=parsed.source.structure.scheme if parsed.source.structure else "",
     )
 
 

@@ -64,6 +64,23 @@ class Settings(BaseSettings):
     `symbols_data_path` is where `POST /api/reload-symbols` reads from when the
     request omits a path — the same directory the local dev workflow already
     passes to `mythrix load-symbols` by hand.
+
+    `region_window_size` (`convergence-rollup-retrieval` FR10) is how many
+    consecutive segment ordinals of one source a region rollup can chain
+    together — a region can still span further end-to-end when matches occur
+    in a close-packed chain (see `retrieval.pipeline._cluster_ordinals`).
+
+    `region_min_interpretants` (FR11) is the minimum count of distinct
+    *concept* interpretants a region must carry to be eligible. Defaults to
+    `1` — an isolated strong match is a valid, rankable region on its own
+    (ADR 0004); convergence raises rank, it is never required to appear at
+    all.
+
+    `retrieval_min_score` doubles as the absolute match floor a concept
+    interpretant's raw similarity must clear to enter a region at all (FR6)
+    — evaluated on the raw score, never normalized within a query's results,
+    so a corpus lacking an interpretant yields no match for it rather than a
+    best-of-noise one (ADR 0004).
     """
 
     model_config = SettingsConfigDict(env_prefix="MYTHRIX_", env_file=".env", extra="ignore")
@@ -79,3 +96,5 @@ class Settings(BaseSettings):
     retrieval_min_score: float = 0.45
     generation_num_ctx: int = 8192
     symbols_data_path: Path = Path("data/semiotic_systems")
+    region_window_size: int = 3
+    region_min_interpretants: int = 1

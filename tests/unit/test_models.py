@@ -9,15 +9,20 @@ from mythrix.core.models import (
     ConceptCandidates,
     ConceptMatchScore,
     ConceptPairCandidates,
+    Facets,
     GraphFacts,
     Interpretant,
     IntersemioticInterpretant,
     Manifestation,
+    Match,
     MergedCandidate,
     Property,
     QueryDirective,
+    Region,
+    RegionQueryResult,
     RetrievalContext,
     RetrievedPassage,
+    Segment,
     Sign,
     Source,
     Tradition,
@@ -282,6 +287,59 @@ def test_concept_pair_candidates_round_trip(
     # `all_passages` deliberately doesn't include pair-only convergences — see
     # its docstring on why `pair_candidates` isn't a strict subset.
     assert context.all_passages == ()
+
+
+def test_region_round_trip_anchors_matches_to_their_segments(waite_source: Source) -> None:
+    """T8: the settled `Region`/`Segment`/`Match` shape (FR16-FR18) — a
+    region's `segments` carry each match-carrying verse's text once, and
+    every match (concept or exact) carries the `segment_ordinal` of the
+    specific verse it hit, matching plan.md's worked Genesis 21:5/21:6
+    contract."""
+    genesis_source = waite_source.model_copy(update={"id": "en_drb", "domain": "scripture", "title": "DRB"})
+    segment_5 = Segment(ordinal=104, locator="Genesis 21:5", text="And Abraham was a hundred years old.")
+    segment_6 = Segment(ordinal=105, locator="Genesis 21:6", text="And Sara said: God hath made a laughter for me.")
+    region = Region(
+        region_id="en_drb::104-105",
+        source=genesis_source,
+        locator="Genesis 21:5-6",
+        score=6.18,
+        convergence_count=2,
+        segments=(segment_5, segment_6),
+        matches=(
+            Match(interpretant="hundred", kind="concept", score=0.71, segment_ordinal=104),
+            Match(interpretant="laughter", kind="concept", score=0.68, segment_ordinal=105),
+        ),
+    )
+
+    dumped = region.model_dump(mode="json")
+    restored = Region.model_validate(dumped)
+
+    assert restored == region
+    assert {s.text for s in restored.segments} == {segment_5.text, segment_6.text}
+    assert restored.matches[0].segment_ordinal == 104
+    assert restored.matches[1].segment_ordinal == 105
+
+
+def test_exact_match_carries_no_meaningful_score() -> None:
+    match = Match(interpretant="hundred", kind="exact", exact_value=True, segment_ordinal=104)
+
+    assert match.score == 0.0
+    assert match.exact_value is True
+
+
+def test_region_query_result_round_trip(waite_source: Source) -> None:
+    region = Region(
+        region_id="en_drb::104",
+        source=waite_source,
+        locator="Genesis 21:5",
+        matches=(Match(interpretant="hundred", kind="concept", score=0.71, segment_ordinal=104),),
+    )
+    result = RegionQueryResult(facets=Facets(), regions=(region,))
+
+    dumped = result.model_dump(mode="json")
+    restored = RegionQueryResult.model_validate(dumped)
+
+    assert restored == result
 
 
 def test_models_are_frozen(rider_waite: Tradition) -> None:

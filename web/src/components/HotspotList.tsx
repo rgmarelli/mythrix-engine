@@ -1,24 +1,24 @@
-import type { Fragment } from '../api/types';
+import type { Hotspot } from '../api/types';
 import { HotspotCard } from './HotspotCard';
 
 interface Props {
   headerText: string;
-  fragments: Fragment[];
-  selectedChunkId: string | null;
-  onSelect: (chunkId: string) => void;
+  hotspots: Hotspot[];
+  selectedRegionId: string | null;
+  onSelect: (regionId: string) => void;
 }
 
-export function HotspotList({ headerText, fragments, selectedChunkId, onSelect }: Props) {
+export function HotspotList({ headerText, hotspots, selectedRegionId, onSelect }: Props) {
   return (
     <section className="hotspot-list">
       <h2>{headerText}</h2>
-      {fragments.length === 0 && <p className="empty">No fragments match the current filters.</p>}
-      {fragments.map((fragment) => (
+      {hotspots.length === 0 && <p className="empty">No hotspots match the current filters.</p>}
+      {hotspots.map((hotspot) => (
         <HotspotCard
-          key={fragment.chunk_id}
-          fragment={fragment}
-          isActive={fragment.chunk_id === selectedChunkId}
-          onSelect={() => onSelect(fragment.chunk_id)}
+          key={hotspot.regionId}
+          hotspot={hotspot}
+          isActive={hotspot.regionId === selectedRegionId}
+          onSelect={() => onSelect(hotspot.regionId)}
         />
       ))}
     </section>
