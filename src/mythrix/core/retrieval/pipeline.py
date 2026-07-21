@@ -266,7 +266,7 @@ class RetrievalPipeline:
         vector_store: ChromaVectorStore,
         embedder: Embedder,
         top_k: int = 6,
-        match_pool_size: int = 30,
+        match_pool_size: int = 100,
         merge_top_k: int = 6,
         min_score: float = 0.0,
         region_window_size: int = 3,

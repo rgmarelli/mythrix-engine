@@ -12,7 +12,7 @@ def test_defaults() -> None:
     assert settings.generation_model is None
     assert settings.ollama_base_url == "http://localhost:11434"
     assert settings.retrieval_top_k == 6
-    assert settings.retrieval_match_pool_size == 30
+    assert settings.retrieval_match_pool_size == 100
     assert settings.merge_top_k == 6
     assert settings.retrieval_min_score == 0.45
     assert settings.generation_num_ctx == 8192

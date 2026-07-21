@@ -45,6 +45,21 @@ class Settings(BaseSettings):
     which read as the model hallucinating when it had simply never seen most of its
     own supplied context.
 
+    `retrieval_match_pool_size` defaults to `100`, not `30` — `30` was fit against
+    the pre-`convergence-rollup-retrieval` corpus of ~1,621 fixed-word chunks, where
+    it covered close to 2% of the collection. Verse/section segmentation split that
+    same corpus into ~36,000 segments without this default being re-measured, so a
+    genuinely relevant but non-obviously-worded match could fall just past the
+    pool's edge: confirmed empirically against The Sun's `child` concept (Rider-Waite
+    tradition) — Genesis 21:8 ("And the child grew...") is the only verse in the
+    Abraham/Isaac narrative containing the literal word "child" (21:5/21:6 say
+    "son"/"a hundred years old"/"laughter"), and it ranked 31st raw, one past the
+    old pool depth, silently dropping `child` from the Genesis 21 region and letting
+    unrelated census-list passages (which happened to combine several other
+    concepts) outrank it. `100` was the shallowest depth at which that verse's
+    match was consistently recovered across a `30`/`60`/`100`/`150`/`250` sweep,
+    with no further improvement past `100` and negligible added query latency.
+
     `retrieval_min_score` defaults to `0.45`, not `0.0` — confirmed empirically
     against a real query (The Sun/Rider-Waite, `nomic-embed-text`, 1621-chunk
     corpus): the distribution of match scores across all retrieved fragments is a
@@ -91,7 +106,7 @@ class Settings(BaseSettings):
     embedding_model: str = "nomic-embed-text"
     generation_model: str | None = None
     retrieval_top_k: int = 6
-    retrieval_match_pool_size: int = 30
+    retrieval_match_pool_size: int = 100
     merge_top_k: int = 6
     retrieval_min_score: float = 0.45
     generation_num_ctx: int = 8192
