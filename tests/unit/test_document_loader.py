@@ -163,6 +163,50 @@ def test_reingesting_changed_file_replaces_chunks(
     assert new_hash != original_hash
 
 
+def test_source_with_a_declared_structure_scheme_routes_through_the_segmenter(
+    tmp_path: Path, graph_store: KuzuGraphStore, vector_store: ChromaVectorStore
+) -> None:
+    graph_store.upsert_source(
+        Source(
+            id="en_bahir", domain="kabbalah", title="Sefer HaBahir", author="Anon.", structure_scheme="numbered_section"
+        )
+    )
+    doc = tmp_path / "excerpt.txt"
+    doc.write_text("1. First section.\n\n2. Second section.\n", encoding="utf-8")
+
+    written = load_document(
+        doc,
+        source_id="en_bahir",
+        graph_store=graph_store,
+        vector_store=vector_store,
+        embedder=FakeEmbedder(),
+    )
+
+    assert written == 2
+    hits = vector_store.similarity_search([len("First section."), 0.0], top_k=5)
+    assert {hit.section for hit in hits} == {"1", "2"}
+    assert all("1." not in hit.text and "2." not in hit.text for hit in hits)
+
+
+def test_source_without_a_structure_scheme_falls_back_to_word_count_chunking(
+    tmp_path: Path, graph_store: KuzuGraphStore, vector_store: ChromaVectorStore
+) -> None:
+    _declare_source(graph_store)
+    doc = tmp_path / "excerpt.txt"
+    doc.write_text("The Tower depicts sudden upheaval.", encoding="utf-8")
+
+    load_document(
+        doc,
+        source_id="waite-pictorial-key",
+        graph_store=graph_store,
+        vector_store=vector_store,
+        embedder=FakeEmbedder(),
+    )
+
+    hits = vector_store.similarity_search([len("The Tower depicts sudden upheaval."), 0.0], top_k=1)
+    assert hits[0].section == ""
+
+
 def test_large_document_is_embedded_in_batches_not_one_giant_request(
     tmp_path: Path, graph_store: KuzuGraphStore, vector_store: ChromaVectorStore
 ) -> None:

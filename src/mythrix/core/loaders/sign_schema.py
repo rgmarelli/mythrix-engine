@@ -56,6 +56,15 @@ class TraditionFile(LoaderModel):
     tradition: TraditionBlock
 
 
+class StructureBlock(LoaderModel):
+    """A corpus source's `structure:` block (`convergence-rollup-retrieval`
+    FR1): names the structural segmenter (`mythrix.core.vector.segmentation`)
+    that turns this source's raw text into segments along its own declared
+    structure, rather than a fixed word-count chunk."""
+
+    scheme: str
+
+
 class SourceBlock(LoaderModel):
     """`id` is always authored explicitly here — not derived from the YAML
     file's own name, since a corpus source's file is named descriptively
@@ -65,7 +74,9 @@ class SourceBlock(LoaderModel):
     "scripture") — required, since it is what a corpus chunk is tagged with
     in place of a tradition (FR7). `citation_label` is only meaningful for a
     source that gets ingested into the document corpus; left empty for one
-    that's only ever cited via a `Citation`."""
+    that's only ever cited via a `Citation`. `structure` is optional — a
+    source that doesn't declare one falls back to fixed word-count chunking
+    (`convergence-rollup-retrieval` FR1)."""
 
     id: str
     domain: str
@@ -76,6 +87,7 @@ class SourceBlock(LoaderModel):
     license: str = ""
     uri: str = ""
     description: str = ""
+    structure: StructureBlock | None = None
 
 
 class SourceFile(LoaderModel):

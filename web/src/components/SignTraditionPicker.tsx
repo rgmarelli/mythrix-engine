@@ -126,7 +126,7 @@ export function SignTraditionPicker({
             const raw = event.target.value;
             onMinScoreChange(raw === '' ? null : Number(raw));
           }}
-          title="Minimum similarity score a fragment must clear to appear in results. Leave blank for the server default."
+          title="Minimum similarity score an interpretant match must clear to appear in results. Leave blank for the server default."
         />
       </label>
 

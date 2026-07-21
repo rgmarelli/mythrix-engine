@@ -211,6 +211,30 @@ def test_intersemiotic_target_with_zero_manifestations_is_valid(store: KuzuGraph
     assert path_interpretant.target_sign.canonical_name == "Path: Tiphareth-Yesod"
 
 
+def test_source_structure_scheme_round_trips(store: KuzuGraphStore) -> None:
+    store.upsert_source(
+        Source(
+            id="en_drb",
+            domain="scripture",
+            title="Douay-Rheims Bible",
+            author="English College at Douay",
+            structure_scheme="scripture_verse",
+        )
+    )
+
+    source = store.get_source("en_drb")
+
+    assert source.structure_scheme == "scripture_verse"
+
+
+def test_source_structure_scheme_defaults_to_empty(store: KuzuGraphStore) -> None:
+    store.upsert_source(Source(id="waite", domain="tarot", title="T", author="A"))
+
+    source = store.get_source("waite")
+
+    assert source.structure_scheme == ""
+
+
 def test_upserts_are_idempotent(store: KuzuGraphStore) -> None:
     _seed_fixture(store)
     _seed_fixture(store)  # re-run everything with identical data

@@ -1,6 +1,6 @@
 """`GET /api/traditions`, `GET /api/symbols`, `GET /api/query`,
-`POST /api/reload-symbols` — see `specs/query-viewer-facet-redesign/plan.md`
-for `/api/query`'s `FragmentQueryResult` contract, and
+`POST /api/reload-symbols` — see `specs/convergence-rollup-retrieval/plan.md`
+for `/api/query`'s `RegionQueryResult` contract, and
 `specs/query-viewer-web-ui/plan.md`'s "API package" section for the other
 GET routes."""
 
@@ -15,8 +15,8 @@ from mythrix.api.dependencies import get_chat_client, get_stores
 from mythrix.core.bootstrap import Stores
 from mythrix.core.config import Settings
 from mythrix.core.loaders.sign_loader import load_directory, summarize_plan
-from mythrix.core.models import FragmentQueryResult, SignSummary, Tradition
-from mythrix.core.query_service import query_fragments
+from mythrix.core.models import RegionQueryResult, SignSummary, Tradition
+from mythrix.core.query_service import query_regions
 from mythrix.core.synthesis.chain import ChatClient
 from mythrix.core.synthesis.prompts import render_passage_summary_prompt
 
@@ -33,7 +33,7 @@ def list_symbols(stores: Stores = Depends(get_stores)) -> list[SignSummary]:
     return list(stores.graph_store.list_signs())
 
 
-@router.get("/query", response_model=FragmentQueryResult)
+@router.get("/query", response_model=RegionQueryResult)
 def query(
     symbol: str,
     tradition: str,
@@ -41,8 +41,9 @@ def query(
     match_pool: int | None = None,
     min_score: float | None = None,
     stores: Stores = Depends(get_stores),
-) -> FragmentQueryResult:
-    """Returns one query's facets and ranked, deduplicated fragment list.
+) -> RegionQueryResult:
+    """Returns one query's facets and ranked region list
+    (`convergence-rollup-retrieval`).
 
     `min_score` overrides `Settings.retrieval_min_score` (default `0.45`) for
     this request only — checked with `is None`, not truthiness, since `0.0`
@@ -55,7 +56,7 @@ def query(
     (404/502 JSON).
     """
     settings = Settings()
-    return query_fragments(
+    return query_regions(
         symbol=symbol,
         tradition=tradition,
         graph_store=stores.graph_store,
@@ -65,6 +66,8 @@ def query(
         match_pool_size=match_pool or settings.retrieval_match_pool_size,
         merge_top_k=settings.merge_top_k,
         min_score=min_score if min_score is not None else settings.retrieval_min_score,
+        region_window_size=settings.region_window_size,
+        region_min_interpretants=settings.region_min_interpretants,
     )
 
 

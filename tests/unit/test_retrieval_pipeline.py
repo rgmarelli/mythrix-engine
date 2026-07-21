@@ -15,6 +15,7 @@ e.g. Genesis, discoverable when querying a tarot sign, carrying no
 interpretive tradition of its own). Uses a fake vector store/embedder — no
 Ollama needed."""
 
+import math
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -83,20 +84,57 @@ class FakeVectorStore:
         return self._hits
 
 
+class DocumentFrequencyVectorStore(FakeVectorStore):
+    """`FakeVectorStore` plus `count()`/`document_frequency()`, for tests of
+    the specificity-weight helper and region rollup, which need a corpus size
+    and per-term literal document frequency (`convergence-rollup-retrieval`
+    FR12/FR14) that plain `FakeVectorStore` has no use for."""
+
+    def __init__(self, hits: list[VectorHit], *, corpus_size: int, document_frequencies: dict[str, int]) -> None:
+        super().__init__(hits)
+        self._corpus_size = corpus_size
+        self._document_frequencies = document_frequencies
+
+    def count(self) -> int:
+        return self._corpus_size
+
+    def document_frequency(self, term: str) -> int:
+        return self._document_frequencies.get(term, 0)
+
+
 class SequencedVectorStore:
     """Returns a different, pre-scripted set of hits on each successive call —
     for tests exercising multi-query retrieval, where `FakeVectorStore`'s single
-    fixed response for every call isn't enough to tell searches apart."""
+    fixed response for every call isn't enough to tell searches apart.
 
-    def __init__(self, hits_per_call: list[list[VectorHit]]) -> None:
+    `corpus_size`/`document_frequencies` back `count()`/`document_frequency()`
+    for tests of the specificity-weighted region path, which plain
+    multi-query tests have no use for and so leave at their harmless
+    defaults."""
+
+    def __init__(
+        self,
+        hits_per_call: list[list[VectorHit]],
+        *,
+        corpus_size: int = 1,
+        document_frequencies: dict[str, int] | None = None,
+    ) -> None:
         self._hits_per_call = iter(hits_per_call)
         self.call_count = 0
         self.document_contains_per_call: list[str | None] = []
+        self._corpus_size = corpus_size
+        self._document_frequencies = document_frequencies or {}
 
     def similarity_search(self, query_embedding, *, top_k=6, document_contains=None):  # noqa: ANN001, ANN201
         self.call_count += 1
         self.document_contains_per_call.append(document_contains)
         return next(self._hits_per_call)
+
+    def count(self) -> int:
+        return self._corpus_size
+
+    def document_frequency(self, term: str) -> int:
+        return self._document_frequencies.get(term, 0)
 
 
 @pytest.fixture
@@ -804,160 +842,276 @@ def test_combined_score_clamps_negative_components_instead_of_raising() -> None:
     assert _combined_score((-0.4, -0.6)) == pytest.approx(0.0)
 
 
-# --- Fragment-centric retrieval (specs/query-viewer-facet-redesign) ---
+# --- Specificity weighting (convergence-rollup-retrieval FR12-FR14) ---
 
 
-def test_retrieve_fragments_dedupes_a_chunk_matched_by_two_concepts(graph_store: KuzuGraphStore) -> None:
-    """A chunk retrieved by two concepts appears once in `fragments`, with
-    both recorded in its `matches` — the N-way generalization of
-    `ConceptPairCandidates`, for exactly two concepts here."""
-    graph_facts = _intersemiotic_graph_facts()
-    shared_hit_for_fire = _make_hit("shared", distance=0.2)
-    shared_hit_for_fish = _make_hit("shared", distance=0.3)
-    vector_store = SequencedVectorStore([[shared_hit_for_fire], [shared_hit_for_fish]])
+def test_specificity_weight_is_strictly_higher_for_a_rarer_surface_form(graph_store: KuzuGraphStore) -> None:
+    vector_store = DocumentFrequencyVectorStore(
+        hits=[], corpus_size=200, document_frequencies={"laughter": 11, "hundred": 130}
+    )
     pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
 
-    result = pipeline.retrieve_fragments(graph_facts)
+    rare_weight = pipeline._specificity_weight("laughter")
+    common_weight = pipeline._specificity_weight("hundred")
 
-    assert len(result.fragments) == 1
-    fragment = result.fragments[0]
-    assert fragment.chunk_id == "shared"
-    assert {m.interpretant for m in fragment.matches} == {"Fire", "Fish"}
+    assert rare_weight > common_weight
 
 
-def test_retrieve_fragments_excludes_a_chunk_outside_every_concepts_own_top_k(graph_store: KuzuGraphStore) -> None:
-    """A chunk that never ranks within any concept's own displayed `top_k`
-    slice is absent from `fragments`, even if two concepts' deeper pools both
-    contain it — the accepted narrowing versus `ConceptPairCandidates`, which
-    detects convergence at `match_pool_size` depth regardless of display
-    rank."""
-    graph_facts = _intersemiotic_graph_facts()
-    fire_hits = [_make_hit(f"fire-filler-{i}", distance=0.05 + i * 0.01) for i in range(8)]
-    fire_hits.append(_make_hit("buried", distance=0.5))  # ranked 9th for "Fire"
-    fish_hits = [_make_hit(f"fish-filler-{i}", distance=0.05 + i * 0.01) for i in range(8)]
-    fish_hits.append(_make_hit("buried", distance=0.5))  # ranked 9th for "Fish" too
-    vector_store = SequencedVectorStore([fire_hits, fish_hits])
-    pipeline = RetrievalPipeline(
-        graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder(), top_k=6, match_pool_size=30
+def test_specificity_weight_handles_a_surface_form_absent_from_the_corpus(graph_store: KuzuGraphStore) -> None:
+    """A surface form with `df == 0` must not divide by zero or raise on
+    `log(0)` — floored at `df = 1`, the maximally rare finite case."""
+    vector_store = DocumentFrequencyVectorStore(hits=[], corpus_size=200, document_frequencies={})
+    pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
+
+    weight = pipeline._specificity_weight("monkey")
+
+    assert weight == pytest.approx(math.log(200))
+
+
+# --- Region-centric retrieval (convergence-rollup-retrieval) ---
+
+
+def _make_segment_hit(
+    chunk_id: str, *, ordinal: int, locator: str, distance: float, text: str | None = None
+) -> VectorHit:
+    return VectorHit(
+        chunk_id=chunk_id,
+        source_id="waite-pictorial-key",
+        domain="tarot",
+        text=text or f"Segment text for {chunk_id}.",
+        chunk_index=ordinal,
+        char_start=0,
+        char_end=10,
+        embedding_model="fake-embed",
+        distance=distance,
+        ordinal=ordinal,
+        locator=locator,
+        section="",
     )
 
-    result = pipeline.retrieve_fragments(graph_facts)
 
-    assert "buried" not in [f.chunk_id for f in result.fragments]
-
-
-def test_retrieve_fragments_includes_a_match_beyond_its_own_top_k(graph_store: KuzuGraphStore) -> None:
-    """A chunk eligible via one concept's displayed top-k still picks up a
-    match for a second concept whose own displayed top-k didn't include it,
-    as long as it's within that second concept's deeper pool — this is what
-    keeps a fragment's convergence count accurate regardless of display
-    cutoffs."""
+def test_retrieve_regions_rolls_up_adjacent_ordinals_into_one_region(graph_store: KuzuGraphStore) -> None:
+    """FR9/FR10: interpretant matches on adjacent segments of one source roll
+    up into a single region, with the right `convergence_count`."""
     graph_facts = _intersemiotic_graph_facts()
-    converge_hit_for_fire = _make_hit("converge", distance=0.1)  # rank 1 for "Fire"
-    fish_hits = [_make_hit(f"fish-filler-{i}", distance=0.05 + i * 0.01) for i in range(8)]
-    fish_hits.append(_make_hit("converge", distance=0.5))  # ranked 9th for "Fish"
-    vector_store = SequencedVectorStore([[converge_hit_for_fire], fish_hits])
-    pipeline = RetrievalPipeline(
-        graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder(), top_k=6, match_pool_size=30
+    hit_fire = _make_segment_hit("waite-pictorial-key::100", ordinal=100, locator="Genesis 21:5", distance=0.3)
+    hit_fish = _make_segment_hit("waite-pictorial-key::101", ordinal=101, locator="Genesis 21:6", distance=0.35)
+    vector_store = SequencedVectorStore(
+        [[hit_fire], [hit_fish]], corpus_size=200, document_frequencies={"Fire": 10, "Fish": 10}
     )
+    pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
 
-    result = pipeline.retrieve_fragments(graph_facts)
+    result = pipeline.retrieve_regions(graph_facts)
 
-    fragment = next(f for f in result.fragments if f.chunk_id == "converge")
-    assert {m.interpretant for m in fragment.matches} == {"Fire", "Fish"}
+    assert len(result.regions) == 1
+    region = result.regions[0]
+    assert region.convergence_count == 2
+    assert {s.ordinal for s in region.segments} == {100, 101}
+    assert {m.interpretant for m in region.matches} == {"Fire", "Fish"}
 
 
-def test_retrieve_fragments_min_score_excludes_only_the_failing_concepts_match(
+def test_retrieve_regions_each_match_anchors_to_its_own_segment(graph_store: KuzuGraphStore) -> None:
+    """FR17: a match's `segment_ordinal` points at the specific segment it
+    hit, not just the region as a whole."""
+    graph_facts = _intersemiotic_graph_facts()
+    hit_fire = _make_segment_hit("waite-pictorial-key::517", ordinal=517, locator="Genesis 21:5", distance=0.3)
+    hit_fish = _make_segment_hit("waite-pictorial-key::518", ordinal=518, locator="Genesis 21:6", distance=0.35)
+    vector_store = SequencedVectorStore([[hit_fire], [hit_fish]], corpus_size=200, document_frequencies={})
+    pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
+
+    result = pipeline.retrieve_regions(graph_facts)
+
+    region = result.regions[0]
+    matches_by_interpretant = {m.interpretant: m for m in region.matches}
+    assert matches_by_interpretant["Fire"].segment_ordinal == 517
+    assert matches_by_interpretant["Fish"].segment_ordinal == 518
+
+
+def test_retrieve_regions_deduplicates_a_segment_shared_by_two_interpretants(graph_store: KuzuGraphStore) -> None:
+    graph_facts = _intersemiotic_graph_facts()
+    hit_fire = _make_segment_hit("waite-pictorial-key::9", ordinal=9, locator="Genesis 21:6", distance=0.2)
+    hit_fish = _make_segment_hit("waite-pictorial-key::9", ordinal=9, locator="Genesis 21:6", distance=0.25)
+    vector_store = SequencedVectorStore([[hit_fire], [hit_fish]], corpus_size=200, document_frequencies={})
+    pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
+
+    result = pipeline.retrieve_regions(graph_facts)
+
+    region = result.regions[0]
+    assert len(region.segments) == 1
+    assert len(region.matches) == 2
+
+
+def test_retrieve_regions_same_interpretant_matching_two_segments_keeps_only_its_best(
     graph_store: KuzuGraphStore,
 ) -> None:
-    """A per-match `min_score` failure drops only that concept's own match,
-    not the whole fragment — the fragment stays eligible via whichever
-    concept's own score clears the threshold."""
+    """FR9/FR13: within one region, an interpretant that matched more than
+    one of its own segments keeps only its single best match — summing every
+    per-segment occurrence would let a passage repeating one concept across
+    many adjacent segments (e.g. a genealogy chapter repeating a number)
+    inflate its score by simple repetition, the list-like-passage failure
+    mode ADR 0004 already rejected."""
     graph_facts = _intersemiotic_graph_facts()
-    weak_fire_hit = _make_hit("shared", distance=1.9)  # score -0.9, fails min_score
-    strong_fish_hit = _make_hit("shared", distance=0.1)  # score 0.9, passes
-    vector_store = SequencedVectorStore([[weak_fire_hit], [strong_fish_hit]])
+    weaker_hit = _make_segment_hit("waite-pictorial-key::100", ordinal=100, locator="Genesis 21:5", distance=0.3)
+    stronger_hit = _make_segment_hit("waite-pictorial-key::101", ordinal=101, locator="Genesis 21:6", distance=0.1)
+    vector_store = SequencedVectorStore([[weaker_hit, stronger_hit], []], corpus_size=200, document_frequencies={})
+    pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
+
+    result = pipeline.retrieve_regions(graph_facts)
+
+    assert len(result.regions) == 1
+    region = result.regions[0]
+    fire_matches = [m for m in region.matches if m.interpretant == "Fire"]
+    assert len(fire_matches) == 1
+    assert fire_matches[0].segment_ordinal == 101
+    assert fire_matches[0].score == pytest.approx(0.9)
+
+
+def test_retrieve_regions_non_contiguous_ordinals_do_not_merge(graph_store: KuzuGraphStore) -> None:
+    graph_facts = _intersemiotic_graph_facts()
+    hit_fire = _make_segment_hit("waite-pictorial-key::1", ordinal=1, locator="Genesis 1:1", distance=0.2)
+    hit_fish = _make_segment_hit("waite-pictorial-key::500", ordinal=500, locator="Genesis 40:1", distance=0.2)
+    vector_store = SequencedVectorStore([[hit_fire], [hit_fish]], corpus_size=200, document_frequencies={})
+    pipeline = RetrievalPipeline(
+        graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder(), region_window_size=3
+    )
+
+    result = pipeline.retrieve_regions(graph_facts)
+
+    assert len(result.regions) == 2
+
+
+def test_retrieve_regions_isolated_single_interpretant_region_survives(graph_store: KuzuGraphStore) -> None:
+    """FR11: with the default `region_min_interpretants=1`, a region matched
+    by exactly one interpretant is eligible and rankable (the corrected
+    model — isolated matches are first-class, not filtered out)."""
+    graph_facts = _intersemiotic_graph_facts()
+    hit_fire = _make_segment_hit("waite-pictorial-key::83", ordinal=83, locator="§83", distance=0.238)
+    vector_store = SequencedVectorStore([[hit_fire], []], corpus_size=200, document_frequencies={})
+    pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
+
+    result = pipeline.retrieve_regions(graph_facts)
+
+    assert len(result.regions) == 1
+    assert result.regions[0].convergence_count == 1
+
+
+def test_retrieve_regions_below_min_interpretants_is_excluded(graph_store: KuzuGraphStore) -> None:
+    graph_facts = _intersemiotic_graph_facts()
+    hit_fire = _make_segment_hit("waite-pictorial-key::83", ordinal=83, locator="§83", distance=0.238)
+    vector_store = SequencedVectorStore([[hit_fire], []], corpus_size=200, document_frequencies={})
+    pipeline = RetrievalPipeline(
+        graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder(), region_min_interpretants=2
+    )
+
+    result = pipeline.retrieve_regions(graph_facts)
+
+    assert result.regions == ()
+
+
+def test_retrieve_regions_below_floor_is_excluded(graph_store: KuzuGraphStore) -> None:
+    graph_facts = _intersemiotic_graph_facts()
+    weak_hit = _make_segment_hit("waite-pictorial-key::1", ordinal=1, locator="Genesis 1:1", distance=1.9)
+    vector_store = SequencedVectorStore([[weak_hit], []], corpus_size=200, document_frequencies={})
     pipeline = RetrievalPipeline(
         graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder(), min_score=0.5
     )
 
-    result = pipeline.retrieve_fragments(graph_facts)
+    result = pipeline.retrieve_regions(graph_facts)
 
-    assert len(result.fragments) == 1
-    fragment = result.fragments[0]
-    assert [m.interpretant for m in fragment.matches] == ["Fish"]
+    assert result.regions == ()
 
 
-def test_retrieve_fragments_exact_value_match_is_never_min_score_filtered(graph_store: KuzuGraphStore) -> None:
-    """FR28's exact-value guarantee carries no meaningful score (hardcoded
-    `0.0`) — it must still appear in `matches` even under a `min_score` that
-    would exclude a semantic match scoring that low."""
-    graph_facts = _gematria_intersemiotic_graph_facts()
-    fish_and_hundred_hit = _make_hit("fish-and-hundred", distance=0.3)  # Fish's own score: 0.7
-    # 4 calls: Fire(None), Fire(hundred), Fish(None), Fish(hundred) — the hit
-    # is only returned by Fish's filtered query.
-    vector_store = SequencedVectorStore([[], [], [], [fish_and_hundred_hit]])
-    pipeline = RetrievalPipeline(
-        graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder(), min_score=0.3
-    )
-
-    result = pipeline.retrieve_fragments(graph_facts)
-
-    fragment = next(f for f in result.fragments if f.chunk_id == "fish-and-hundred")
-    matches_by_interpretant = {m.interpretant: m for m in fragment.matches}
-    assert matches_by_interpretant["Fish"].score == pytest.approx(0.7)
-    assert matches_by_interpretant["100"].exact_value is True
-    assert matches_by_interpretant["100"].score == 0.0
-
-
-def test_retrieve_fragments_facets_count_eligible_fragments(graph_store: KuzuGraphStore) -> None:
-    """`facets.sources`/`facets.interpretants` counts are derived from the
-    eligible fragment set — a source's count is how many fragments came from
-    it, an interpretant's count is how many fragments it matched."""
+def test_retrieve_regions_rare_interpretant_outweighs_a_ubiquitous_one_of_equal_strength(
+    graph_store: KuzuGraphStore,
+) -> None:
+    """FR12-FR14: a rare surface form's higher specificity weight lets a
+    two-real-interpretant region outrank a comparable single, and a rare
+    interpretant outweighs a ubiquitous one at equal raw similarity."""
     graph_facts = _intersemiotic_graph_facts()
-    shared_hit_for_fire = _make_hit("shared", distance=0.2)
-    shared_hit_for_fish = _make_hit("shared", distance=0.3)
-    vector_store = SequencedVectorStore([[shared_hit_for_fire], [shared_hit_for_fish]])
+    rare_hit = _make_segment_hit("waite-pictorial-key::1", ordinal=1, locator="Genesis 1:1", distance=0.3)
+    common_hit = _make_segment_hit("waite-pictorial-key::500", ordinal=500, locator="Genesis 40:1", distance=0.3)
+    vector_store = SequencedVectorStore(
+        [[rare_hit], [common_hit]], corpus_size=200, document_frequencies={"Fire": 2, "Fish": 100}
+    )
     pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
 
-    result = pipeline.retrieve_fragments(graph_facts)
+    result = pipeline.retrieve_regions(graph_facts)
 
-    assert len(result.facets.sources) == 1
+    by_ordinal = {r.segments[0].ordinal: r.score for r in result.regions}
+    assert by_ordinal[1] > by_ordinal[500]  # "Fire" (df=2) outweighs "Fish" (df=100) at equal similarity
+
+
+def test_retrieve_regions_exact_match_scores_by_fixed_presence_strength(graph_store: KuzuGraphStore) -> None:
+    """FR13: an exact-token match contributes a fixed presence strength to
+    the region score, not a computed similarity — and does not count toward
+    `convergence_count`."""
+    graph_facts = _gematria_intersemiotic_graph_facts()
+    hit = _make_segment_hit("waite-pictorial-key::1", ordinal=1, locator="Genesis 21:5", distance=0.3)
+    # 4 calls: Fire(None), Fire(hundred), Fish(None), Fish(hundred) — hit only
+    # returned by Fish's filtered query, so membership is via the token filter.
+    vector_store = SequencedVectorStore(
+        [[], [], [], [hit]], corpus_size=200, document_frequencies={"Fish": 10, "hundred": 10}
+    )
+    pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
+
+    result = pipeline.retrieve_regions(graph_facts)
+
+    region = result.regions[0]
+    assert len(region.matches) == 2  # "Fish" (concept) + "100" (exact)
+    assert region.convergence_count == 1  # exact match excluded from the count
+    exact_match = next(m for m in region.matches if m.kind == "exact")
+    assert exact_match.interpretant == "100"
+    assert exact_match.exact_value is True
+
+
+def test_retrieve_regions_anchors_an_exact_match_that_never_survives_a_concepts_own_deep_pool(
+    graph_store: KuzuGraphStore,
+) -> None:
+    """An exact-token hit can be squeezed out of every *concept's* own RRF-
+    ranked pool (`match_pool_size`) by chunks that rank in both that
+    concept's plain and filtered queries, while still being a genuine,
+    provable containment match from the filtered query's raw results — the
+    real case found in Genesis: "hundred" at 21:5 never ranks highly enough
+    for "child" alone to survive that concept's own pool, but the token
+    match is still real and must still anchor its segment into a region,
+    pulling it in alongside a neighboring genuine concept match (21:6's
+    "laughter")."""
+    graph_facts = _gematria_intersemiotic_graph_facts()
+    concept_hit = _make_segment_hit("waite-pictorial-key::100", ordinal=100, locator="Genesis 21:6", distance=0.2)
+    exact_only_hit = _make_segment_hit("waite-pictorial-key::99", ordinal=99, locator="Genesis 21:5", distance=0.9)
+    # Fish plain ranks `concept_hit` #1; Fish filtered ranks `concept_hit` #1
+    # again (so its RRF score, summed across both queries, wins the
+    # `match_pool_size=1` cutoff) and `exact_only_hit` #2 (squeezed out of
+    # the deep pool, but still a real filtered-query hit).
+    vector_store = SequencedVectorStore(
+        [[], [], [concept_hit], [concept_hit, exact_only_hit]],
+        corpus_size=200,
+        document_frequencies={},
+    )
+    pipeline = RetrievalPipeline(
+        graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder(), match_pool_size=1
+    )
+
+    result = pipeline.retrieve_regions(graph_facts)
+
+    assert len(result.regions) == 1
+    region = result.regions[0]
+    assert {s.ordinal for s in region.segments} == {99, 100}
+    exact_match = next(m for m in region.matches if m.kind == "exact")
+    assert exact_match.segment_ordinal == 99
+    assert exact_match.score == 0.0
+
+
+def test_retrieve_regions_facets_count_eligible_regions(graph_store: KuzuGraphStore) -> None:
+    graph_facts = _intersemiotic_graph_facts()
+    hit_fire = _make_segment_hit("waite-pictorial-key::9", ordinal=9, locator="Genesis 21:6", distance=0.2)
+    hit_fish = _make_segment_hit("waite-pictorial-key::9", ordinal=9, locator="Genesis 21:6", distance=0.25)
+    vector_store = SequencedVectorStore([[hit_fire], [hit_fish]], corpus_size=200, document_frequencies={})
+    pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
+
+    result = pipeline.retrieve_regions(graph_facts)
+
     assert result.facets.sources[0].id == "waite-pictorial-key"
     assert result.facets.sources[0].count == 1
     interpretant_counts = {f.value: f.count for f in result.facets.interpretants}
     assert interpretant_counts == {"Fire": 1, "Fish": 1}
-
-
-def test_retrieve_fragments_ranks_by_convergence_count_then_score(graph_store: KuzuGraphStore) -> None:
-    """FR4: fragments are ranked by convergence count descending, ties broken
-    by score — a fragment matched by two concepts outranks one matched by
-    only one, even when the single-concept fragment's own score is higher."""
-    graph_facts = _intersemiotic_graph_facts()
-    single_match_hit = _make_hit("single-match", distance=0.05)  # best raw score, only matches "Fire"
-    converging_hit_for_fire = _make_hit("converges", distance=0.3)
-    converging_hit_for_fish = _make_hit("converges", distance=0.3)
-    vector_store = SequencedVectorStore([[single_match_hit, converging_hit_for_fire], [converging_hit_for_fish]])
-    pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
-
-    result = pipeline.retrieve_fragments(graph_facts)
-
-    assert [f.chunk_id for f in result.fragments] == ["converges", "single-match"]
-
-
-def test_retrieve_fragments_convergence_count_excludes_exact_value_matches(graph_store: KuzuGraphStore) -> None:
-    """FR3: `convergence_count` counts only semantic matches — a fragment
-    matched by one real concept plus an exact-value filter token reports
-    `matches` of length 2 but `convergence_count` of 1, and does not
-    outrank a fragment genuinely matched by two semantic concepts."""
-    graph_facts = _gematria_intersemiotic_graph_facts()
-    fire_and_hundred_hit = _make_hit("fire-and-hundred", distance=0.3)  # matches "Fire" + exact-value "100"
-    # 4 calls: Fire(None), Fire(hundred), Fish(None), Fish(hundred).
-    vector_store = SequencedVectorStore([[fire_and_hundred_hit], [fire_and_hundred_hit], [], []])
-    pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
-
-    result = pipeline.retrieve_fragments(graph_facts)
-
-    fragment = next(f for f in result.fragments if f.chunk_id == "fire-and-hundred")
-    assert len(fragment.matches) == 2
-    assert fragment.convergence_count == 1

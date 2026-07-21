@@ -47,6 +47,8 @@ class Chunk(BaseModel):
     char_start: int
     char_end: int
     locator: str = ""
+    ordinal: int = 0
+    section: str = ""
 
 
 def chunk_text(text: str, *, chunk_size: int = 650, chunk_overlap: int = 100) -> list[Chunk]:
@@ -71,6 +73,7 @@ def chunk_text(text: str, *, chunk_size: int = 650, chunk_overlap: int = 100) ->
                 char_start=char_start,
                 char_end=char_end,
                 locator=_locator_at(char_start, headings),
+                ordinal=index,
             )
         )
     return chunks

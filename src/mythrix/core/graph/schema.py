@@ -101,6 +101,7 @@ NODE_TABLE_DDL: tuple[str, ...] = (
         description STRING,
         content_hash STRING,
         ingested_at TIMESTAMP,
+        structure_scheme STRING,
         PRIMARY KEY (id)
     )
     """,

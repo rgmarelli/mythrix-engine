@@ -22,6 +22,7 @@ is a stable similarity score in `RetrievalPipeline` (T15), which an l2 distance
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -65,10 +66,19 @@ class VectorHit(BaseModel):
     embedding_model: str
     distance: float
     locator: str = ""
+    ordinal: int = 0
+    section: str = ""
 
 
 def _chunk_id(source_id: str, chunk_index: int) -> str:
     return f"{source_id}::{chunk_index}"
+
+
+def _word_bounded_filter(term: str) -> dict[str, str]:
+    """A Chroma `where_document` constraint matching `term` on whole-word
+    boundaries — `$regex`, not `$contains` substring matching (ADR 0002,
+    FR7): `\\b` prevents `50` from matching inside `150`."""
+    return {"$regex": r"\b" + re.escape(term) + r"\b"}
 
 
 class ChromaVectorStore:
@@ -84,6 +94,12 @@ class ChromaVectorStore:
         chunk's own fields (`chunk_index`/`char_start`/`char_end`) are merged in
         per-chunk. Upserts by id (`source_id::chunk_index`), so re-adding the
         same source's chunks (e.g. after `delete_by_source`) doesn't duplicate.
+
+        Upserts in batches of at most the client's own `get_max_batch_size()`
+        (Chroma rejects a single call larger than that outright) — this only
+        bites once fine-grained structural segmentation (FR1) turns one large
+        document into tens of thousands of segments, far more than the
+        word-count chunker ever produced in one call.
         """
         if len(chunks) != len(embeddings):
             raise ValueError(f"Got {len(chunks)} chunks but {len(embeddings)} embeddings.")
@@ -99,10 +115,20 @@ class ChromaVectorStore:
                 "char_start": chunk.char_start,
                 "char_end": chunk.char_end,
                 "locator": chunk.locator,
+                "ordinal": chunk.ordinal,
+                "section": chunk.section,
             }
             for chunk in chunks
         ]
-        self._collection.upsert(ids=ids, documents=documents, embeddings=embeddings, metadatas=metadatas)
+        batch_size = self._client.get_max_batch_size()
+        for start in range(0, len(chunks), batch_size):
+            end = start + batch_size
+            self._collection.upsert(
+                ids=ids[start:end],
+                documents=documents[start:end],
+                embeddings=embeddings[start:end],
+                metadatas=metadatas[start:end],
+            )
 
     def similarity_search(
         self,
@@ -116,7 +142,10 @@ class ChromaVectorStore:
         document is independent.
 
         `document_contains`, if given, restricts results to chunks whose raw
-        text literally contains that substring (Chroma's `where_document`),
+        text contains that token on whole-word boundaries (Chroma's
+        `where_document` `$regex`, not `$contains` substring matching — a
+        token must not match inside a larger word or number, e.g. `50` must
+        not match inside `150`; see `convergence-rollup-retrieval` FR7),
         combined with the embedding ranking rather than replacing it — for a
         fact that's an exact value rather than a fuzzy meaning (e.g. a Hebrew
         letter's gematria value), semantic similarity alone can't tell "this
@@ -124,13 +153,13 @@ class ChromaVectorStore:
         exactly this number"; the literal filter narrows to chunks that
         actually contain it, and embedding similarity still picks the most
         relevant among those. This *does* exclude every chunk that doesn't
-        contain the substring, hard — a caller that wants the filter to be a
+        contain the token, hard — a caller that wants the filter to be a
         boost rather than a requirement (e.g. `RetrievalPipeline`, see its
         module docstring) should call this twice, once with the filter and
         once without, and combine both result sets itself, rather than
         expecting this method to do that softening on its own.
         """
-        where_document = {"$contains": document_contains} if document_contains is not None else None
+        where_document = _word_bounded_filter(document_contains) if document_contains is not None else None
         result = self._collection.query(
             query_embeddings=[query_embedding],
             n_results=top_k,
@@ -156,6 +185,8 @@ class ChromaVectorStore:
                     embedding_model=meta["embedding_model"],
                     distance=distance,
                     locator=meta.get("locator") or "",
+                    ordinal=meta.get("ordinal") or 0,
+                    section=meta.get("section") or "",
                 )
             )
         return hits
@@ -167,3 +198,14 @@ class ChromaVectorStore:
 
     def count(self) -> int:
         return self._collection.count()
+
+    def document_frequency(self, term: str) -> int:
+        """Count of chunks whose text contains `term` on whole-word
+        boundaries — the literal, lexical document frequency
+        `convergence-rollup-retrieval` FR12/FR14 specificity weighting is
+        built from (never a count derived from dense embedding scores). A
+        per-query `$regex` scan, kept behind this narrow method so an
+        ingest-time df table (ADR 0003, ADR 0005) can replace it later
+        without changing any caller."""
+        result = self._collection.get(where_document=_word_bounded_filter(term), include=[])
+        return len(result["ids"])

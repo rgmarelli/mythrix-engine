@@ -125,12 +125,12 @@ def test_list_symbols_excludes_signs_with_no_manifestation(
     assert body[0]["tradition_slugs"] == ["rider-waite"]
 
 
-def test_query_returns_facets_and_fragments(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore) -> None:
+def test_query_returns_facets_and_regions(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore) -> None:
     client = _client(graph_store, vector_store)
     response = client.get("/api/query", params={"symbol": "the-tower", "tradition": "rider-waite"})
     assert response.status_code == 200
     body = response.json()
-    assert body == {"facets": {"sources": [], "interpretants": []}, "fragments": []}
+    assert body == {"facets": {"sources": [], "interpretants": []}, "regions": []}
 
 
 def test_query_unknown_symbol_returns_404(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore) -> None:
@@ -147,14 +147,15 @@ def test_query_unreachable_embedder_returns_502(graph_store: KuzuGraphStore, vec
     assert "detail" in response.json()
 
 
-def test_query_returns_a_fragment_converging_on_every_matching_interpretant(
+def test_query_returns_a_region_converging_on_every_matching_interpretant(
     graph_store: KuzuGraphStore, vector_store: ChromaVectorStore
 ) -> None:
-    """A fragment matched by two interpretants appears once, with both
-    recorded in `matches` — the concrete case `specs/query-viewer-facet-redesign`
-    exists for. Both of the-sun's interpretants embed identically here
-    (`FakeEmbedder` returns a fixed vector for any text), and the corpus has
-    exactly one chunk, so that chunk is the top hit for both."""
+    """A region matched by two interpretants appears once, with both
+    recorded in `matches`, each anchored to the segment it hit (FR17) —
+    the concrete case `convergence-rollup-retrieval` exists for. Both of
+    the-sun's interpretants embed identically here (`FakeEmbedder` returns a
+    fixed vector for any text), and the corpus has exactly one chunk, so that
+    chunk is the top hit for both."""
     graph_store.upsert_sign_with_manifestation(
         Sign(
             id="the-sun",
@@ -188,11 +189,14 @@ def test_query_returns_a_fragment_converging_on_every_matching_interpretant(
 
     assert response.status_code == 200
     body = response.json()
-    assert len(body["fragments"]) == 1
-    fragment = body["fragments"][0]
-    assert fragment["locator"] == "Ch. 1"
-    assert {m["interpretant"] for m in fragment["matches"]} == {"joy", "vitality"}
-    assert fragment["convergence_count"] == 2
+    assert len(body["regions"]) == 1
+    region = body["regions"][0]
+    assert region["locator"] == "Ch. 1"
+    assert len(region["segments"]) == 1
+    assert region["segments"][0]["text"] == "Rejoice, for the light has come."
+    assert {m["interpretant"] for m in region["matches"]} == {"joy", "vitality"}
+    assert all(m["segment_ordinal"] == region["segments"][0]["ordinal"] for m in region["matches"])
+    assert region["convergence_count"] == 2
     assert body["facets"]["sources"] == [{"id": "waite", "label": "The Pictorial Key to the Tarot", "count": 1}]
     interpretant_counts = {f["value"]: f["count"] for f in body["facets"]["interpretants"]}
     assert interpretant_counts == {"joy": 1, "vitality": 1}
@@ -218,7 +222,7 @@ def test_query_min_score_param_overrides_the_settings_default(
     response = client.get("/api/query", params={"symbol": "the-tower", "tradition": "rider-waite", "min_score": 1.5})
 
     assert response.status_code == 200
-    assert response.json()["fragments"] == []
+    assert response.json()["regions"] == []
 
 
 def test_reload_symbols_loads_yaml_into_the_running_graph_store(

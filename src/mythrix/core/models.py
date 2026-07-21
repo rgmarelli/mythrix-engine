@@ -7,6 +7,7 @@ tests/unit/test_domain_agnosticism.py.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -62,6 +63,11 @@ class Source(MythrixModel):
     ingested for this source, so re-ingesting an unchanged file is a no-op and
     re-ingesting a changed one replaces its chunks rather than accumulating
     stale ones alongside the new content (FR23).
+
+    `structure_scheme`, when non-empty, names a segmenter in
+    `mythrix.core.vector.segmentation` (`convergence-rollup-retrieval` FR1) that
+    the document loader routes ingestion through instead of fixed word-count
+    chunking. Empty for a source with no declared structure.
     """
 
     id: str
@@ -75,6 +81,7 @@ class Source(MythrixModel):
     description: str = ""
     content_hash: str = ""
     ingested_at: datetime | None = None
+    structure_scheme: str = ""
 
 
 class Property(MythrixModel):
@@ -370,45 +377,6 @@ class RetrievalContext(MythrixModel):
         return tuple(passage for candidates in self.concept_candidates for passage in candidates.passages)
 
 
-class FragmentMatch(MythrixModel):
-    """One interpretant's claim on a fragment, within the fragment-centric API
-    response (`specs/query-viewer-facet-redesign`). `exact_value` carries the
-    same meaning as `ConceptMatchScore.exact_value`: a `query.directive:
-    "filter"` interpretant reaches a fragment via a literal-text filter, not
-    embedding similarity, so its `score` is not comparable to a semantic
-    match's."""
-
-    interpretant: str
-    score: float = 0.0
-    exact_value: bool = False
-
-
-class Fragment(MythrixModel):
-    """One retrieved chunk, exactly once, carrying every interpretant that
-    converged on it — the fragment-centric counterpart to `RetrievedPassage`
-    (which is grouped by concept) and to `MergedCandidate` (which is limited
-    to pairs). Carries no top-level `score`; every interpretant's own score
-    lives on its `FragmentMatch` in `matches`.
-
-    `convergence_count` is the number of `matches` whose `exact_value` is
-    `False` — an exact-value match is a literal-containment guarantee, not a
-    similarity judgment (see `RetrievalPipeline`'s docstring on why a filter
-    token "contributes membership but no score" to a concept pair), so it is
-    still reported in `matches` but excluded here to keep the convergence
-    badge and ranking from being inflated by a common literal token."""
-
-    chunk_id: str
-    source: Source
-    text: str
-    locator: str = ""
-    chunk_index: int = 0
-    char_start: int = 0
-    char_end: int = 0
-    embedding_model: str = ""
-    matches: tuple[FragmentMatch, ...] = ()
-    convergence_count: int = 0
-
-
 class SourceFacet(MythrixModel):
     """One Sources-facet option: a corpus source and how many fragments in
     the current result come from it."""
@@ -433,11 +401,55 @@ class Facets(MythrixModel):
     interpretants: tuple[InterpretantFacet, ...] = ()
 
 
-class FragmentQueryResult(MythrixModel):
-    """Whole-response shape for the fragment-centric query endpoint
-    (`specs/query-viewer-facet-redesign`) — facets plus a ranked, deduplicated
-    fragment list. Replaces `RetrievalContext` on the API path only; the CLI's
-    `--json`/human output still uses `RetrievalContext` via `execute_query`."""
+class Segment(MythrixModel):
+    """One structurally-bounded constituent unit of a `Region` — a verse or a
+    numbered section, verbatim (`convergence-rollup-retrieval` FR16). A
+    region's `segments` carries each match-carrying segment once, deduped by
+    `ordinal`, regardless of how many interpretants matched it."""
+
+    ordinal: int
+    locator: str
+    text: str
+
+
+class Match(MythrixModel):
+    """One interpretant's match within a `Region`, anchored to the specific
+    constituent `Segment` it hit (`segment_ordinal`) so a consumer can
+    navigate directly to where the match occurred rather than re-scanning the
+    region (FR17). `kind` distinguishes a `"concept"` match (dense similarity,
+    carries a meaningful `score`) from an `"exact"` match (literal
+    whole-word-bounded containment, `exact_value=True`, `score` not
+    meaningful)."""
+
+    interpretant: str
+    kind: Literal["concept", "exact"]
+    score: float = 0.0
+    exact_value: bool = False
+    segment_ordinal: int
+
+
+class Region(MythrixModel):
+    """A contiguous span of one source's segments over which interpretant
+    matches converge (`convergence-rollup-retrieval` FR9–FR11) — the ranked,
+    scored unit the query path returns. `score` is the specificity-weighted
+    convergence score (FR13);
+    `convergence_count` is the number of distinct interpretants matching
+    within the region — a region matched by exactly one interpretant (an
+    isolated match) is a valid, rankable region (FR11), not a filtered-out
+    case."""
+
+    region_id: str
+    source: Source
+    locator: str
+    score: float = 0.0
+    convergence_count: int = 0
+    segments: tuple[Segment, ...] = ()
+    matches: tuple[Match, ...] = ()
+
+
+class RegionQueryResult(MythrixModel):
+    """Whole-response shape for the region-centric query endpoint
+    (`convergence-rollup-retrieval`) — facets plus a ranked region list."""
 
     facets: Facets
-    fragments: tuple[Fragment, ...] = ()
+    regions: tuple[Region, ...] = ()

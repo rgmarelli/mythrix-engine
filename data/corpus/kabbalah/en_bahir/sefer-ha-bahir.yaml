@@ -2,6 +2,8 @@ source:
   id: "en_bahir"
   domain: kabbalah
   citation_label: "Bahir"
+  structure:
+    scheme: numbered_section
   title: "Sefer HaBahir (English, §§1-200)"
   author: "Attributed to Nehunya ben HaKanah"
   publication_year: 2026

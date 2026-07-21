@@ -1,7 +1,11 @@
-// Mirrors the fragment-centric query response shape `routes.py`/`query_fragments`
-// emit (`core/models.py::FragmentQueryResult`, `.model_dump(mode="json")`) —
-// denormalized: every fragment carries its own `source` inline. See
-// specs/query-viewer-facet-redesign/plan.md.
+// Wire types mirror the region-centric query response shape `routes.py`/
+// `query_regions` emit (`core/models.py::RegionQueryResult`,
+// `.model_dump(mode="json")`) — denormalized: every region carries its own
+// `source` inline. `Hotspot`/`HotspotSegment`/`HotspotMatch` are this app's
+// view-model names for `Region`/`Segment`/`Match` (existing component
+// vocabulary — `HotspotCard`/`HotspotList`); `client.ts` is the single seam
+// that maps the wire shape onto them. See
+// specs/convergence-rollup-retrieval/plan.md.
 
 export interface Tradition {
   id: string;
@@ -33,25 +37,6 @@ export interface SignSummary {
   tradition_slugs: string[];
 }
 
-export interface FragmentMatch {
-  interpretant: string;
-  score: number;
-  exact_value: boolean;
-}
-
-export interface Fragment {
-  chunk_id: string;
-  source: Source;
-  text: string;
-  locator: string;
-  chunk_index: number;
-  char_start: number;
-  char_end: number;
-  embedding_model: string;
-  matches: FragmentMatch[];
-  convergence_count: number;
-}
-
 export interface SourceFacet {
   id: string;
   label: string;
@@ -68,7 +53,64 @@ export interface Facets {
   interpretants: InterpretantFacet[];
 }
 
-export interface FragmentQueryResult {
+// --- Wire shape (as `/api/query` sends it) ---
+
+export interface RegionSegment {
+  ordinal: number;
+  locator: string;
+  text: string;
+}
+
+export interface RegionMatch {
+  interpretant: string;
+  kind: 'concept' | 'exact';
+  score: number;
+  exact_value: boolean;
+  segment_ordinal: number;
+}
+
+export interface Region {
+  region_id: string;
+  source: Source;
+  locator: string;
+  score: number;
+  convergence_count: number;
+  segments: RegionSegment[];
+  matches: RegionMatch[];
+}
+
+export interface RegionQueryResult {
   facets: Facets;
-  fragments: Fragment[];
+  regions: Region[];
+}
+
+// --- View model (as the UI consumes it — see client.ts) ---
+
+export interface HotspotSegment {
+  ordinal: number;
+  locator: string;
+  text: string;
+}
+
+export interface HotspotMatch {
+  interpretant: string;
+  kind: 'concept' | 'exact';
+  score: number;
+  exactValue: boolean;
+  segmentOrdinal: number;
+}
+
+export interface Hotspot {
+  regionId: string;
+  source: Source;
+  locator: string;
+  score: number;
+  convergenceCount: number;
+  segments: HotspotSegment[];
+  matches: HotspotMatch[];
+}
+
+export interface HotspotQueryResult {
+  facets: Facets;
+  hotspots: Hotspot[];
 }
