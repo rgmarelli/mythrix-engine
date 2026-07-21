@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 from mythrix.api.app import create_app
 from mythrix.api.dependencies import get_chat_client, get_stores
 from mythrix.core.bootstrap import Stores
-from mythrix.core.errors import ModelUnavailableError
+from mythrix.core.errors import ModelUnavailableError, SignNotFoundError
 from mythrix.core.graph.store import KuzuGraphStore
 from mythrix.core.models import Interpretant, Manifestation, Sign, Source, Tradition
 from mythrix.core.vector.chunking import Chunk
@@ -215,12 +215,83 @@ def test_query_min_score_param_overrides_the_settings_default(
     )
     client = _client(graph_store, vector_store)
 
-    response = client.get(
-        "/api/query", params={"symbol": "the-tower", "tradition": "rider-waite", "min_score": 1.5}
-    )
+    response = client.get("/api/query", params={"symbol": "the-tower", "tradition": "rider-waite", "min_score": 1.5})
 
     assert response.status_code == 200
     assert response.json()["fragments"] == []
+
+
+def test_reload_symbols_loads_yaml_into_the_running_graph_store(
+    graph_store: KuzuGraphStore, vector_store: ChromaVectorStore, tmp_path: Path
+) -> None:
+    """Proves the endpoint writes through the *same* `graph_store` instance
+    the running app was already using (dependency-injected here, just as
+    `Stores` is injected once at real startup) rather than opening a second
+    connection — the scenario `/api/reload-symbols` exists to support."""
+    data_root = tmp_path / "data"
+    (data_root / "traditions").mkdir(parents=True)
+    (data_root / "traditions" / "rider-waite.yaml").write_text(
+        'tradition:\n  name: "Rider-Waite-Smith"\n  domain: tarot\n', encoding="utf-8"
+    )
+    (data_root / "signs").mkdir(parents=True)
+    (data_root / "signs" / "the-fool.yaml").write_text(
+        """
+semiotic_system: tarot_cards
+sign:
+  name: "The Fool"
+  type: major-arcana
+  manifestations:
+    - tradition: rider-waite
+      display_name: "The Fool"
+""",
+        encoding="utf-8",
+    )
+    client = _client(graph_store, vector_store)
+
+    response = client.post("/api/reload-symbols", params={"path": str(data_root)})
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "traditions": 1,
+        "sources": 0,
+        "signs": 1,
+        "manifestations": 1,
+        "intersemiotic_interpretants": 0,
+    }
+    the_fool = graph_store.get_manifestation("the-fool", "rider-waite")
+    assert the_fool.manifestation.display_name == "The Fool"
+
+
+def test_reload_symbols_invalid_data_returns_422_and_writes_nothing(
+    graph_store: KuzuGraphStore, vector_store: ChromaVectorStore, tmp_path: Path
+) -> None:
+    data_root = tmp_path / "data"
+    (data_root / "traditions").mkdir(parents=True)
+    (data_root / "traditions" / "rider-waite.yaml").write_text(
+        'tradition:\n  name: "Rider-Waite-Smith"\n  domain: tarot\n', encoding="utf-8"
+    )
+    (data_root / "signs").mkdir(parents=True)
+    (data_root / "signs" / "the-fool.yaml").write_text(
+        """
+semiotic_system: tarot_cards
+sign:
+  name: "The Fool"
+  type: major-arcana
+  manifestations:
+    - tradition: rider-waite
+      display_name: "The Fool"
+      cites: "Some Nonexistent Source, p. 1"
+""",
+        encoding="utf-8",
+    )
+    client = _client(graph_store, vector_store)
+
+    response = client.post("/api/reload-symbols", params={"path": str(data_root)})
+
+    assert response.status_code == 422
+    assert "detail" in response.json()
+    with pytest.raises(SignNotFoundError):
+        graph_store.get_manifestation("the-fool", "rider-waite")
 
 
 def test_summarize_passage_returns_chat_client_response(

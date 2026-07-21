@@ -16,17 +16,7 @@ import typer
 from mythrix.core.config import Settings
 from mythrix.core.errors import IngestValidationError
 from mythrix.core.graph.store import KuzuGraphStore
-from mythrix.core.loaders.sign_loader import LoadPlan, build_plan, load_directory
-
-
-def _summarize(plan: LoadPlan) -> dict[str, int]:
-    return {
-        "traditions": len(plan.traditions),
-        "sources": len(plan.sources),
-        "signs": len(plan.bare_signs),
-        "manifestations": len(plan.manifestations),
-        "intersemiotic_interpretants": len(plan.intersemiotic_interpretants),
-    }
+from mythrix.core.loaders.sign_loader import build_plan, load_directory, summarize_plan
 
 
 def run_load_symbols(path: Path, *, graph_store: KuzuGraphStore | None, dry_run: bool, as_json: bool) -> int:
@@ -38,7 +28,7 @@ def run_load_symbols(path: Path, *, graph_store: KuzuGraphStore | None, dry_run:
         typer.echo(f"Error: {exc}", err=True)
         return 1
 
-    summary = _summarize(plan)
+    summary = summarize_plan(plan)
     if as_json:
         typer.echo(json.dumps({"dry_run": dry_run, **summary}, indent=2))
     else:

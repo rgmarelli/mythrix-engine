@@ -120,6 +120,20 @@ class LoadPlan:
     intersemiotic_interpretants: list[_PendingIntersemioticInterpretant] = field(default_factory=list)
 
 
+def summarize_plan(plan: LoadPlan) -> dict[str, int]:
+    """Counts for a `LoadPlan`, shared by every caller that reports what
+    was/would be loaded (`cli/commands/load_symbols.py`, `api/routes.py`'s
+    `/reload-symbols`) — one summary shape regardless of which process ran
+    `build_plan`/`load_directory`."""
+    return {
+        "traditions": len(plan.traditions),
+        "sources": len(plan.sources),
+        "signs": len(plan.bare_signs),
+        "manifestations": len(plan.manifestations),
+        "intersemiotic_interpretants": len(plan.intersemiotic_interpretants),
+    }
+
+
 def _read_yaml(path: Path) -> dict:
     with path.open("r", encoding="utf-8") as handle:
         return yaml.safe_load(handle) or {}

@@ -69,3 +69,12 @@
 - [x] T47: `App.tsx` — wire the renamed picker and updated types; no behavior change to streaming/selection state.
 - [x] T48: `cd web && npx tsc -b && npx oxlint` clean; `npm run build` succeeds.
 - [x] T49: Manual check — dev server renders a system → sign → tradition cascade, submits a query, and results match `mythrix query --json` for the same sign/tradition pair.
+
+## Symbols reload endpoint (FR21)
+
+- [x] T50: `core/loaders/sign_loader.py::summarize_plan(plan) -> dict[str, int]`, extracted from `cli/commands/load_symbols.py`'s private `_summarize` so both the CLI and the new route share one summary shape.
+- [x] T51: `core/config.py::Settings.symbols_data_path` (default `data/semiotic_systems`) — where the endpoint reads from when the request omits `path`.
+- [x] T52: `api/routes.py` — `ReloadSymbolsResponse`, `POST /api/reload-symbols`, calling `load_directory` against the already-open `Stores.graph_store` (no second Kùzu connection).
+- [x] T53: `api/errors.py` — map `IngestValidationError` to 422.
+- [x] T54: `tests/unit/test_api.py`/`test_cli_load_symbols.py` — reload success (counts match), reload with an invalid directory returns 422 with nothing written, `summarize_plan` used by both call sites.
+- [x] T55: `ruff check .`/`pytest` green; manual check — `curl -X POST localhost:8000/api/reload-symbols` succeeds with the API server running and picks up an edited YAML file without a restart.

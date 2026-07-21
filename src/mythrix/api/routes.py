@@ -1,9 +1,12 @@
-"""`GET /api/traditions`, `GET /api/symbols`, `GET /api/query` — see
-`specs/query-viewer-facet-redesign/plan.md` for `/api/query`'s
-`FragmentQueryResult` contract, and `specs/query-viewer-web-ui/plan.md`'s
-"API package" section for the other two routes."""
+"""`GET /api/traditions`, `GET /api/symbols`, `GET /api/query`,
+`POST /api/reload-symbols` — see `specs/query-viewer-facet-redesign/plan.md`
+for `/api/query`'s `FragmentQueryResult` contract, and
+`specs/query-viewer-web-ui/plan.md`'s "API package" section for the other
+GET routes."""
 
 from __future__ import annotations
+
+from pathlib import Path
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
@@ -11,6 +14,7 @@ from pydantic import BaseModel
 from mythrix.api.dependencies import get_chat_client, get_stores
 from mythrix.core.bootstrap import Stores
 from mythrix.core.config import Settings
+from mythrix.core.loaders.sign_loader import load_directory, summarize_plan
 from mythrix.core.models import FragmentQueryResult, SignSummary, Tradition
 from mythrix.core.query_service import query_fragments
 from mythrix.core.synthesis.chain import ChatClient
@@ -62,6 +66,40 @@ def query(
         merge_top_k=settings.merge_top_k,
         min_score=min_score if min_score is not None else settings.retrieval_min_score,
     )
+
+
+class ReloadSymbolsResponse(BaseModel):
+    traditions: int
+    sources: int
+    signs: int
+    manifestations: int
+    intersemiotic_interpretants: int
+
+
+@router.post("/reload-symbols", response_model=ReloadSymbolsResponse)
+def reload_symbols(path: str | None = None, stores: Stores = Depends(get_stores)) -> ReloadSymbolsResponse:
+    """Re-reads every tradition/source/sign YAML under `path` (default
+    `Settings.symbols_data_path`) and upserts it into the graph store `Stores`
+    already holds open for the process's full lifetime (`app.py`'s
+    `lifespan`) — no second Kùzu connection is opened, so, unlike
+    `mythrix load-symbols` against the same `.mythrix/` directory, this works
+    with the API server running (see `specs/query-viewer-web-ui/plan.md`'s
+    Kùzu single-writer note).
+
+    Writes land as each `store.upsert_*` call runs, not in one transaction —
+    a request already in flight against `/api/query`/`/api/symbols` can
+    observe a partially-reloaded graph. Acceptable for a local, single-user
+    dev tool; not a guarantee to build on for a multi-user deployment.
+
+    `IngestValidationError` (bad YAML, an unresolvable reference, a duplicate
+    slug) leaves the graph untouched (FR5) and is handled by the registered
+    `MythrixError` exception handler (422), same mechanism as every other
+    route's errors.
+    """
+    settings = Settings()
+    root = Path(path) if path else settings.symbols_data_path
+    plan = load_directory(root, stores.graph_store)
+    return ReloadSymbolsResponse(**summarize_plan(plan))
 
 
 class SummarizeRequest(BaseModel):

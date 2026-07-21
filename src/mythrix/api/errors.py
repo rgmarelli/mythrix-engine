@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 
 from mythrix.core.errors import (
     EmbeddingModelMismatchError,
+    IngestValidationError,
     ManifestationNotFoundError,
     ModelRequestError,
     ModelUnavailableError,
@@ -20,6 +21,7 @@ from mythrix.core.errors import (
 
 _NOT_FOUND = (SignNotFoundError, TraditionNotFoundError, ManifestationNotFoundError)
 _MODEL_UNREACHABLE = (ModelUnavailableError, ModelRequestError, EmbeddingModelMismatchError)
+_VALIDATION_ERROR = (IngestValidationError,)
 
 
 def status_code_for(exc: MythrixError) -> int:
@@ -27,6 +29,8 @@ def status_code_for(exc: MythrixError) -> int:
         return 404
     if isinstance(exc, _MODEL_UNREACHABLE):
         return 502
+    if isinstance(exc, _VALIDATION_ERROR):
+        return 422
     return 500
 
 

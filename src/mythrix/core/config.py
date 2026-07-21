@@ -60,6 +60,10 @@ class Settings(BaseSettings):
     44 to 25, without a principled "correct" cutoff existing in the data — override
     per-request via `/api/query`'s `min_score` param or `mythrix query --min-score`
     if this default doesn't suit a particular corpus.
+
+    `symbols_data_path` is where `POST /api/reload-symbols` reads from when the
+    request omits a path — the same directory the local dev workflow already
+    passes to `mythrix load-symbols` by hand.
     """
 
     model_config = SettingsConfigDict(env_prefix="MYTHRIX_", env_file=".env", extra="ignore")
@@ -74,3 +78,4 @@ class Settings(BaseSettings):
     merge_top_k: int = 6
     retrieval_min_score: float = 0.45
     generation_num_ctx: int = 8192
+    symbols_data_path: Path = Path("data/semiotic_systems")

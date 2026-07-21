@@ -47,10 +47,11 @@
 - FR9: A query naming an unknown sign, an unknown tradition, or a sign/tradition pair without a manifestation returns a distinct, client-visible error.
 - FR10: A query that cannot reach the embedding model returns a distinct, client-visible error.
 - FR15: The query endpoint delivers its result as a sequence of discrete events — graph facts, one event per concept, one event per concept pair — over a single streamed HTTP response, not as one combined JSON payload returned only after every concept and pair has been retrieved.
+- FR21: An API endpoint re-reads structured sign/tradition/source data from disk and upserts it into the graph store already open for the running API process, without requiring the process to be restarted. Invalid structured data leaves the graph unchanged and returns a distinct, client-visible error. This endpoint is not exposed in the web UI (FR12).
 
 ### Deployment and scope boundaries
 
 - FR11: The web frontend is a separate, independently buildable application from the Python package, within the same repository.
 - FR12: Loading structured data or documents is not exposed in the web UI.
 - FR13: A production build of the frontend can be served by the backend API process.
-- FR14: The backend API process and a `load-symbols`/`load-documents` CLI invocation do not run concurrently against the same graph database path.
+- FR14: The backend API process and a `load-symbols`/`load-documents` CLI invocation do not run concurrently against the same graph/vector store paths, since each opens its own separate connection to the graph database's single-writer lock. FR21's reload endpoint is not such an invocation — it runs inside the already-running API process, reusing the connection that process already holds, rather than opening a second one — so it is not subject to this constraint.
