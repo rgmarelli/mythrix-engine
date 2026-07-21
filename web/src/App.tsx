@@ -87,6 +87,42 @@ function App() {
     });
   }, [queryResult, selectedSourceId, selectedInterpretant]);
 
+  // Each facet row's counts are scoped to the *other* facet's current selection
+  // (never its own), so selecting a Source narrows the Interpretants counts and
+  // vice versa — mirrors `rankedHotspots`' predicate, one clause at a time.
+  const sourceFacetOptions = useMemo(() => {
+    if (!queryResult) return { options: [], allCount: 0 };
+    const scoped = queryResult.hotspots.filter(
+      (hotspot) =>
+        selectedInterpretant === null || hotspot.matches.some((m) => m.interpretant === selectedInterpretant),
+    );
+    const byId = new Map<string, { id: string; label: string; count: number }>();
+    for (const hotspot of scoped) {
+      const existing = byId.get(hotspot.source.id);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        byId.set(hotspot.source.id, { id: hotspot.source.id, label: hotspot.source.title, count: 1 });
+      }
+    }
+    return { options: [...byId.values()], allCount: scoped.length };
+  }, [queryResult, selectedInterpretant]);
+
+  const interpretantFacetOptions = useMemo(() => {
+    if (!queryResult) return { options: [], allCount: 0 };
+    const scoped = queryResult.hotspots.filter(
+      (hotspot) => selectedSourceId === null || hotspot.source.id === selectedSourceId,
+    );
+    const counts = new Map<string, number>();
+    for (const hotspot of scoped) {
+      for (const match of hotspot.matches) {
+        counts.set(match.interpretant, (counts.get(match.interpretant) ?? 0) + 1);
+      }
+    }
+    const options = [...counts.entries()].map(([value, count]) => ({ id: value, label: value, count }));
+    return { options, allCount: scoped.length };
+  }, [queryResult, selectedSourceId]);
+
   useEffect(() => {
     if (!rankedHotspots.some((hotspot) => hotspot.regionId === selectedRegionId)) {
       setSelectedRegionId(rankedHotspots[0]?.regionId ?? null);
@@ -128,16 +164,16 @@ function App() {
             <FacetRow
               title="Sources"
               allLabel="All sources"
-              allCount={queryResult.hotspots.length}
-              options={queryResult.facets.sources.map((s) => ({ id: s.id, label: s.label, count: s.count }))}
+              allCount={sourceFacetOptions.allCount}
+              options={sourceFacetOptions.options}
               selected={selectedSourceId}
               onSelect={setSelectedSourceId}
             />
             <FacetRow
               title="Interpretants"
               allLabel="All"
-              allCount={queryResult.hotspots.length}
-              options={queryResult.facets.interpretants.map((i) => ({ id: i.value, label: i.value, count: i.count }))}
+              allCount={interpretantFacetOptions.allCount}
+              options={interpretantFacetOptions.options}
               selected={selectedInterpretant}
               onSelect={setSelectedInterpretant}
             />
