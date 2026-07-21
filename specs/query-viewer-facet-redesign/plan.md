@@ -116,13 +116,13 @@ export interface FragmentQueryResult { facets: Facets; fragments: Fragment[]; }
 
 ### `api/client.ts`
 
-`streamQuery`/`QueryStreamHandlers` removed. Added `fetchQuery(symbol: string, tradition: string, opts?: {topK?: number; matchPool?: number}): Promise<FragmentQueryResult>`, a plain `fetch` via the existing `fetchJson<T>` helper. `fetchTraditions`, `fetchSymbols`, `summarizePassage` unchanged.
+`streamQuery`/`QueryStreamHandlers` removed. Added `fetchQuery(symbol: string, tradition: string, opts?: {topK?: number; matchPool?: number; minScore?: number}): Promise<FragmentQueryResult>`, a plain `fetch` via the existing `fetchJson<T>` helper — `minScore` maps to `/api/query`'s existing `min_score` param, omitted from the query string entirely when not passed. `fetchTraditions`, `fetchSymbols`, `summarizePassage` unchanged.
 
 ### Components (`components/`)
 
 Removed: `GraphFactsPanel.tsx`, `ConceptCandidatesSection.tsx`, `PairCandidatesSection.tsx`, `PassageCard.tsx`, `PassageDetailPanel.tsx`.
 
-Retained unchanged: `SignTraditionPicker.tsx`.
+Retained, extended (FR22): `SignTraditionPicker.tsx` gains `minScore: number | null`, `minScoreDefault: number`, `onMinScoreChange: (value: number | null) => void` props and a number input alongside the existing selects — `minScoreDefault` is display-only (the input's placeholder), never sent as a value; a `null` `minScore` omits the param from the request entirely so the server's own `Settings.retrieval_min_score` default governs.
 
 Added:
 
@@ -133,9 +133,9 @@ Added:
 
 ### `App.tsx`
 
-State: `signs`, `traditions`, `loadError`, `selectedSystem`, `selectedSymbol`, `selectedTradition` (unchanged) plus `queryResult: FragmentQueryResult | null`, `isQuerying: boolean`, `queryError: string | null`, `selectedSourceId: string | null`, `selectedInterpretant: string | null`, `selectedFragmentId: string | null`.
+State: `signs`, `traditions`, `loadError`, `selectedSystem`, `selectedSymbol`, `selectedTradition` (unchanged) plus `queryResult: FragmentQueryResult | null`, `isQuerying: boolean`, `queryError: string | null`, `selectedSourceId: string | null`, `selectedInterpretant: string | null`, `selectedFragmentId: string | null`, `minScore: number | null` (FR22, default `null`).
 
-`handleSubmit` calls `fetchQuery(selectedSymbol, selectedTradition)`, resets `selectedSourceId`/`selectedInterpretant`/`selectedFragmentId` on submit, sets `queryResult` on success or `queryError` on failure.
+`handleSubmit` calls `fetchQuery(selectedSymbol, selectedTradition, { minScore: minScore ?? undefined })`, resets `selectedSourceId`/`selectedInterpretant`/`selectedFragmentId` on submit, sets `queryResult` on success or `queryError` on failure. `minScore` itself is not reset on submit — it stays set for the next query too, until the user clears the input.
 
 Derived (`useMemo`):
 

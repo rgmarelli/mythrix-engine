@@ -38,3 +38,10 @@ Root cause of misleadingly broad convergence badges (e.g. a fragment showing 8 m
 - [x] T23: Update `tests/unit/test_retrieval_pipeline.py`/`tests/unit/test_api.py` for `convergence_count`.
 - [x] T24: Update frontend (`types.ts`, `HotspotCard.tsx`, `FragmentDetailPanel.tsx`, `App.tsx`) to use `convergence_count` for the badge and for ranking, keeping `matches` (all of them, including exact-value) shown in the fragment detail chip row.
 - [x] T25: `pytest`/`ruff`/`tsc -b`/`vite build` green; verify live that an exact-value-only match no longer inflates a fragment's badge count.
+
+## Follow-up: frontend min_score control (FR22)
+
+- [x] T26: `api/client.ts::fetchQuery` gains `opts.minScore`, mapped to `/api/query`'s existing `min_score` param when set, omitted otherwise.
+- [x] T27: `SignTraditionPicker.tsx` gains a `min score` number input (`minScore`, `minScoreDefault`, `onMinScoreChange` props) alongside the existing selects.
+- [x] T28: `App.tsx` adds `minScore` state (default `null`) and a `DEFAULT_MIN_SCORE` display constant, passes both through to the picker and into `fetchQuery`.
+- [x] T29: `tsc -b`/`vite build` green; verify live that setting a value changes `/api/query`'s request and result set, and that leaving it blank omits the param.

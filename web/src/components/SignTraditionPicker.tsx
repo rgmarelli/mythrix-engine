@@ -7,10 +7,13 @@ interface Props {
   selectedSystem: string;
   selectedSymbol: string;
   selectedTradition: string;
+  minScore: number | null;
+  minScoreDefault: number;
   isStreaming: boolean;
   onSystemChange: (semioticSystem: string) => void;
   onSymbolChange: (slug: string) => void;
   onTraditionChange: (slug: string) => void;
+  onMinScoreChange: (value: number | null) => void;
   onSubmit: () => void;
 }
 
@@ -27,10 +30,13 @@ export function SignTraditionPicker({
   selectedSystem,
   selectedSymbol,
   selectedTradition,
+  minScore,
+  minScoreDefault,
   isStreaming,
   onSystemChange,
   onSymbolChange,
   onTraditionChange,
+  onMinScoreChange,
   onSubmit,
 }: Props) {
   const systems = [...new Set(signs.map((s) => s.semiotic_system))].sort();
@@ -105,6 +111,23 @@ export function SignTraditionPicker({
             </option>
           ))}
         </select>
+      </label>
+
+      <label>
+        Min score
+        <input
+          type="number"
+          min={0}
+          max={1}
+          step={0.05}
+          placeholder={minScoreDefault.toFixed(2)}
+          value={minScore ?? ''}
+          onChange={(event) => {
+            const raw = event.target.value;
+            onMinScoreChange(raw === '' ? null : Number(raw));
+          }}
+          title="Minimum similarity score a fragment must clear to appear in results. Leave blank for the server default."
+        />
       </label>
 
       <button type="submit" disabled={!selectedSymbol || !selectedTradition || isStreaming}>

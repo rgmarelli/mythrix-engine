@@ -61,6 +61,10 @@ The current query-viewer UI (`specs/query-viewer-web-ui/`) organizes results int
 - FR20: A "Generate AI summary" action requests a summary of the selected fragment's text, scoped to the fragment's matched Interpretant(s), rendered in a visually distinct box below the fragment text. It is not triggered automatically on selection.
 - FR21: The panel provides navigation to the previous/next fragment within the current filtered, ranked list, and an action to copy the fragment's citation/reference string.
 
+### Query tuning
+
+- FR22: The query form offers an optional minimum-score input, applied to the next query submission only. Left blank, no override is sent and the server's own default governs.
+
 ### Removed from this design
 
 - The "Graph facts" box.

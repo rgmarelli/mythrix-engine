@@ -14,6 +14,11 @@ function tieBreakScore(fragment: Fragment, activeInterpretant: string | null): n
   return Math.max(0, ...fragment.matches.map((m) => m.score));
 }
 
+// Mirrors `Settings.retrieval_min_score`'s default (`src/mythrix/core/config.py`)
+// for display only — a `minScore` of `null` sends no `min_score` param at all,
+// so the server's own default always governs unless the user overrides it.
+const DEFAULT_MIN_SCORE = 0.45;
+
 function hotspotHeaderText(sourceLabel: string | null, interpretantValue: string | null): string {
   if (interpretantValue !== null && sourceLabel !== null) {
     return `Fragments matching "${interpretantValue}" in ${sourceLabel} — ranked by total interpretants converging in each fragment`;
@@ -35,6 +40,7 @@ function App() {
   const [selectedSystem, setSelectedSystem] = useState('');
   const [selectedSymbol, setSelectedSymbol] = useState('');
   const [selectedTradition, setSelectedTradition] = useState('');
+  const [minScore, setMinScore] = useState<number | null>(null);
 
   const [queryResult, setQueryResult] = useState<FragmentQueryResult | null>(null);
   const [isQuerying, setIsQuerying] = useState(false);
@@ -56,7 +62,7 @@ function App() {
     setSelectedInterpretant(null);
 
     try {
-      const result = await fetchQuery(selectedSymbol, selectedTradition);
+      const result = await fetchQuery(selectedSymbol, selectedTradition, { minScore: minScore ?? undefined });
       setQueryResult(result);
       setSelectedFragmentId(result.fragments[0]?.chunk_id ?? null);
     } catch (error) {
@@ -103,10 +109,13 @@ function App() {
           selectedSystem={selectedSystem}
           selectedSymbol={selectedSymbol}
           selectedTradition={selectedTradition}
+          minScore={minScore}
+          minScoreDefault={DEFAULT_MIN_SCORE}
           isStreaming={isQuerying}
           onSystemChange={setSelectedSystem}
           onSymbolChange={setSelectedSymbol}
           onTraditionChange={setSelectedTradition}
+          onMinScoreChange={setMinScore}
           onSubmit={handleSubmit}
         />
       </header>

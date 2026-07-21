@@ -35,11 +35,12 @@ export async function summarizePassage(passageText: string, concepts: string[]):
 export async function fetchQuery(
   symbol: string,
   tradition: string,
-  opts?: { topK?: number; matchPool?: number },
+  opts?: { topK?: number; matchPool?: number; minScore?: number },
 ): Promise<FragmentQueryResult> {
   const params = new URLSearchParams({ symbol, tradition });
   if (opts?.topK !== undefined) params.set('top_k', String(opts.topK));
   if (opts?.matchPool !== undefined) params.set('match_pool', String(opts.matchPool));
+  if (opts?.minScore !== undefined) params.set('min_score', String(opts.minScore));
 
   const response = await fetch(`${API_BASE_URL}/api/query?${params.toString()}`);
   if (!response.ok) {

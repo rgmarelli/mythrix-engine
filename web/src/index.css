@@ -83,6 +83,7 @@ header {
 }
 
 .picker select,
+.picker input,
 .picker button {
   font: inherit;
   padding: 0.5rem 0.75rem;
@@ -90,6 +91,10 @@ header {
   border: 1px solid var(--border);
   background: var(--panel-bg);
   color: var(--text-h);
+}
+
+.picker input[type='number'] {
+  width: 5rem;
 }
 
 .picker button {
