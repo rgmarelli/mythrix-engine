@@ -225,6 +225,37 @@ def test_query_min_score_param_overrides_the_settings_default(
     assert response.json()["regions"] == []
 
 
+def test_segments_returns_the_ordinal_range(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore) -> None:
+    chunks = [
+        Chunk(index=i, text=f"verse {i}", char_start=0, char_end=7, ordinal=i, section="Genesis 20") for i in range(5)
+    ]
+    vector_store.add_chunks(
+        chunks,
+        embeddings=[[1.0, 0.0]] * 5,
+        metadata=ChunkMetadata(
+            source_id="waite", domain="tarot", embedding_model="fake-embed", ingested_at="2026-01-01T00:00:00Z"
+        ),
+    )
+    client = _client(graph_store, vector_store)
+
+    response = client.get("/api/segments", params={"source_id": "waite", "start_ordinal": 1, "end_ordinal": 3})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [s["ordinal"] for s in body] == [1, 2, 3]
+    assert [s["text"] for s in body] == ["verse 1", "verse 2", "verse 3"]
+    assert all(s["section"] == "Genesis 20" for s in body)
+
+
+def test_segments_unknown_source_returns_404(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore) -> None:
+    client = _client(graph_store, vector_store)
+
+    response = client.get("/api/segments", params={"source_id": "nonexistent", "start_ordinal": 0, "end_ordinal": 1})
+
+    assert response.status_code == 404
+    assert "detail" in response.json()
+
+
 def test_reload_symbols_loads_yaml_into_the_running_graph_store(
     graph_store: KuzuGraphStore, vector_store: ChromaVectorStore, tmp_path: Path
 ) -> None:

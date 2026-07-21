@@ -321,6 +321,18 @@ main {
   background: var(--accent-bg);
 }
 
+.segment.context {
+  opacity: 0.75;
+  border-style: dashed;
+  border-color: var(--border);
+}
+
+.segment.context.active {
+  opacity: 1;
+  border-style: solid;
+  border-color: var(--accent);
+}
+
 .segment-locator {
   font-size: 0.75rem;
   font-weight: 600;
@@ -334,11 +346,16 @@ main {
   margin: 0.4rem 0 0;
 }
 
+.button-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
 .ai-summary-button {
   font: inherit;
   font-size: 0.85rem;
   padding: 0.5rem 1rem;
-  margin-top: 1rem;
   border-radius: 6px;
   border: 1px solid transparent;
   background: var(--accent);
@@ -347,6 +364,22 @@ main {
 }
 
 .ai-summary-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.add-context-button {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.add-context-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from mythrix.core.embedding import Embedder
 from mythrix.core.graph.store import KuzuGraphStore
-from mythrix.core.models import RegionQueryResult, RetrievalContext
+from mythrix.core.models import RegionQueryResult, RetrievalContext, Segment
 from mythrix.core.retrieval.pipeline import RetrievalPipeline
 from mythrix.core.vector.store import ChromaVectorStore
 
@@ -66,3 +66,28 @@ def query_regions(
         region_min_interpretants=region_min_interpretants,
     )
     return pipeline.retrieve_regions(graph_facts)
+
+
+def fetch_source_segments(
+    *,
+    source_id: str,
+    start_ordinal: int,
+    end_ordinal: int,
+    graph_store: KuzuGraphStore,
+    vector_store: ChromaVectorStore,
+) -> tuple[Segment, ...]:
+    """A contiguous ordinal range of one source's segments, verbatim — the
+    coordinate lookup the web viewer's Add Context action runs
+    (`hotspot-context-expansion`), not a similarity search: no embedding
+    model is invoked.
+
+    `graph_store.get_source` is called for its `SourceNotFoundError` alone
+    (unused otherwise) — an unknown `source_id` fails with a real 404 rather
+    than a silently empty result.
+    """
+    graph_store.get_source(source_id)
+    chunks = vector_store.get_segments(source_id, start_ordinal=start_ordinal, end_ordinal=end_ordinal)
+    return tuple(
+        Segment(ordinal=chunk.ordinal, locator=chunk.locator, text=chunk.text, section=chunk.section)
+        for chunk in chunks
+    )

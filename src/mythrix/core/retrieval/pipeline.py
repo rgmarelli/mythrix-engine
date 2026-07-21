@@ -476,7 +476,9 @@ class RetrievalPipeline:
                 for ordinal in cluster:
                     key = (source_id, ordinal)
                     hit = hit_by_segment[key]
-                    region_segments.append(Segment(ordinal=ordinal, locator=hit.locator, text=hit.text))
+                    region_segments.append(
+                        Segment(ordinal=ordinal, locator=hit.locator, text=hit.text, section=hit.section)
+                    )
                     for match in matches_by_segment[key]:
                         existing = best_match_by_interpretant.get(match.interpretant)
                         if existing is None or match.score > existing.score:

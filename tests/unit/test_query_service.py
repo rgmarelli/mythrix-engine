@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from mythrix.core.errors import SignNotFoundError
+from mythrix.core.errors import SignNotFoundError, SourceNotFoundError
 from mythrix.core.graph.store import KuzuGraphStore
 from mythrix.core.models import (
     Interpretant,
@@ -19,8 +19,9 @@ from mythrix.core.models import (
     Source,
     Tradition,
 )
-from mythrix.core.query_service import execute_query, query_regions
-from mythrix.core.vector.store import ChromaVectorStore
+from mythrix.core.query_service import execute_query, fetch_source_segments, query_regions
+from mythrix.core.vector.chunking import Chunk
+from mythrix.core.vector.store import ChromaVectorStore, ChunkMetadata
 
 RIDER_WAITE = Tradition(id="rider-waite", slug="rider-waite", name="Rider-Waite-Smith", domain="tarot")
 
@@ -129,4 +130,36 @@ def test_query_regions_propagates_mythrix_error(graph_store: KuzuGraphStore, vec
             vector_store=vector_store,
             embedder=FakeEmbedder(),
             **_region_kwargs(),
+        )
+
+
+def test_fetch_source_segments_returns_the_ordinal_range(
+    graph_store: KuzuGraphStore, vector_store: ChromaVectorStore
+) -> None:
+    chunks = [
+        Chunk(index=i, text=f"verse {i}", char_start=0, char_end=7, ordinal=i, section="Genesis 20") for i in range(5)
+    ]
+    vector_store.add_chunks(
+        chunks,
+        embeddings=[[1.0, 0.0]] * 5,
+        metadata=ChunkMetadata(
+            source_id="waite", domain="tarot", embedding_model="fake-embed", ingested_at="2026-01-01T00:00:00+00:00"
+        ),
+    )
+
+    segments = fetch_source_segments(
+        source_id="waite", start_ordinal=1, end_ordinal=3, graph_store=graph_store, vector_store=vector_store
+    )
+
+    assert [s.ordinal for s in segments] == [1, 2, 3]
+    assert [s.text for s in segments] == ["verse 1", "verse 2", "verse 3"]
+    assert all(s.section == "Genesis 20" for s in segments)
+
+
+def test_fetch_source_segments_unknown_source_raises(
+    graph_store: KuzuGraphStore, vector_store: ChromaVectorStore
+) -> None:
+    with pytest.raises(SourceNotFoundError):
+        fetch_source_segments(
+            source_id="nonexistent", start_ordinal=0, end_ordinal=1, graph_store=graph_store, vector_store=vector_store
         )

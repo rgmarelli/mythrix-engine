@@ -59,6 +59,7 @@ export interface RegionSegment {
   ordinal: number;
   locator: string;
   text: string;
+  section: string;
 }
 
 export interface RegionMatch {
@@ -90,6 +91,7 @@ export interface HotspotSegment {
   ordinal: number;
   locator: string;
   text: string;
+  section: string;
 }
 
 export interface HotspotMatch {

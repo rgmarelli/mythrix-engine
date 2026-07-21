@@ -15,8 +15,8 @@ from mythrix.api.dependencies import get_chat_client, get_stores
 from mythrix.core.bootstrap import Stores
 from mythrix.core.config import Settings
 from mythrix.core.loaders.sign_loader import load_directory, summarize_plan
-from mythrix.core.models import RegionQueryResult, SignSummary, Tradition
-from mythrix.core.query_service import query_regions
+from mythrix.core.models import RegionQueryResult, Segment, SignSummary, Tradition
+from mythrix.core.query_service import fetch_source_segments, query_regions
 from mythrix.core.synthesis.chain import ChatClient
 from mythrix.core.synthesis.prompts import render_passage_summary_prompt
 
@@ -68,6 +68,33 @@ def query(
         min_score=min_score if min_score is not None else settings.retrieval_min_score,
         region_window_size=settings.region_window_size,
         region_min_interpretants=settings.region_min_interpretants,
+    )
+
+
+@router.get("/segments", response_model=list[Segment])
+def source_segments(
+    source_id: str,
+    start_ordinal: int,
+    end_ordinal: int,
+    stores: Stores = Depends(get_stores),
+) -> list[Segment]:
+    """A contiguous ordinal range of one source's segments, verbatim — the
+    coordinate lookup behind the web UI's Add Context action
+    (`specs/hotspot-context-expansion/plan.md`), distinct from `/api/query`:
+    no embedding model is invoked and no similarity ranking happens, just a
+    range read against the vector store.
+
+    An unknown `source_id` is handled by the registered `MythrixError`
+    exception handler (404), same mechanism as every other route's errors.
+    """
+    return list(
+        fetch_source_segments(
+            source_id=source_id,
+            start_ordinal=start_ordinal,
+            end_ordinal=end_ordinal,
+            graph_store=stores.graph_store,
+            vector_store=stores.vector_store,
+        )
     )
 
 
