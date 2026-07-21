@@ -119,7 +119,7 @@ export function SignTraditionPicker({
           type="number"
           min={0}
           max={1}
-          step={0.05}
+          step={0.01}
           placeholder={minScoreDefault.toFixed(2)}
           value={minScore ?? ''}
           onChange={(event) => {
