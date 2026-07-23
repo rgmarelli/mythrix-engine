@@ -153,15 +153,6 @@ export function AgentChatPanel({
         <AgentMark thinking={isSending} />
         <div className="head-text">
           <div className="head-title">Mythrix Agent</div>
-          <div className="head-sub">
-            {selectedHotspot ? (
-              <>
-                grounded in <span className="loc">{hotspotTitle(selectedHotspot)}</span>
-              </>
-            ) : (
-              'no hotspot selected yet'
-            )}
-          </div>
         </div>
         <button
           type="button"
@@ -212,7 +203,7 @@ export function AgentChatPanel({
               <div className="msg ai">
                 <AiAvatar />
                 <div className="bubble thinking-bubble" aria-live="polite">
-                  <span>Thinking</span>
+
                   <span className="thinking-dots">
                     <span />
                     <span />

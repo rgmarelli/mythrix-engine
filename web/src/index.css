@@ -508,10 +508,6 @@ main {
   text-overflow: ellipsis;
 }
 
-.agent-dock .head-sub .loc {
-  color: var(--agent-violet);
-}
-
 .agent-dock .dock-collapse {
   margin-left: auto;
   width: 26px;
