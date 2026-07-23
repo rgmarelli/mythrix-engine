@@ -1,6 +1,6 @@
 # Mythrix Engine
 
-An explainable symbolic interpretation engine. Every interpretation is built from a transparent, auditable chain: structured symbolic data, retrieval-augmented generation grounded in primary sources, and a local LLM that explains relationships and cites its evidence.
+A symbolic knowledge retrieval system that maps semiotic structures (semiotic systems, signs, traditions, and interpretants) to relevant passages within a corpus of reference sources.
 
 See `specs/symbol-interpretation-core/` for the spec, technical plan, and task breakdown driving this project's development.
 

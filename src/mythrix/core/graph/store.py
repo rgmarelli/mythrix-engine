@@ -446,6 +446,26 @@ class KuzuGraphStore:
             traditions.append(Tradition(id=row[0], slug=row[1], name=row[2], domain=row[3], description=_s(row[4])))
         return tuple(traditions)
 
+    def list_semiotic_systems(self) -> tuple[str, ...]:
+        """Every distinct `semiotic_system` that has at least one manifested
+        sign, ordered — the top-level scope a picker (or the agent's
+        `list_semiotic_systems` tool, `specs/agent-operator`) offers before
+        narrowing to traditions/signs. Consistent with `list_signs`: a system
+        whose only signs have zero manifestations is never offered, so it can
+        never lead to a dead scope."""
+        result = self._execute(
+            """
+            MATCH (s:Sign)-[:HAS_MANIFESTATION]->(:Manifestation)
+            RETURN DISTINCT s.semiotic_system ORDER BY s.semiotic_system
+            """,
+            {},
+        )
+        systems = []
+        while result.has_next():
+            (semiotic_system,) = result.get_next()
+            systems.append(semiotic_system)
+        return tuple(systems)
+
     def list_signs(self) -> tuple[SignSummary, ...]:
         """Every sign with at least one manifestation, one row per
         (sign, tradition) grouped by sign slug — a sign with zero

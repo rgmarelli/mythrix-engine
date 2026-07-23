@@ -96,6 +96,12 @@ class Settings(BaseSettings):
     — evaluated on the raw score, never normalized within a query's results,
     so a corpus lacking an interpretant yields no match for it rather than a
     best-of-noise one (ADR 0004).
+
+    `agent_model`/`agent_max_tool_iterations` are read only by the separate
+    `mythrix-agent` console script (`specs/agent-operator`), never by the
+    `query` path. `agent_model` falls back to `generation_model` when unset;
+    `agent_max_tool_iterations` bounds how many tool calls one conversational
+    turn may make before it ends rather than looping (spec FR11).
     """
 
     model_config = SettingsConfigDict(env_prefix="MYTHRIX_", env_file=".env", extra="ignore")
@@ -113,3 +119,5 @@ class Settings(BaseSettings):
     symbols_data_path: Path = Path("data/semiotic_systems")
     region_window_size: int = 3
     region_min_interpretants: int = 1
+    agent_model: str | None = None
+    agent_max_tool_iterations: int = 8

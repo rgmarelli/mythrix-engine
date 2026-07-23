@@ -358,3 +358,25 @@ def test_list_signs_reports_every_tradition_a_sign_is_manifested_in(store: KuzuG
     assert the_tower.sign_type == "major-arcana"
     assert the_tower.semiotic_system == "tarot"
     assert the_tower.tradition_slugs == ("rider-waite",)
+
+
+def test_list_semiotic_systems_returns_every_distinct_system_sorted(store: KuzuGraphStore) -> None:
+    _seed_fixture(store)
+    assert store.list_semiotic_systems() == ("hebrew_alef_bet", "tarot")
+
+
+def test_list_semiotic_systems_excludes_a_system_whose_signs_have_no_manifestation(store: KuzuGraphStore) -> None:
+    """Mirrors `list_signs`: a semiotic system offered here must actually
+    lead somewhere — `path-tiphareth-yesod` (hebrew_alef_bet, zero
+    manifestations) doesn't disqualify hebrew_alef_bet only because two
+    *other* hebrew_alef_bet signs (Peh, Ayin) do have one; a system with
+    *only* unmanifested signs must be excluded entirely."""
+    dead_system = Sign(
+        id="dead-sign",
+        slug="dead-sign",
+        canonical_name="Dead Sign",
+        sign_type="unmanifested",
+        semiotic_system="dead_system",
+    )
+    store.upsert_sign(dead_system)
+    assert store.list_semiotic_systems() == ()

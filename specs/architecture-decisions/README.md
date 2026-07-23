@@ -18,6 +18,7 @@ changed decision is a new ADR that supersedes an earlier one, not an edit.
 | [0003](0003-live-per-interpretant-matching-no-precompute.md) | Match each interpretant live at query time; never precompute an interpretant→segment match matrix | Accepted |
 | [0004](0004-absolute-floor-and-lexical-specificity-ranking.md) | Rank by lexical-IDF-weighted score over raw, floor-gated match strength; isolated matches are first-class | Accepted |
 | [0005](0005-vector-store-chroma-and-lexical-store-path.md) | Keep local Chroma for the vector channel; identify `sqlite-vec`+FTS5 as the migration path if the lexical/df and verse-scale needs outgrow it | Accepted |
+| [0006](0006-conversational-agent-orchestration-boundary.md) | A local generation model may orchestrate Mythrix via read-only tools (converse, select tools), but the retrieval it drives stays deterministic, embedding-only, and cited | Accepted |
 
 Primary sources for these records: `specs/symbol-interpretation-core/spec.md`
 (the factual requirements these decisions produced, FR31–FR48) and the empirical
