@@ -147,6 +147,20 @@ export function AgentChatPanel({
     }
   }
 
+  if (collapsed) {
+    return (
+      <button
+        type="button"
+        className="agent-dock collapsed"
+        onClick={() => setCollapsed(false)}
+        aria-label="Expand agent panel"
+      >
+        <AgentMark thinking={isSending} />
+        <span className="capsule-label">Mythrix Agent</span>
+      </button>
+    );
+  }
+
   return (
     <div className="agent-dock">
       <div className="dock-head">
@@ -157,87 +171,82 @@ export function AgentChatPanel({
         <button
           type="button"
           className="dock-collapse"
-          onClick={() => setCollapsed((prev) => !prev)}
-          aria-label={collapsed ? 'Expand agent panel' : 'Collapse agent panel'}
+          onClick={() => setCollapsed(true)}
+          aria-label="Collapse agent panel"
         >
-          {collapsed ? '+' : '–'}
+          –
         </button>
       </div>
 
-      {!collapsed && (
-        <>
-          <div className="ctx-strip">
-            <span className="dot" />
-            <span>{contextStripText(selectedHotspot)}</span>
-          </div>
+      <div className="ctx-strip">
+        <span className="dot" />
+        <span>{contextStripText(selectedHotspot)}</span>
+      </div>
 
-          <div className="thread">
-            {items.map((item) => {
-              if (item.kind === 'user') {
-                return (
-                  <div className="msg user" key={item.id}>
-                    <div className="bubble">{item.text}</div>
-                  </div>
-                );
-              }
-              if (item.kind === 'reset') {
-                return <div className="reset-divider" key={item.id}>{item.label}</div>;
-              }
-              if (item.kind === 'error') {
-                return (
-                  <div className="msg ai" key={item.id}>
-                    <AiAvatar />
-                    <div className="agent-error">{item.text}</div>
-                  </div>
-                );
-              }
-              return (
-                <div className="msg ai" key={item.id}>
-                  <AiAvatar />
-                  <div className="bubble">{item.text}</div>
-                  <AgentCards cards={item.cards} />
-                </div>
-              );
-            })}
-            {isSending && (
-              <div className="msg ai">
-                <AiAvatar />
-                <div className="bubble thinking-bubble" aria-live="polite">
-
-                  <span className="thinking-dots">
-                    <span />
-                    <span />
-                    <span />
-                  </span>
-                </div>
+      <div className="thread">
+        {items.map((item) => {
+          if (item.kind === 'user') {
+            return (
+              <div className="msg user" key={item.id}>
+                <div className="bubble">{item.text}</div>
               </div>
-            )}
+            );
+          }
+          if (item.kind === 'reset') {
+            return <div className="reset-divider" key={item.id}>{item.label}</div>;
+          }
+          if (item.kind === 'error') {
+            return (
+              <div className="msg ai" key={item.id}>
+                <AiAvatar />
+                <div className="agent-error">{item.text}</div>
+              </div>
+            );
+          }
+          return (
+            <div className="msg ai" key={item.id}>
+              <AiAvatar />
+              <div className="bubble">{item.text}</div>
+              <AgentCards cards={item.cards} />
+            </div>
+          );
+        })}
+        {isSending && (
+          <div className="msg ai">
+            <AiAvatar />
+            <div className="bubble thinking-bubble" aria-live="polite">
+              <span className="thinking-dots">
+                <span />
+                <span />
+                <span />
+              </span>
+            </div>
           </div>
+        )}
+      </div>
 
-          <div className="composer">
-            <form
-              className="input-row"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void handleSend();
-              }}
-            >
-              <input
-                type="text"
-                placeholder="Ask about this hotspot…"
-                value={inputValue}
-                disabled={isSending}
-                onChange={(event) => setInputValue(event.target.value)}
-              />
-              <button type="submit" className="send" disabled={isSending || !inputValue.trim()}>
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path d="M4 12L20 4L14 20L11 13L4 12Z" fill="white" />
-                </svg>
-              </button>
-            </form>
-          </div>
-        </>
-      )}
+      <div className="composer">
+        <form
+          className="input-row"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void handleSend();
+          }}
+        >
+          <input
+            type="text"
+            placeholder="Ask about this hotspot…"
+            value={inputValue}
+            disabled={isSending}
+            onChange={(event) => setInputValue(event.target.value)}
+          />
+          <button type="submit" className="send" disabled={isSending || !inputValue.trim()}>
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M4 12L20 4L14 20L11 13L4 12Z" fill="white" />
+            </svg>
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
