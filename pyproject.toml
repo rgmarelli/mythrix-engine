@@ -22,7 +22,6 @@ dependencies = [
 
 [project.scripts]
 mythrix = "mythrix.cli.main:app"
-mythrix-agent = "mythrix.agent.cli:app"
 
 [build-system]
 requires = ["hatchling"]

@@ -36,8 +36,7 @@ def run_turn(
     turn ends with a clear message and `history` is returned unchanged — the
     runaway turn's messages are not kept.
 
-    `context_summary` (default `""`, so `agent/cli.py::run_agent`'s existing
-    call site is unaffected) is folded into the model invocation by
+    `context_summary` (default `""`) is folded into the model invocation by
     `agent/graph.py::agent_node`, alongside `state["messages"]`."""
     messages = [*history, HumanMessage(content=user_text)]
     tool_calls: list[str] = []

@@ -3,7 +3,7 @@ thin wrapper over an existing Mythrix service function; none of this module
 implements retrieval, graph, embedding, or synthesis logic of its own.
 
 `build_tools` closes over an already-built `Stores`, `Settings`, and
-`ChatClient` (constructed once by `agent/cli.py`) instead of holding
+`ChatClient` (constructed once by `api/dependencies.py`) instead of holding
 module-level globals, so the tool set is trivially fakeable in tests and is
 rebuilt fresh per process rather than shared mutable state.
 

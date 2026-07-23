@@ -155,8 +155,8 @@ def compile_agent_graph(llm_with_tools, tools: list) -> CompiledStateGraph:  # n
 
 def build_agent_graph(*, generation_model: str, base_url: str, num_ctx: int, tools: list) -> CompiledStateGraph:
     """Constructs the real, tool-bound `ChatOllama` (fail-fast, spec FR8) and
-    compiles the graph around it. The `mythrix-agent` entrypoint's only call
-    into this module."""
+    compiles the graph around it. `mythrix.api.dependencies`'s only call into
+    this module."""
     llm_with_tools = _build_tool_chat_model(
         generation_model=generation_model, base_url=base_url, num_ctx=num_ctx
     ).bind_tools(tools)

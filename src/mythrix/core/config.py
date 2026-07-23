@@ -97,8 +97,8 @@ class Settings(BaseSettings):
     so a corpus lacking an interpretant yields no match for it rather than a
     best-of-noise one (ADR 0004).
 
-    `agent_model`/`agent_max_tool_iterations` are read only by the separate
-    `mythrix-agent` console script (`specs/agent-operator`), never by the
+    `agent_model`/`agent_max_tool_iterations` are read only by the in-app
+    agent chat panel (`specs/agent-operator`, `mythrix.api`), never by the
     `query` path. `agent_model` falls back to `generation_model` when unset;
     `agent_max_tool_iterations` bounds how many tool calls one conversational
     turn may make before it ends rather than looping (spec FR11).
