@@ -18,12 +18,22 @@ Existing symbolic-interpretation tools fall into two unsatisfying categories: op
 - **region**: A bounded span of contiguous segments within a single source over which interpretant matches are aggregated and ranked (a single segment, a structural section, or a sliding window of N consecutive segments).
 - **specificity weight**: A per-interpretant weight derived from how many units of the corpus contain a surface form of that interpretant — a rarer surface form yields a higher weight.
 - **hotspot**: The web viewer's display term for a ranked region.
+- **agent**: A tool-calling loop, driven by a local chat model, that turns a natural-language request into calls against Mythrix's existing operations and reports the results conversationally.
+- **tool**: A single, typed, read-only operation the agent may invoke, wrapping an existing Mythrix service function (e.g. run a query, fetch a segment range).
+- **turn**: One user message plus the agent's full response to it, including any tool calls made while producing that response.
+- **session**: An ordered series of turns sharing conversation history.
+- **tool trace**: The ordered record of which tools the agent called during a turn, surfaced to the user so the evidence path is visible.
+- **matched segment**: A hotspot segment that carried at least one interpretant match — the only segments the detail panel shows before any context is added.
+- **context segment**: A verbatim segment from the same source, loaded into the detail panel on demand, that carried no interpretant match.
+- **internal gap**: A non-matching segment whose ordinal lies strictly between a hotspot's lowest and highest matched ordinal, absent from the hotspot as returned.
+- **leading edge / trailing edge**: The lowest-ordinal and highest-ordinal segment currently loaded in a hotspot's detail panel (matched or context).
+- **chapter boundary**: The first/last segment of the structural section (`Segment.section`, e.g. a scripture chapter or a numbered section) that an edge segment belongs to. A source that declares no such structure has no chapter boundary; its only bounds are the source's first and last segment.
 
 ## Goals
 
 - A **domain-agnostic Sign Graph** data model representing signs, interpretive traditions, tradition-scoped manifestations, properties, interpretants, and intersemiotic interpretants (including cross-tradition, cross-domain, and alternative/competing claims), and sources — with no distinct meaning ever collapsing into another's, whether the distinction comes from tradition, from a competing attribution system, or from a nested context within a domain (e.g. a sign's manifestation within a specific sub-concept of its domain).
 - A **RAG pipeline** grounded in curated primary-source documents, searched as one independent corpus rather than scoped by interpretive tradition.
-- A **local-only pipeline** (no hosted API dependency) that returns ranked, cited evidence for a query — retrieved graph facts and source passages — rather than a generated narrative. Citation-validation machinery is retained for the conversational agent layer, which is where any generated text belongs and which is implemented separately (see `specs/agent-operator/spec.md`).
+- A **local-only pipeline** (no hosted API dependency) that returns ranked, cited evidence for a query — retrieved graph facts and source passages — rather than a generated narrative. Citation-validation machinery is retained for the conversational agent layer (FR58–FR70), which is where any generated text belongs.
 - **Three tools sharing one core library**:
   - A CLI for querying/interpreting symbols.
   - A structured-data loader that populates the Sign Graph from human-authored data.
@@ -31,12 +41,14 @@ Existing symbolic-interpretation tools fall into two unsatisfying categories: op
 - **Tarot as the first reference dataset**, used to prove a single-sign, single-tradition query end-to-end through the full pipeline (CLI → graph retrieval → document retrieval → ranked concept and concept-pair evidence, per FR27–FR29).
 - **Structural, source-declared segmentation** of corpus documents into atomic segments (verses, numbered sections), with contiguous segments rolled up into specificity-weighted, ranked regions — a second retrieval path alongside per-concept/concept-pair retrieval, sharing the same live per-interpretant matching engine (FR31–FR48).
 - **A web viewer and an independent backend HTTP API** presenting the same evidentiary content as the CLI — sign/tradition selection, a single ranked list of regions, AND-combined facets, a region detail view with full verbatim text and citation, and an on-demand single-turn AI summary — reusing the core retrieval pipeline and stores with no duplicated logic (FR49–FR57).
+- **A conversational CLI** (`mythrix-agent`) that operates the existing retrieval pipeline through a fixed set of read-only tools — discovery, symbol facts, region query, segment-range fetch, and passage summarization — grounding every claim in a tool result and its citation, on a local generation model only (FR58–FR70).
+- **An in-panel "Add Context" control** in the web viewer that progressively loads verbatim context around a hotspot's matched segments, bounded by the source's own chapter/section structure, with the on-demand AI summary scoped to whatever context is currently loaded (FR71–FR83).
 
 ## Non-goals (v1)
 
 - Multi-symbol or spread-style queries (e.g. interpreting several symbols together in one request).
 - Cross-tradition comparison synthesis as a query capability — e.g. surfacing two *interpretive* traditions' competing readings of the same symbol (Crowley's vs. Waite's) side by side and adjudicating which one a document corpus better supports. The data model must support intersemiotic interpretants between traditions, but no query surface for comparing traditions ships in v1. (This is distinct from FR7 — retrieving from an independent, non-interpretive document corpus like a scriptural text through one tradition's established symbolism is in scope; comparing two competing interpretive traditions against each other is not.)
-- Conversational or free-text natural-language request parsing — v1 uses structured CLI arguments only. A conversational agent layer (a console/chat interface driving an agent loop) exists as a separate CLI (`mythrix-agent`; see `specs/agent-operator/spec.md`), outside v1's scope and must not be precluded by v1's design. The prompt-rendering, marker-enumeration, citation-validation, and Ollama-client modules exist for that layer; the v1 `query` path does not invoke them.
+- Conversational or free-text natural-language request parsing — v1 uses structured CLI arguments only. A conversational agent layer (a console/chat interface driving an agent loop) exists as a separate CLI (`mythrix-agent`, FR58–FR70), outside v1's scope and must not be precluded by v1's design. The prompt-rendering, marker-enumeration, citation-validation, and Ollama-client modules exist for that layer; the v1 `query` path does not invoke them.
 - Hardening against adversarial input / prompt injection beyond baseline mitigations (data-not-instructions framing, citation-id validation). Full adversarial hardening is deferred; v1 assumes curator-supplied, not arbitrary, source documents.
 - Verifying that LLM paraphrases are faithful to their cited source, beyond confirming the citation marker refers to real, in-context material. Faithfulness/entailment checking is future work.
 - Concurrent multi-process write access to the graph store or vector store.
@@ -49,6 +61,8 @@ Existing symbolic-interpretation tools fall into two unsatisfying categories: op
 - A conversational or chat-style web UI. The on-demand AI Summary action (FR54) is a single-turn, stateless request per region — it carries no history and no memory across requests, and is distinct from the conversational agent layer above (a separate CLI, not a web UI).
 - A UI for comparing multiple interpretive traditions of the same sign against each other (consistent with the Non-goal above).
 - Concurrent execution of the backend API process and a `load-symbols`/`load-documents` CLI invocation against the same graph/vector store paths (FR56) — each opens its own connection to the graph database's single-writer lock; the reload endpoint (FR55) is exempt, since it reuses the API process's already-open connection rather than opening a second one.
+- A web or chat-style UI for the conversational agent, any mutating/administrative tool in its tool set (ingesting symbols/documents, reloading stores), a cloud/hosted generation model, or persisting agent sessions across process restarts; the agent (`mythrix-agent`) is an orchestration and presentation layer that introduces no new retrieval, ranking, or convergence behavior and does not parse free text into retrieval query text (FR58–FR70).
+- Merging multiple hotspots of the same source into one continuous reading view, crossing a chapter/section boundary during context expansion, persisting a hotspot's expansion state across queries or browser reloads, re-running a similarity search to fetch context, or a one-click affordance to load an entire chapter/source at once; context segments never affect retrieval, ranking, convergence scoring, or facet counts (FR71–FR83).
 
 ## Functional requirements
 
@@ -141,6 +155,45 @@ These refine FR2–FR5: the underlying Sign Graph data model is unchanged by any
 - FR20: A manifestation may carry a lightweight list of descriptive interpretants — thematic concepts, notable depicted elements, or other free-text tokens — that does not create a new sign or intersemiotic interpretant. This is distinct from FR3/FR19's intersemiotic interpretants, which are reserved for a target that itself carries independently-tracked, citable meaning; curators choose per case which is appropriate, and a descriptive interpretant can later be promoted to a full cross-referenced sign without any schema change.
 - FR21: A sign may carry intrinsic, tradition-independent properties — facts true of the sign itself regardless of interpretive lens (e.g. a Hebrew letter's position in its alphabet or its numeric value). A manifestation may also carry its own tradition-scoped properties — structural facts specific to that one tradition's rendering (e.g. a card's position number within one specific deck). Properties, at either scope, are kept structurally distinct from a manifestation's interpretants (FR2), which can genuinely vary by tradition and are eligible for retrieval; a property is never used to build retrieval query text (FR8), regardless of scope.
 - FR22: A sign is not required to have any manifestation to exist in the graph or to participate in an intersemiotic interpretant. Intersemiotic interpretants (FR3, FR19) are asserted between signs directly, not between specific manifestations of them, so a sign serving purely as an intersemiotic-interpretant target or structural anchor (e.g. a Tree of Life path or a sephirah referenced only as someone else's correspondence) never needs interpretive content written for it.
+
+### Conversational agent (`mythrix-agent`)
+
+- FR58: The system provides a `mythrix-agent` command — a console script separate from the `mythrix` CLI — that starts an interactive, multi-turn conversational session in the terminal and reads successive user requests until the user exits.
+- FR59: The agent answers each request by invoking one or more read-only tools and composing their results into a natural-language reply. It maintains conversation history across turns within a session.
+- FR60: The agent has access to exactly these tools, each wrapping an existing service function and returning structured data (not prose):
+  - **list semiotic systems** — the available semiotic systems.
+  - **list traditions** — the available traditions, optionally scoped to one semiotic system.
+  - **list symbols** — the available signs, optionally scoped to one semiotic system.
+  - **get symbol** — retrieve one named sign's facts: its canonical name, semiotic system, intrinsic properties, and, for a given tradition, its manifestation's interpretants, denotation, correspondences, and citations. This is a graph-facts lookup, not a corpus retrieval — it runs no similarity search.
+  - **query symbol** — run a region (hotspot) query for a given sign and tradition, returning ranked regions with their matched interpretants, verbatim segment text, and citations (the same operation as `GET /api/query`).
+  - **fetch segments** — retrieve a contiguous ordinal range of one source's segments verbatim, by structural coordinate, running no similarity search (the same operation as `GET /api/segments`, FR82).
+  - **summarize passage** — produce a single-turn summary of supplied passage text scoped to supplied interpretants, using the generation model (the same operation as `POST /api/summarize`).
+- FR61: The registered tool set contains no operation that writes to, mutates, or reloads either store. Read-only is a structural property of the tool set, not a runtime check.
+- FR62: When a request to list traditions or symbols, or to get or query a symbol, does not determine which semiotic system to use and the choice is ambiguous (more than one semiotic system exists and the request names none), the agent asks the user which semiotic system to use before listing or retrieving, rather than guessing or silently listing across all systems. Once a semiotic system is established in the conversation, the agent may reuse it for subsequent turns without re-asking.
+- FR63: The agent must not state any symbol, interpretant, tradition, source, or passage as fact unless it appears in a tool result from the current session, and it must carry through the citation/locator the tool returned. It must not fabricate or infer symbols or interpretations absent from tool results.
+- FR64: When the get-symbol tool returns `needs_tradition` (no interpretive content, only the sign's available traditions), the system presents the tradition choices to the user deterministically, without generation-model involvement. This guarantees FR63 cannot be violated in this specific case regardless of model behavior, since a tradition list is the entirety of what the tool returned and needs no model composition.
+- FR65: The agent's generation model is a local Ollama model. When no generation model is configured or the model cannot be reached, the command reports a distinct, actionable error rather than proceeding.
+- FR66: The retrieval a tool triggers invokes no generation model and is unchanged from the existing query path (FR29): the generation model is used only for the agent's own conversation/tool-selection and for the explicit summarize tool.
+- FR67: Each turn surfaces a tool trace — which tools the agent called, in order — so the user can see the evidence path behind the answer.
+- FR68: A tool that fails (e.g. an unknown sign or tradition, an unreachable model for summarization) returns a distinct error to the agent that the agent relays to the user, without terminating the session; the user can continue with further turns.
+- FR69: The agent loop is bounded: a single turn cannot invoke tools indefinitely. On reaching the bound, the turn ends with a clear message rather than looping.
+- FR70: The agent is additive and self-contained. It ships as a separate `mythrix-agent` console script and adds no command to the `mythrix` CLI; the existing `query`, `load-symbols`, and `load-documents` commands and all `/api/*` routes are unchanged in behavior and output.
+
+### Hotspot context expansion
+
+- FR71: The hotspot detail panel provides an **Add Context** action that loads additional verbatim segments from the same source as the hotspot and displays them interleaved, in structural (ordinal) order, with the hotspot's existing segments. Context segments are visually distinguished from matched segments.
+- FR72: An activation first fills every remaining internal gap — each non-matching segment whose ordinal lies strictly between the current leading and trailing edges but is not yet loaded — so the loaded span reads as one contiguous, gap-free sequence of segments.
+- FR73: When no internal gap remains, an activation extends the loaded span by one segment before the current leading edge and one segment after the current trailing edge, subject to FR74/FR75.
+- FR74: When the source declares a chapter/section structure, each edge stops at its own chapter boundary: the leading edge never loads a segment from the previous chapter, and the trailing edge never loads a segment from the next chapter.
+- FR75: When the source declares no chapter/section structure, each edge extends toward the source's first / last segment and stops there.
+- FR76: The two edges advance independently. An activation extends every edge that can still extend; an edge already at its bound contributes nothing while the other edge continues. The action remains available while any edge can still extend or any internal gap remains.
+- FR77: The action is disabled (and visibly indicates that no further context is available) once no internal gap remains and both edges have reached their bounds.
+- FR78: The Generate AI summary action (FR54) summarizes the full set of segments currently loaded in the panel — matched segments plus every loaded context segment — in structural order. The interpretant set sent with the request remains the hotspot's matched interpretants; the request still carries one hotspot's text and its own interpretants only.
+- FR79: Context is drawn only from the same source as the hotspot. Expansion never crosses into another source or another hotspot.
+- FR80: Loaded context is scoped to the individual hotspot. Selecting a different hotspot presents that hotspot's own matched segments with no context carried over; a new query resets all expansion.
+- FR81: Context segments display their verbatim text and structural locator with no client-side truncation, consistent with FR46/FR52. Interpretant chips continue to anchor to and scroll to their matched segments after context is loaded; context segments are never chip targets.
+- FR82: The backend exposes retrieval of a source's segments by structural coordinate — a contiguous ordinal range within one source — returning each segment's verbatim text, structural locator, ordinal, and section, executed through the existing stores without running a similarity query. This is sufficient for the client to render context and to determine chapter boundaries (FR74) and source ends (FR75).
+- FR83: A context-load request that fails returns a distinct, client-visible error without altering or clearing the displayed hotspot or the current query result, consistent with FR54's error stance.
 
 ### Retired requirements
 
