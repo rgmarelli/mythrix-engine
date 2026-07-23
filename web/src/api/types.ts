@@ -116,3 +116,80 @@ export interface HotspotQueryResult {
   facets: Facets;
   hotspots: Hotspot[];
 }
+
+// --- Agent chat (specs/in-app-agent-chat) ---
+// Wire shapes mirror `api/routes.py`'s `AgentUiSelection`/`AgentTurnRequest`/
+// `AgentContext`/`AgentCard`/`AgentTurnResponse` — snake_case, as
+// `.model_dump(mode="json")` sends them. `client.ts` is the single seam
+// translating them onto the camelCase view-model types below.
+
+export interface AgentUiSelectionWire {
+  semiotic_system: string | null;
+  sign: string | null;
+  tradition: string | null;
+  source_id: string | null;
+  interpretant: string | null;
+  min_score: number | null;
+  region_id: string | null;
+}
+
+export interface AgentTurnRequestWire {
+  session_id: string;
+  message: string;
+  ui_selection: AgentUiSelectionWire;
+}
+
+export type AgentContextWire = AgentUiSelectionWire;
+
+export interface AgentCardWire {
+  type: 'citation' | 'interpretant_chips';
+  source_label?: string | null;
+  locator?: string | null;
+  text?: string | null;
+  chips?:
+    | { interpretant: string; kind: 'concept' | 'exact'; score: number; segment_ordinal: number }[]
+    | null;
+}
+
+export interface AgentTurnResponseWire {
+  context: AgentContextWire;
+  reply_text: string;
+  cards: AgentCardWire[];
+  instructions: unknown[];
+  thread_reset: boolean;
+}
+
+// --- View model (as the UI consumes it — see client.ts) ---
+
+export interface AgentUiSelection {
+  semioticSystem: string | null;
+  sign: string | null;
+  tradition: string | null;
+  sourceId: string | null;
+  interpretant: string | null;
+  minScore: number | null;
+  regionId: string | null;
+}
+
+export type AgentContext = AgentUiSelection;
+
+export interface AgentCitationCard {
+  type: 'citation';
+  sourceLabel: string;
+  locator: string;
+  text: string;
+}
+
+export interface AgentInterpretantChipsCard {
+  type: 'interpretant_chips';
+  chips: { interpretant: string; kind: 'concept' | 'exact'; score: number; segmentOrdinal: number }[];
+}
+
+export type AgentCard = AgentCitationCard | AgentInterpretantChipsCard;
+
+export interface AgentTurnResult {
+  context: AgentContext;
+  replyText: string;
+  cards: AgentCard[];
+  threadReset: boolean;
+}

@@ -9,9 +9,13 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import APIRouter, Depends
+from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel
 
-from mythrix.api.dependencies import get_chat_client, get_stores
+from mythrix.agent.context import AgentUiSelection
+from mythrix.agent.sessions import SessionStore
+from mythrix.agent.turn_service import AgentTurnResponse, run_chat_turn
+from mythrix.api.dependencies import get_agent_graph, get_agent_sessions, get_chat_client, get_stores
 from mythrix.core.bootstrap import Stores
 from mythrix.core.config import Settings
 from mythrix.core.loaders.sign_loader import load_directory, summarize_plan
@@ -153,3 +157,34 @@ def summarize_passage(
     other route (502)."""
     prompt = render_passage_summary_prompt(payload.passage_text, tuple(payload.concepts))
     return SummarizeResponse(summary=chat_client.invoke(prompt))
+
+
+class AgentTurnRequest(BaseModel):
+    session_id: str
+    message: str
+    ui_selection: AgentUiSelection
+
+
+@router.post("/agent", response_model=AgentTurnResponse)
+def agent_turn(
+    payload: AgentTurnRequest,
+    sessions: SessionStore = Depends(get_agent_sessions),
+    graph: CompiledStateGraph = Depends(get_agent_graph),
+) -> AgentTurnResponse:
+    """One turn of the in-app chat panel (`specs/in-app-agent-chat/plan.md`):
+    the browser sends its message plus its current UI selection, as-is, each
+    turn; the backend detects a thread reset, runs the agent loop, and
+    returns the three-part response (updated context, grounded reply text,
+    structured cards) plus `thread_reset`. `ModelUnavailableError`/
+    `ModelRequestError` raised by `get_agent_graph`'s lazy build are handled
+    by the same registered `MythrixError` exception handler as every other
+    route (502)."""
+    settings = Settings()
+    return run_chat_turn(
+        graph=graph,
+        sessions=sessions,
+        session_id=payload.session_id,
+        message=payload.message,
+        ui_selection=payload.ui_selection,
+        max_tool_iterations=settings.agent_max_tool_iterations,
+    )

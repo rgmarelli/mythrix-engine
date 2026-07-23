@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { fetchSegments, summarizePassage } from '../api/client';
+import { fetchSegments } from '../api/client';
 import type { Hotspot, HotspotSegment } from '../api/types';
 import { convergenceLabel, hotspotTitle } from '../utils/hotspot';
 
@@ -33,9 +33,6 @@ function sortByOrdinal(segments: HotspotSegment[]): HotspotSegment[] {
  * hotspot navigation. Mounted by `App.tsx` with `key={hotspot.regionId}` so
  * all of this state never leaks from one hotspot to the next. */
 export function HotspotDetailPanel({ hotspot, activeInterpretant, onPrev, onNext, canGoPrev, canGoNext }: Props) {
-  const [summary, setSummary] = useState<string | null>(null);
-  const [isSummarizing, setIsSummarizing] = useState(false);
-  const [summaryError, setSummaryError] = useState<string | null>(null);
   const [activeSegmentOrdinal, setActiveSegmentOrdinal] = useState<number | null>(null);
   const [segments, setSegments] = useState<HotspotSegment[]>(() => sortByOrdinal(hotspot?.segments ?? []));
   const [matchedOrdinals] = useState<Set<number>>(() => new Set((hotspot?.segments ?? []).map((s) => s.ordinal)));
@@ -133,19 +130,6 @@ export function HotspotDetailPanel({ hotspot, activeInterpretant, onPrev, onNext
     }
   }
 
-  async function handleSummarize() {
-    setIsSummarizing(true);
-    setSummaryError(null);
-    try {
-      const passageText = segments.map((segment) => segment.text).join('\n\n');
-      setSummary(await summarizePassage(passageText, hotspot!.matches.map((match) => match.interpretant)));
-    } catch (error) {
-      setSummaryError(error instanceof Error ? error.message : 'Failed to generate a summary.');
-    } finally {
-      setIsSummarizing(false);
-    }
-  }
-
   function handleCopyRef() {
     void navigator.clipboard.writeText(citationRef(hotspot!));
   }
@@ -182,9 +166,6 @@ export function HotspotDetailPanel({ hotspot, activeInterpretant, onPrev, onNext
       )}
 
       <div className="button-row">
-        <button type="button" className="ai-summary-button" onClick={handleSummarize} disabled={isSummarizing}>
-          {isSummarizing ? 'Summarizing…' : 'Generate AI summary'}
-        </button>
         <button
           type="button"
           className="add-context-button"
@@ -209,14 +190,6 @@ export function HotspotDetailPanel({ hotspot, activeInterpretant, onPrev, onNext
           );
         })}
       </div>
-
-      {summaryError && <p className="error">{summaryError}</p>}
-      {summary && (
-        <div className="ai-summary-box">
-          <p className="label">AI SUMMARY</p>
-          <p>{summary}</p>
-        </div>
-      )}
 
       <div className="hotspot-footer">
         <button type="button" onClick={onPrev} disabled={!canGoPrev}>

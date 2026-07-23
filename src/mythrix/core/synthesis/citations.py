@@ -29,6 +29,23 @@ def extract_markers(text: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys(_MARKER_PATTERN.findall(text)))
 
 
+def strip_markers(text: str) -> str:
+    """Removes every `[G#]`/`[S#]`/`[C#]` marker from `text`, valid or not —
+    used by the conversational agent, which never shows marker syntax in
+    visible replies (spec.md Non-goals) regardless of validation outcome."""
+    return _MARKER_PATTERN.sub("", text)
+
+
+def find_invalid_markers(text: str, valid_ids: set[str]) -> tuple[str, ...]:
+    """Returns the markers found in `text` that are not present in
+    `valid_ids` — empty means every citation is valid. Extracted from
+    `validate_citations` so a caller with its own `valid_ids` (e.g. the
+    conversational agent, which validates against tool-result dicts rather
+    than typed `GraphFacts`/`RetrievedPassage` objects) can reuse the same
+    check without constructing those types."""
+    return tuple(marker for marker in extract_markers(text) if marker not in valid_ids)
+
+
 def validate_citations(text: str, graph_facts: GraphFacts, passages: tuple[RetrievedPassage, ...]) -> tuple[str, ...]:
     """Returns the markers found in `text` that do *not* correspond to a real
     graph fact or a passage actually present in the given context — empty
@@ -36,4 +53,4 @@ def validate_citations(text: str, graph_facts: GraphFacts, passages: tuple[Retri
     passages the text was generated from, matching what
     `synthesis/prompts.py`'s `render_passages_block` would render as `[S#]`."""
     valid_ids = set(graph_fact_ids(graph_facts)) | set(passage_ids(passages))
-    return tuple(marker for marker in extract_markers(text) if marker not in valid_ids)
+    return find_invalid_markers(text, valid_ids)

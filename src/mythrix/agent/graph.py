@@ -32,6 +32,7 @@ from mythrix.core.errors import ModelRequestError, ModelUnavailableError
 
 class AgentState(TypedDict):
     messages: Annotated[list, add_messages]
+    context_summary: str
 
 
 def _build_tool_chat_model(*, generation_model: str, base_url: str, num_ctx: int) -> ChatOllama:
@@ -71,68 +72,84 @@ def _safe_json_loads(content: object) -> object:
         return None
 
 
+def _needs_key(payload: object) -> str | None:
+    """The first truthy `needs_*` key in a tool-result payload, if any —
+    `get_symbol`'s `needs_tradition` is the first (and, in v0, only) case,
+    but this is not hardcoded to that one key/tool (spec.md's Context object,
+    "Clarification, not guessing", generalized from master FR62/FR64)."""
+    if not isinstance(payload, dict):
+        return None
+    return next((key for key, value in payload.items() if key.startswith("needs_") and value), None)
+
+
 def route_after_tools(state: AgentState) -> str:
-    """Intercepts one specific tool result — `get_symbol`'s `needs_tradition`
-    — before it ever reaches the model (spec FR7). Observed live: a tool
-    result carrying no interpretive content at all (just a tradition list) is
-    still, occasionally, followed by the model composing fabricated
-    denotations rather than asking — sampling-dependent, not reliably
-    reproduced, so not something a stronger prompt can be trusted to prevent.
-    A tradition list needs no model synthesis to relay, so this removes the
-    model from the decision instead of asking it more forcefully to behave.
-    Every other tool result is unaffected and still routes to `agent`."""
+    """Intercepts any tool result carrying a truthy `needs_*` key — e.g.
+    `get_symbol`'s `needs_tradition` — before it ever reaches the model
+    (spec FR6). Observed live: a tool result carrying no interpretive content
+    at all (just a candidate list) is still, occasionally, followed by the
+    model composing fabricated denotations rather than asking —
+    sampling-dependent, not reliably reproduced, so not something a stronger
+    prompt can be trusted to prevent. A candidate list needs no model
+    synthesis to relay, so this removes the model from the decision instead
+    of asking it more forcefully to behave. Every other tool result is
+    unaffected and still routes to `agent`."""
     last_message = state["messages"][-1]
-    if isinstance(last_message, ToolMessage) and last_message.name == "get_symbol":
-        payload = _safe_json_loads(last_message.content)
-        if isinstance(payload, dict) and payload.get("needs_tradition"):
-            return "clarify_tradition"
+    if isinstance(last_message, ToolMessage) and _needs_key(_safe_json_loads(last_message.content)):
+        return "clarify"
     return "agent"
 
 
-def clarify_tradition_node(state: AgentState) -> dict:
-    """Builds the tradition-choice reply directly from `get_symbol`'s own
-    `needs_tradition` payload — no model call, so it cannot state anything
-    beyond what the tool actually returned."""
+def clarify_node(state: AgentState) -> dict:
+    """Builds the clarifying-question reply directly from the tool result's
+    own `needs_*` payload — no model call, so it cannot state anything beyond
+    what the tool actually returned. Reads whichever `needs_*` key is
+    present; `get_symbol`'s `needs_tradition` (candidates under
+    `traditions`) is the case exercised today."""
     payload = _safe_json_loads(state["messages"][-1].content)
-    traditions = ", ".join(payload.get("traditions", ())) if isinstance(payload, dict) else ""
+    needs_key = _needs_key(payload)
+    field = needs_key.removeprefix("needs_") if needs_key else "value"
+    candidates_key = f"{field}s" if not field.endswith("s") else field
+    candidates = payload.get(candidates_key, ()) if isinstance(payload, dict) else ()
     symbol = payload.get("symbol", "this symbol") if isinstance(payload, dict) else "this symbol"
-    text = f"Which tradition would you like to use for {symbol}? Available: {traditions}."
+    text = f"Which {field} would you like to use for {symbol}? Available: {', '.join(candidates)}."
     return {"messages": [AIMessage(content=text)]}
 
 
 def compile_agent_graph(llm_with_tools, tools: list) -> CompiledStateGraph:  # noqa: ANN001 - Runnable, no shared base type worth importing
     """Compiles the `agent` ↔ `tools` loop given an already tool-bound chat
-    model: `agent` (system prompt prepended fresh on every call) routes to
-    `tools` (a `ToolNode` over the fixed read-only tool set) whenever the
-    model's response carries tool calls, and back to `agent` afterward — except
-    for `get_symbol`'s `needs_tradition` result, which routes to
-    `clarify_tradition` instead (spec FR7) and straight on to `END`. Ends at
-    `END` once the model answers without calling a tool.
+    model: `agent` (system prompt prepended fresh on every call, alongside
+    any `context_summary`) routes to `tools` (a `ToolNode` over the fixed
+    read-only tool set) whenever the model's response carries tool calls, and
+    back to `agent` afterward — except for a tool result carrying a truthy
+    `needs_*` key, which routes to `clarify` instead (spec FR6) and straight
+    on to `END`. Ends at `END` once the model answers without calling a tool.
 
     Kept separate from `build_agent_graph` so a test can inject a stub
     tool-calling model with no live Ollama involved — `build_agent_graph`
     is the only caller that needs a real `ChatOllama`.
 
-    The per-turn tool-call bound (spec FR12) is a runtime concern, not a
+    The per-turn tool-call bound (spec FR13) is a runtime concern, not a
     compile-time one — `runner.run_turn` applies it via LangGraph's
     `recursion_limit` when it invokes the compiled graph, so a single
     compiled graph is reusable across turns with no reconstruction."""
 
     def agent_node(state: AgentState) -> dict:
-        messages = [SystemMessage(content=SYSTEM_PROMPT), *state["messages"]]
+        system_text = SYSTEM_PROMPT
+        context_summary = state.get("context_summary", "")
+        if context_summary:
+            system_text = f"{SYSTEM_PROMPT}\n\nCurrent context:\n{context_summary}"
+        messages = [SystemMessage(content=system_text), *state["messages"]]
         response = llm_with_tools.invoke(messages)
         return {"messages": [response]}
 
     builder = StateGraph(AgentState)
     builder.add_node("agent", agent_node)
     builder.add_node("tools", ToolNode(tools))
-    builder.add_node("clarify_tradition", clarify_tradition_node)
+    builder.add_node("clarify", clarify_node)
     builder.add_edge(START, "agent")
     builder.add_conditional_edges("agent", route_after_agent, {"tools": "tools", END: END})
-    builder.add_conditional_edges(
-        "tools", route_after_tools, {"agent": "agent", "clarify_tradition": "clarify_tradition"}
-    )
-    builder.add_edge("clarify_tradition", END)
+    builder.add_conditional_edges("tools", route_after_tools, {"agent": "agent", "clarify": "clarify"})
+    builder.add_edge("clarify", END)
     return builder.compile()
 
 

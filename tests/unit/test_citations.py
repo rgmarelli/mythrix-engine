@@ -6,7 +6,7 @@ agent loop, which will need the same guarantee over its own output)."""
 from datetime import UTC, datetime
 
 from mythrix.core.models import GraphFacts, Manifestation, RetrievedPassage, Sign, Source, Tradition
-from mythrix.core.synthesis.citations import extract_markers, validate_citations
+from mythrix.core.synthesis.citations import extract_markers, find_invalid_markers, validate_citations
 
 RIDER_WAITE = Tradition(id="rider-waite", slug="rider-waite", name="Rider-Waite-Smith", domain="tarot")
 THE_TOWER = Sign(
@@ -61,6 +61,19 @@ def test_multiple_fabricated_markers_are_all_flagged() -> None:
     invalid = validate_citations(text, GRAPH_FACTS, PASSAGES)
 
     assert invalid == ("G7", "S9")
+
+
+def test_find_invalid_markers_against_a_raw_id_set() -> None:
+    """`find_invalid_markers` is the extracted primitive `validate_citations`
+    wraps — usable directly by a caller with its own `valid_ids`, e.g. the
+    conversational agent validating against tool-result dicts."""
+    text = "Claim one [G1], claim two [S3]."
+    assert find_invalid_markers(text, {"G1", "S1", "S2"}) == ("S3",)
+
+
+def test_find_invalid_markers_with_no_invalid_markers_returns_empty() -> None:
+    text = "Claim one [G1], claim two [S1]."
+    assert find_invalid_markers(text, {"G1", "S1"}) == ()
 
 
 def test_citation_is_scoped_to_only_the_passages_given() -> None:

@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import re
 
-from mythrix.core.vector.chunking import _PARAGRAPH_BREAK, Chunk, _chapter_headings, _locator_at
+from mythrix.core.vector.chunking import _PARAGRAPH_BREAK, Chunk, _chapter_headings, _locator_at, normalize_chunk_text
 
 _VERSE_MARKER = re.compile(r"^(\d+):(\d+)\.\s+")
 _SECTION_MARKER = re.compile(r"^(\d+)\.\s+")
@@ -83,7 +83,7 @@ def _segment_scripture_verse(text: str) -> list[Chunk]:
         chunks.append(
             Chunk(
                 index=ordinal,
-                text=paragraph[match.end() :],
+                text=normalize_chunk_text(paragraph[match.end() :]),
                 char_start=body_start,
                 char_end=end,
                 locator=locator,
@@ -111,7 +111,7 @@ def _segment_numbered_section(text: str) -> list[Chunk]:
         chunks.append(
             Chunk(
                 index=ordinal,
-                text=paragraph[match.end() :],
+                text=normalize_chunk_text(paragraph[match.end() :]),
                 char_start=body_start,
                 char_end=end,
                 locator=f"§{section}",
@@ -129,5 +129,7 @@ def _segment_paragraph(text: str) -> list[Chunk]:
     use as a locator, so `locator`/`section` stay empty."""
     chunks: list[Chunk] = []
     for ordinal, (start, end) in enumerate(_paragraphs(text)):
-        chunks.append(Chunk(index=ordinal, text=text[start:end], char_start=start, char_end=end, ordinal=ordinal))
+        chunks.append(
+            Chunk(index=ordinal, text=normalize_chunk_text(text[start:end]), char_start=start, char_end=end, ordinal=ordinal)
+        )
     return chunks

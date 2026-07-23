@@ -10,9 +10,13 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from langchain_core.messages import AIMessage
+from langchain_core.tools import tool
 
+from mythrix.agent.graph import compile_agent_graph
+from mythrix.agent.sessions import SessionStore
 from mythrix.api.app import create_app
-from mythrix.api.dependencies import get_chat_client, get_stores
+from mythrix.api.dependencies import get_agent_graph, get_agent_sessions, get_chat_client, get_stores
 from mythrix.core.bootstrap import Stores
 from mythrix.core.errors import ModelUnavailableError, SignNotFoundError
 from mythrix.core.graph.store import KuzuGraphStore
@@ -351,6 +355,137 @@ def test_summarize_passage_unavailable_model_is_502(
     client.app.dependency_overrides[get_chat_client] = lambda: UnavailableChatClient()
 
     response = client.post("/api/summarize", json={"passage_text": "The tower falls.", "concepts": ["collapse"]})
+
+    assert response.status_code == 502
+    assert "detail" in response.json()
+
+
+@tool("get_symbol")
+def _fake_get_symbol(symbol: str, tradition: str | None = None) -> dict:
+    """Fake get_symbol for `/api/agent` integration tests."""
+    if tradition is None:
+        return {"needs_tradition": True, "symbol": "The Magician", "traditions": ["rider-waite", "marseille"]}
+    return {
+        "sign": "The Magician",
+        "semiotic_system": "tarot",
+        "tradition": tradition,
+        "citations": [{"source": "Waite", "locator": "p. 1"}],
+    }
+
+
+class _ScriptedLLM:
+    def __init__(self, script: list[AIMessage]) -> None:
+        self.script = list(script)
+        self.calls = 0
+
+    def invoke(self, messages: list) -> AIMessage:  # noqa: ARG002
+        response = self.script[self.calls]
+        self.calls += 1
+        return response
+
+
+def _agent_client(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore, script: list[AIMessage]) -> TestClient:
+    client = _client(graph_store, vector_store)
+    client.app.dependency_overrides[get_agent_sessions] = lambda: SessionStore()
+    client.app.dependency_overrides[get_agent_graph] = lambda: compile_agent_graph(
+        _ScriptedLLM(script), [_fake_get_symbol]
+    )
+    return client
+
+
+def test_agent_turn_returns_grounded_reply_context_and_cards(
+    graph_store: KuzuGraphStore, vector_store: ChromaVectorStore
+) -> None:
+    script = [
+        AIMessage(
+            content="",
+            tool_calls=[
+                {"name": "get_symbol", "args": {"symbol": "The Magician", "tradition": "rider-waite"}, "id": "c1"}
+            ],
+        ),
+        AIMessage(content="The Magician represents willpower [G1]."),
+    ]
+    client = _agent_client(graph_store, vector_store, script)
+
+    response = client.post(
+        "/api/agent",
+        json={
+            "session_id": "s1",
+            "message": "tell me about the magician in rider-waite",
+            "ui_selection": {},
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "[G1]" not in body["reply_text"]
+    assert "willpower" in body["reply_text"]
+    assert body["context"]["sign"] == "The Magician"
+    assert body["context"]["tradition"] == "rider-waite"
+    assert len(body["cards"]) == 1
+    assert body["cards"][0]["source_label"] == "Waite"
+    assert body["instructions"] == []
+
+
+def test_agent_turn_reset_on_hotspot_change(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore) -> None:
+    script = [AIMessage(content="Hi there.")]
+    client = _agent_client(graph_store, vector_store, script)
+    sessions = SessionStore()
+    client.app.dependency_overrides[get_agent_sessions] = lambda: sessions
+    client.app.dependency_overrides[get_agent_graph] = lambda: compile_agent_graph(
+        _ScriptedLLM(script + [AIMessage(content="Hi again.")]), [_fake_get_symbol]
+    )
+
+    first = client.post(
+        "/api/agent",
+        json={"session_id": "s1", "message": "hi", "ui_selection": {"region_id": "waite::0-1"}},
+    )
+    assert first.status_code == 200
+
+    second = client.post(
+        "/api/agent",
+        json={"session_id": "s1", "message": "hi again", "ui_selection": {"region_id": "waite::2-3"}},
+    )
+    assert second.status_code == 200
+    assert second.json()["thread_reset"] is True
+
+
+def test_agent_turn_ambiguous_tradition_asks_with_no_second_model_call(
+    graph_store: KuzuGraphStore, vector_store: ChromaVectorStore
+) -> None:
+    llm = _ScriptedLLM(
+        [AIMessage(content="", tool_calls=[{"name": "get_symbol", "args": {"symbol": "The Magician"}, "id": "c1"}])]
+    )
+    client = _client(graph_store, vector_store)
+    client.app.dependency_overrides[get_agent_sessions] = lambda: SessionStore()
+    client.app.dependency_overrides[get_agent_graph] = lambda: compile_agent_graph(llm, [_fake_get_symbol])
+
+    response = client.post(
+        "/api/agent",
+        json={"session_id": "s1", "message": "tell me about the magician", "ui_selection": {}},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "rider-waite" in body["reply_text"]
+    assert "marseille" in body["reply_text"]
+    assert body["cards"] == []
+    assert llm.calls == 1
+
+
+def test_agent_turn_unavailable_model_is_502(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore) -> None:
+    client = _client(graph_store, vector_store)
+    client.app.dependency_overrides[get_agent_sessions] = lambda: SessionStore()
+
+    def _raise_unavailable():
+        raise ModelUnavailableError("fake-agent-model")
+
+    client.app.dependency_overrides[get_agent_graph] = _raise_unavailable
+
+    response = client.post(
+        "/api/agent",
+        json={"session_id": "s1", "message": "hi", "ui_selection": {}},
+    )
 
     assert response.status_code == 502
     assert "detail" in response.json()

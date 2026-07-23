@@ -352,22 +352,6 @@ main {
   margin-top: 1rem;
 }
 
-.ai-summary-button {
-  font: inherit;
-  font-size: 0.85rem;
-  padding: 0.5rem 1rem;
-  border-radius: 6px;
-  border: 1px solid transparent;
-  background: var(--accent);
-  color: #fff;
-  cursor: pointer;
-}
-
-.ai-summary-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
 .add-context-button {
   font: inherit;
   font-size: 0.85rem;
@@ -382,25 +366,6 @@ main {
 .add-context-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-}
-
-.ai-summary-box {
-  margin: 1rem 0;
-  padding: 0.75rem 1rem;
-  border-radius: 8px;
-  background: var(--accent-bg);
-  font-family: Georgia, 'Times New Roman', serif;
-  font-style: italic;
-}
-
-.ai-summary-box .label {
-  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
-  font-style: normal;
-  font-size: 0.7rem;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  opacity: 0.7;
-  margin: 0 0 0.4rem;
 }
 
 .hotspot-footer {
@@ -438,4 +403,368 @@ main {
 .streaming-indicator {
   opacity: 0.7;
   font-style: italic;
+}
+
+/* ============================================================
+   Agent chat panel (specs/in-app-agent-chat) — a self-contained
+   design-token subtree, scoped to `.agent-dock` only. Deliberately not
+   reconciled with the rest of the app's `:root` tokens above (spec.md
+   Design tokens).
+   ============================================================ */
+
+.agent-dock {
+  --agent-paper: #fafaf8;
+  --agent-panel: #ffffff;
+  --agent-ink: #1b1523;
+  --agent-ink-soft: #4a4453;
+  --agent-muted: #8a8394;
+  --agent-line: #e7e3dc;
+  --agent-line-soft: #efece6;
+  --agent-violet: #6d28d9;
+  --agent-violet-deep: #4c1d95;
+  --agent-violet-wash: #f2eefb;
+  --agent-gold: #c79a3e;
+  --agent-gold-wash: #faf3e4;
+
+  position: fixed;
+  right: 28px;
+  bottom: 28px;
+  width: 392px;
+  height: 540px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--agent-panel);
+  color: var(--agent-ink);
+  border: 1px solid var(--agent-line);
+  border-radius: 18px;
+  box-shadow:
+    0 24px 60px -20px rgba(76, 29, 149, 0.22),
+    0 2px 8px rgba(27, 21, 35, 0.06);
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.agent-dock.collapsed {
+  height: auto;
+}
+
+.agent-dock .dock-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 16px 14px;
+  border-bottom: 1px solid var(--agent-line-soft);
+}
+
+.agent-dock .mark {
+  width: 28px;
+  height: 28px;
+  flex: none;
+}
+
+.agent-dock .mark svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.agent-dock .mark.thinking .core {
+  animation: agent-pulse 1.8s ease-in-out infinite;
+  transform-origin: 32px 32px;
+}
+
+@keyframes agent-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.7);
+  }
+}
+
+.agent-dock .head-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.agent-dock .head-title {
+  font-family: 'Fraunces', Georgia, serif;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.agent-dock .head-sub {
+  font-size: 11.5px;
+  color: var(--agent-muted);
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agent-dock .head-sub .loc {
+  color: var(--agent-violet);
+}
+
+.agent-dock .dock-collapse {
+  margin-left: auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 1px solid var(--agent-line);
+  background: var(--agent-paper);
+  color: var(--agent-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.agent-dock .ctx-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  background: var(--agent-gold-wash);
+  border-bottom: 1px solid var(--agent-line-soft);
+  font-size: 11.5px;
+  color: #8a6415;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+.agent-dock .ctx-strip .dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--agent-gold);
+  flex: none;
+}
+
+.agent-dock .thread {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--agent-paper);
+}
+
+.agent-dock .msg {
+  max-width: 88%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.agent-dock .msg.user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.agent-dock .msg.ai {
+  align-self: flex-start;
+  align-items: flex-start;
+  max-width: 94%;
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  column-gap: 9px;
+}
+
+.agent-dock .bubble {
+  font-size: 13.5px;
+  line-height: 1.55;
+  padding: 10px 13px;
+  border-radius: 12px;
+  white-space: pre-wrap;
+}
+
+.agent-dock .msg.user .bubble {
+  background: var(--agent-ink);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.agent-dock .msg.ai .bubble {
+  grid-column: 2;
+  background: var(--agent-violet-wash);
+  color: var(--agent-ink);
+  border-bottom-left-radius: 4px;
+  border: 1px solid #e4daf7;
+}
+
+.agent-dock .thinking-bubble {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--agent-muted);
+  font-style: italic;
+}
+
+.agent-dock .thinking-dots {
+  display: flex;
+  gap: 3px;
+}
+
+.agent-dock .thinking-dots span {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--agent-violet);
+  animation: agent-pulse 1.2s ease-in-out infinite;
+}
+
+.agent-dock .thinking-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.agent-dock .thinking-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+.agent-dock .ai-mark {
+  width: 22px;
+  height: 22px;
+  margin-top: 2px;
+}
+
+.agent-dock .ai-mark svg {
+  width: 100%;
+  height: 100%;
+}
+
+.agent-dock .reset-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 2px 0;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 10.5px;
+  color: var(--agent-muted);
+}
+
+.agent-dock .reset-divider::before,
+.agent-dock .reset-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--agent-line);
+}
+
+.agent-dock .verse {
+  grid-column: 2;
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 12.5px;
+  color: var(--agent-ink-soft);
+  background: var(--agent-panel);
+  border: 1px solid var(--agent-line-soft);
+  border-left: 3px solid var(--agent-gold);
+  border-radius: 0 8px 8px 0;
+  padding: 8px 12px;
+  line-height: 1.5;
+}
+
+.agent-dock .verse .cite {
+  display: block;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 10.5px;
+  color: var(--agent-muted);
+  margin-bottom: 3px;
+}
+
+.agent-dock .chips {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.agent-dock .chip {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 10.5px;
+  padding: 3px 8px;
+  border-radius: 100px;
+  border: 1px solid var(--agent-line);
+  color: var(--agent-ink-soft);
+  background: var(--agent-panel);
+}
+
+.agent-dock .chip.hi {
+  border-color: #c7b4ee;
+  color: var(--agent-violet-deep);
+  background: #f7f4fd;
+}
+
+.agent-dock .agent-error {
+  grid-column: 2;
+  font-size: 12px;
+  color: var(--error);
+  background: var(--error-bg);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.agent-dock .composer {
+  padding: 14px;
+  border-top: 1px solid var(--agent-line-soft);
+  background: var(--agent-panel);
+}
+
+.agent-dock .input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--agent-line);
+  border-radius: 12px;
+  padding: 6px 6px 6px 13px;
+  background: var(--agent-paper);
+}
+
+.agent-dock .input-row:focus-within {
+  border-color: var(--agent-violet);
+  box-shadow: 0 0 0 3px rgba(109, 40, 217, 0.1);
+}
+
+.agent-dock .input-row input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 13px;
+  color: var(--agent-ink);
+  font: inherit;
+}
+
+.agent-dock .send {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  border: none;
+  cursor: pointer;
+  background: var(--agent-violet);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.agent-dock .send:hover:not(:disabled) {
+  background: var(--agent-violet-deep);
+}
+
+.agent-dock .send:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.agent-dock .send svg {
+  width: 16px;
+  height: 16px;
 }

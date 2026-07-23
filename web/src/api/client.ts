@@ -1,4 +1,11 @@
 import type {
+  AgentCard,
+  AgentCardWire,
+  AgentContext,
+  AgentTurnRequestWire,
+  AgentTurnResponseWire,
+  AgentTurnResult,
+  AgentUiSelection,
   Hotspot,
   HotspotQueryResult,
   HotspotSegment,
@@ -24,20 +31,6 @@ export function fetchTraditions(): Promise<Tradition[]> {
 
 export function fetchSymbols(): Promise<SignSummary[]> {
   return fetchJson('/api/symbols');
-}
-
-export async function summarizePassage(passageText: string, concepts: string[]): Promise<string> {
-  const response = await fetch(`${API_BASE_URL}/api/summarize`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ passage_text: passageText, concepts }),
-  });
-  if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as { detail?: string } | null;
-    throw new Error(body?.detail ?? `Summarize request failed (${response.status})`);
-  }
-  const data = (await response.json()) as { summary: string };
-  return data.summary;
 }
 
 // The single seam translating the wire `Region` shape (snake_case, as
@@ -100,4 +93,74 @@ export async function fetchSegments(
     throw new Error(body?.detail ?? `Segments request failed (${response.status})`);
   }
   return response.json() as Promise<HotspotSegment[]>;
+}
+
+function toAgentUiSelectionWire(selection: AgentUiSelection) {
+  return {
+    semiotic_system: selection.semioticSystem,
+    sign: selection.sign,
+    tradition: selection.tradition,
+    source_id: selection.sourceId,
+    interpretant: selection.interpretant,
+    min_score: selection.minScore,
+    region_id: selection.regionId,
+  };
+}
+
+function toAgentContext(wire: AgentTurnResponseWire['context']): AgentContext {
+  return {
+    semioticSystem: wire.semiotic_system,
+    sign: wire.sign,
+    tradition: wire.tradition,
+    sourceId: wire.source_id,
+    interpretant: wire.interpretant,
+    minScore: wire.min_score,
+    regionId: wire.region_id,
+  };
+}
+
+function toAgentCard(card: AgentCardWire): AgentCard {
+  if (card.type === 'interpretant_chips') {
+    return {
+      type: 'interpretant_chips',
+      chips: (card.chips ?? []).map((chip) => ({
+        interpretant: chip.interpretant,
+        kind: chip.kind,
+        score: chip.score,
+        segmentOrdinal: chip.segment_ordinal,
+      })),
+    };
+  }
+  return { type: 'citation', sourceLabel: card.source_label ?? '', locator: card.locator ?? '', text: card.text ?? '' };
+}
+
+// The chat panel's one turn (specs/in-app-agent-chat) — the browser sends
+// its message plus its current UI selection, as-is, each turn; the backend
+// returns the updated context, grounded reply text, and structured cards.
+export async function postAgentTurn(
+  sessionId: string,
+  message: string,
+  uiSelection: AgentUiSelection,
+): Promise<AgentTurnResult> {
+  const requestBody: AgentTurnRequestWire = {
+    session_id: sessionId,
+    message,
+    ui_selection: toAgentUiSelectionWire(uiSelection),
+  };
+  const response = await fetch(`${API_BASE_URL}/api/agent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(requestBody),
+  });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as { detail?: string } | null;
+    throw new Error(body?.detail ?? `Agent request failed (${response.status})`);
+  }
+  const result = (await response.json()) as AgentTurnResponseWire;
+  return {
+    context: toAgentContext(result.context),
+    replyText: result.reply_text,
+    cards: result.cards.map(toAgentCard),
+    threadReset: result.thread_reset,
+  };
 }

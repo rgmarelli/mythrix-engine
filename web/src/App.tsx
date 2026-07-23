@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fetchQuery, fetchSymbols, fetchTraditions } from './api/client';
 import type { Hotspot, HotspotQueryResult, SignSummary, Tradition } from './api/types';
+import { AgentChatPanel } from './components/AgentChatPanel';
 import { FacetRow } from './components/FacetRow';
 import { HotspotDetailPanel } from './components/HotspotDetailPanel';
 import { HotspotList } from './components/HotspotList';
@@ -204,6 +205,17 @@ function App() {
           </>
         )}
       </main>
+
+      <AgentChatPanel
+        selectedSystem={selectedSystem}
+        selectedSymbol={selectedSymbol}
+        selectedTradition={selectedTradition}
+        minScore={minScore}
+        selectedSourceId={selectedSourceId}
+        selectedInterpretant={selectedInterpretant}
+        selectedRegionId={selectedRegionId}
+        selectedHotspot={selectedHotspot}
+      />
     </div>
   );
 }

@@ -9,7 +9,7 @@ from langchain_core.tools import tool
 from langgraph.errors import GraphRecursionError
 from langgraph.graph import END
 
-from mythrix.agent.graph import clarify_tradition_node, compile_agent_graph, route_after_agent, route_after_tools
+from mythrix.agent.graph import clarify_node, compile_agent_graph, route_after_agent, route_after_tools
 
 
 @tool
@@ -84,10 +84,18 @@ def test_compiled_graph_raises_graph_recursion_error_on_runaway_loop() -> None:
             pass
 
 
-def test_route_after_tools_routes_to_clarify_tradition_on_needs_tradition() -> None:
+def test_route_after_tools_routes_to_clarify_on_needs_tradition() -> None:
     payload = '{"needs_tradition": true, "symbol": "The Magician", "traditions": ["rider-waite", "marseille"]}'
     state = {"messages": [ToolMessage(content=payload, name="get_symbol", tool_call_id="c")]}
-    assert route_after_tools(state) == "clarify_tradition"
+    assert route_after_tools(state) == "clarify"
+
+
+def test_route_after_tools_routes_to_clarify_for_a_different_needs_key_and_tool() -> None:
+    """Proves the routing rule is generic — keyed on any truthy `needs_*`
+    field in the payload, not hardcoded to `get_symbol`/`needs_tradition`."""
+    payload = '{"needs_system": true, "symbol": "The Sun", "systems": ["tarot", "hebrew_alef_bet"]}'
+    state = {"messages": [ToolMessage(content=payload, name="some_other_tool", tool_call_id="c")]}
+    assert route_after_tools(state) == "clarify"
 
 
 def test_route_after_tools_routes_to_agent_for_a_normal_get_symbol_result() -> None:
@@ -96,17 +104,23 @@ def test_route_after_tools_routes_to_agent_for_a_normal_get_symbol_result() -> N
     assert route_after_tools(state) == "agent"
 
 
-def test_route_after_tools_routes_to_agent_for_a_different_tool() -> None:
-    payload = '{"needs_tradition": true}'  # same shape, but not from get_symbol
+def test_route_after_tools_routes_to_agent_when_no_needs_key_is_present() -> None:
+    payload = '{"sign": "The Magician", "tradition": "rider-waite"}'
     state = {"messages": [ToolMessage(content=payload, name="some_other_tool", tool_call_id="c")]}
     assert route_after_tools(state) == "agent"
 
 
-def test_clarify_tradition_node_builds_a_deterministic_reply_from_the_payload() -> None:
+def test_route_after_tools_routes_to_agent_when_needs_key_is_falsy() -> None:
+    payload = '{"needs_tradition": false, "symbol": "The Magician", "tradition": "rider-waite"}'
+    state = {"messages": [ToolMessage(content=payload, name="get_symbol", tool_call_id="c")]}
+    assert route_after_tools(state) == "agent"
+
+
+def test_clarify_node_builds_a_deterministic_reply_from_the_payload() -> None:
     payload = '{"needs_tradition": true, "symbol": "The Magician", "traditions": ["rider-waite", "marseille"]}'
     state = {"messages": [ToolMessage(content=payload, name="get_symbol", tool_call_id="c")]}
 
-    result = clarify_tradition_node(state)
+    result = clarify_node(state)
 
     reply = result["messages"][0]
     assert isinstance(reply, AIMessage)

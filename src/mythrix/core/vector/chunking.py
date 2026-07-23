@@ -33,6 +33,16 @@ from pydantic import BaseModel, ConfigDict
 _PARAGRAPH_BREAK = re.compile(r"\n\s*\n+")
 _WORD = re.compile(r"\S+")
 _CHAPTER_HEADING = re.compile(r"^(?:[0-9] )?[A-Za-z][A-Za-z ]* Chapter [0-9]+$", re.MULTILINE)
+_INTERNAL_WHITESPACE = re.compile(r"\s+")
+
+
+def normalize_chunk_text(raw: str) -> str:
+    """Collapses hard line-wraps and other internal whitespace runs in a raw
+    source slice to single spaces, so a chunk's `text` reads as prose even
+    when the source file wraps it across physical lines. `char_start`/
+    `char_end` still index the verbatim original, so this never affects
+    citation spans — only the `text` field consumers see."""
+    return _INTERNAL_WHITESPACE.sub(" ", raw).strip()
 
 
 class Chunk(BaseModel):
@@ -69,7 +79,7 @@ def chunk_text(text: str, *, chunk_size: int = 650, chunk_overlap: int = 100) ->
         chunks.append(
             Chunk(
                 index=index,
-                text=text[char_start:char_end],
+                text=normalize_chunk_text(text[char_start:char_end]),
                 char_start=char_start,
                 char_end=char_end,
                 locator=_locator_at(char_start, headings),

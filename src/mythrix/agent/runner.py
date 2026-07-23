@@ -23,28 +23,34 @@ class TurnResult:
 
 
 def run_turn(
-    graph: CompiledStateGraph, history: list, user_text: str, *, max_tool_iterations: int
+    graph: CompiledStateGraph,
+    history: list,
+    user_text: str,
+    *,
+    max_tool_iterations: int,
+    context_summary: str = "",
 ) -> tuple[list, TurnResult]:
     """Runs one turn: appends `user_text` to `history`, streams the graph,
     and returns the updated history plus the ordered tool-name trace (spec
     FR9) and reply. On hitting the per-turn tool-call bound (spec FR11), the
     turn ends with a clear message and `history` is returned unchanged — the
-    runaway turn's messages are not kept."""
+    runaway turn's messages are not kept.
+
+    `context_summary` (default `""`, so `agent/cli.py::run_agent`'s existing
+    call site is unaffected) is folded into the model invocation by
+    `agent/graph.py::agent_node`, alongside `state["messages"]`."""
     messages = [*history, HumanMessage(content=user_text)]
     tool_calls: list[str] = []
     final_state = {"messages": messages}
 
     try:
         for state in graph.stream(
-            {"messages": messages},
+            {"messages": messages, "context_summary": context_summary},
             config={"recursion_limit": max_tool_iterations},
             stream_mode="values",
         ):
             final_state = state
             last_message = state["messages"][-1]
-
-            print(last_message)
-            print("---")
 
             if isinstance(last_message, AIMessage) and last_message.tool_calls:
                 tool_calls.extend(call["name"] for call in last_message.tool_calls)
