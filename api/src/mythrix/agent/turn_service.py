@@ -189,7 +189,9 @@ def run_chat_turn(
             thread_reset = True
             session.agent_notes = ""
 
-        cards = _build_cards(tool_messages)
+        # FIXME: cards disabled — check if we remove Cards from API and Web entirely.
+        # cards = _build_cards(tool_messages)
+        cards: list[AgentCard] = []
         visible_reply, notes = split_agent_notes(result.reply)
         if notes:
             session.agent_notes = f"{session.agent_notes}\n{notes}".strip() if session.agent_notes else notes
