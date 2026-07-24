@@ -78,6 +78,7 @@ class AgentUiSelection(BaseModel):          # what the browser sends, as-is, eac
     interpretant: str | None = None         # facet
     min_score: float | None = None
     region_id: str | None = None            # active hotspot; None = no hotspot selected
+    locator: str | None = None              # active hotspot's human-readable citation
 
 class AgentTurnRequest(BaseModel):
     session_id: str
@@ -92,6 +93,7 @@ class AgentContext(BaseModel):              # same shape as AgentUiSelection, ba
     interpretant: str | None = None
     min_score: float | None = None
     region_id: str | None = None
+    locator: str | None = None
     # agent_notes is deliberately NOT here — backend/agent working memory only,
     # never round-tripped to the client (the context strip only needs the
     # hotspot reference + interpretants, which the frontend already has).

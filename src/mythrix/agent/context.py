@@ -39,6 +39,7 @@ class AgentUiSelection(BaseModel):
     interpretant: str | None = None
     min_score: float | None = None
     region_id: str | None = None
+    locator: str | None = None
 
 
 class AgentContext(BaseModel):
@@ -52,6 +53,7 @@ class AgentContext(BaseModel):
     interpretant: str | None = None
     min_score: float | None = None
     region_id: str | None = None
+    locator: str | None = None
 
 
 def detect_thread_reset(previous: AgentContext, incoming: AgentUiSelection) -> bool:
@@ -68,15 +70,18 @@ def detect_thread_reset(previous: AgentContext, incoming: AgentUiSelection) -> b
 
 def apply_ui_selection(context: AgentContext, incoming: AgentUiSelection) -> AgentContext:
     """Merges the browser's current UI selection onto the stored context.
-    `region_id` is always taken from `incoming` as-is, even when `None` —
-    "no hotspot selected" is itself meaningful information for a
-    thread-scoped field (spec.md's "not yet determined" case). Every other
-    (session-scoped) field only overwrites the stored value when `incoming`
-    actually carries one — a `None` there means "the UI hasn't set this,"
-    not "clear it" (spec.md: session-scoped fields "persist across hotspot
-    changes, until explicitly changed"), so a value the agent previously
-    resolved from chat alone survives an otherwise-unrelated turn."""
-    updates = {"region_id": incoming.region_id}
+    `region_id` and `locator` are always taken from `incoming` as-is, even
+    when `None` — "no hotspot selected" is itself meaningful information for
+    a thread-scoped field (spec.md's "not yet determined" case), and
+    `locator` (the hotspot's human-readable citation, e.g. "Ecclesiasticus
+    43:1-4") always describes the same hotspot `region_id` does, so it
+    follows the same all-or-nothing rule. Every other (session-scoped) field
+    only overwrites the stored value when `incoming` actually carries one —
+    a `None` there means "the UI hasn't set this," not "clear it" (spec.md:
+    session-scoped fields "persist across hotspot changes, until explicitly
+    changed"), so a value the agent previously resolved from chat alone
+    survives an otherwise-unrelated turn."""
+    updates = {"region_id": incoming.region_id, "locator": incoming.locator}
     for field_name in ("semiotic_system", "sign", "tradition", "source_id", "interpretant", "min_score"):
         value = getattr(incoming, field_name)
         if value is not None:
@@ -148,6 +153,8 @@ def render_context_summary(context: AgentContext) -> str:
     lines = []
     if context.region_id:
         lines.append(f"Active hotspot: {context.region_id}.")
+        if context.locator:
+            lines.append(f"Its human-readable reference is: {context.locator}.")
     if context.sign:
         subject = context.sign
         if context.tradition:

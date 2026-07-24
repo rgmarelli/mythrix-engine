@@ -585,11 +585,38 @@ button {
   background: var(--panel-2);
 }
 
-.rail-empty {
-  opacity: 0.7;
-  font-style: italic;
-  font-size: 0.9rem;
-  padding: 1rem 0;
+.empty-icon {
+  color: var(--line);
+  margin-bottom: 0.4rem;
+}
+
+.rail-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.5rem;
+  max-width: 230px;
+  margin: 2.4rem auto 0;
+  color: var(--muted);
+}
+
+.rail-empty-state .empty-icon {
+  width: 34px;
+  height: 34px;
+}
+
+.rail-empty-state strong {
+  color: var(--ink-h);
+  font-family: var(--f-display);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.rail-empty-state p {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
 }
 
 /* ============================= reader ============================= */
@@ -598,7 +625,11 @@ button {
   grid-row: 2;
   overflow-y: auto;
   background: var(--panel);
-  padding: 1.4rem 2rem 3rem;
+  padding: 1.4rem 2rem;
+  /* Bottom clearance so the last lines of text never sit under the
+     fixed, collapsed agent dock (60px tall + 24px offset) when the
+     panel is scrolled all the way down. */
+  padding-bottom: 9rem;
 }
 
 .reader-inner {
@@ -617,17 +648,28 @@ button {
   display: none;
 }
 
+.breadcrumb-group {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
 .breadcrumb {
   font-family: var(--f-mono);
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .nav-btns {
   display: flex;
   gap: 0.4rem;
+  flex: none;
 }
 
 .nav-btns button {
@@ -711,6 +753,14 @@ button {
   margin: 0.4rem 0 0;
 }
 
+.reader-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1.2rem;
+}
+
 .add-context-button {
   font: 0.83rem var(--f-body);
   font-weight: 600;
@@ -721,7 +771,6 @@ button {
   color: var(--violet);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
-  margin-bottom: 1.2rem;
 }
 
 .add-context-button:hover:not(:disabled) {
@@ -734,10 +783,41 @@ button {
   cursor: not-allowed;
 }
 
+.copy-ref-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font: 0.83rem var(--f-body);
+  padding: 0.45rem 0.9rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.copy-ref-btn svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+.copy-ref-btn:hover {
+  border-color: var(--violet);
+  color: var(--ink-h);
+}
+
+.copy-ref-btn.copied {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
 .segment-list {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  max-width: 800px;
 }
 
 .segment {
@@ -781,36 +861,6 @@ button {
   white-space: pre-wrap;
 }
 
-.reader-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.6rem;
-  margin-top: 1.5rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--line);
-}
-
-.reader-footer button {
-  font: 0.82rem var(--f-body);
-  padding: 0.45rem 0.8rem;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--line);
-  background: var(--panel-2);
-  color: var(--ink-h);
-  cursor: pointer;
-  transition: border-color 0.15s ease;
-}
-
-.reader-footer button:hover:not(:disabled) {
-  border-color: var(--violet);
-}
-
-.reader-footer button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 .reader-empty {
   display: flex;
   flex-direction: column;
@@ -824,6 +874,11 @@ button {
 .reader-empty h2 {
   color: var(--ink-h);
   font-size: 1.2rem;
+}
+
+.reader-empty .empty-icon {
+  width: 44px;
+  height: 44px;
 }
 
 /* ============================= responsive ============================= */
@@ -942,31 +997,19 @@ button {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-dock);
   font-family: var(--f-body);
+  transition: height 0.2s ease, width 0.2s ease;
 }
 
 .agent-dock.collapsed {
-  width: auto;
-  height: auto;
-  flex-direction: row;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 18px 10px 12px;
-  border-radius: 999px;
-  border: none;
+  height: 60px;
+  width: 230px;
   cursor: pointer;
-  box-shadow: 0 12px 30px -12px rgba(76, 29, 149, 0.3), 0 2px 8px rgba(27, 21, 35, 0.08);
 }
 
-.agent-dock.collapsed:hover {
-  box-shadow: 0 16px 36px -12px rgba(76, 29, 149, 0.36), 0 2px 8px rgba(27, 21, 35, 0.1);
-}
-
-.agent-dock .capsule-label {
-  font-family: var(--f-display);
-  font-weight: 600;
-  font-size: 14px;
-  color: var(--agent-ink);
-  white-space: nowrap;
+.agent-dock.collapsed .thread,
+.agent-dock.collapsed .composer,
+.agent-dock.collapsed .ctx-strip {
+  display: none;
 }
 
 .agent-dock .dock-head {
@@ -1017,15 +1060,6 @@ button {
   font-family: var(--f-display);
   font-weight: 600;
   font-size: 15px;
-}
-
-.agent-dock .head-sub {
-  font-size: 11.5px;
-  color: var(--agent-muted);
-  font-family: var(--f-mono);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .agent-dock .dock-collapse {

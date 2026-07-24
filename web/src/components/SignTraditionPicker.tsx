@@ -131,7 +131,7 @@ export function SignTraditionPicker({
       </label>
 
       <button type="submit" disabled={!selectedSymbol || !selectedTradition || isStreaming}>
-        {isStreaming ? 'Querying…' : 'Query'}
+        {isStreaming ? 'Querying…' : 'Explore'}
       </button>
     </form>
   );

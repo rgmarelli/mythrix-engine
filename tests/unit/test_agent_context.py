@@ -62,6 +62,16 @@ def test_apply_ui_selection_overwrites_session_scoped_field_when_incoming_sets_i
     assert merged.sign == "The Tower"
 
 
+def test_apply_ui_selection_always_takes_incoming_locator_even_when_none() -> None:
+    """`locator` describes the same hotspot `region_id` does, so it follows
+    the same all-or-nothing rule rather than the session-scoped "preserve
+    when absent" rule."""
+    previous = AgentContext(region_id="waite::0-1", locator="Ecclesiasticus 43:1-4")
+    incoming = AgentUiSelection(region_id=None, locator=None)
+    merged = apply_ui_selection(previous, incoming)
+    assert merged.locator is None
+
+
 def _tool_call_and_result(name: str, args: dict, result: dict | list) -> list:
     import json
 
@@ -135,6 +145,18 @@ def test_render_context_summary_includes_region_and_sign() -> None:
     assert "waite::0-1" in summary
     assert "The Tower" in summary
     assert "rider-waite" in summary
+
+
+def test_render_context_summary_includes_locator_when_present() -> None:
+    context = AgentContext(region_id="waite::0-1", locator="Ecclesiasticus 43:1-4")
+    summary = render_context_summary(context)
+    assert "waite::0-1" in summary
+    assert "Ecclesiasticus 43:1-4" in summary
+
+
+def test_render_context_summary_omits_locator_when_absent() -> None:
+    summary = render_context_summary(AgentContext(region_id="waite::0-1"))
+    assert "Ecclesiasticus" not in summary
 
 
 def test_render_context_summary_empty_when_nothing_set() -> None:

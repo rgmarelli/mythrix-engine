@@ -59,6 +59,7 @@ function App() {
     selectedHotspot,
     selectedIndex,
     sendAgentMessage,
+    clearAgentThread,
   } = useTabs();
 
   function closeDrawers() {
@@ -116,6 +117,7 @@ function App() {
 
       <HotspotList
         headerText={hotspotHeaderText(selectedSourceLabel, activeTab.selectedInterpretant)}
+        hasResult={activeTab.queryResult !== null}
         hotspots={rankedHotspots}
         selectedRegionId={activeTab.selectedRegionId}
         onSelect={(regionId) => {
@@ -127,6 +129,7 @@ function App() {
       <HotspotDetailPanel
         key={`${activeTab.id}:${selectedHotspot?.regionId ?? 'empty'}`}
         hotspot={selectedHotspot}
+        hasResult={activeTab.queryResult !== null}
         activeInterpretant={activeTab.selectedInterpretant}
         canGoPrev={selectedIndex > 0}
         canGoNext={selectedIndex >= 0 && selectedIndex < rankedHotspots.length - 1}
@@ -147,6 +150,7 @@ function App() {
       items={activeTab.agentItems}
       isSending={activeTab.agentSending}
       onSend={sendAgentMessage}
+      onClear={clearAgentThread}
       selectedHotspot={selectedHotspot}
     />
     </>

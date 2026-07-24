@@ -226,6 +226,7 @@ export function useTabs() {
     const tab = tabs.find((t) => t.id === tabId);
     if (!trimmed || !tab || tab.agentSending) return;
 
+    const selectedHotspot = tab.queryResult?.hotspots.find((h) => h.regionId === tab.selectedRegionId) ?? null;
     const uiSelection: AgentUiSelection = {
       semioticSystem: tab.selectedSystem || null,
       sign: tab.selectedSymbol || null,
@@ -234,6 +235,10 @@ export function useTabs() {
       interpretant: tab.selectedInterpretant,
       minScore: tab.minScore,
       regionId: tab.selectedRegionId,
+      // Human-readable locator (e.g. "Ecclesiasticus 43:1-4") alongside the
+      // structural region_id, so the agent's context summary can quote a
+      // citation directly instead of only the source_id::ordinals coordinate.
+      locator: selectedHotspot?.locator || null,
     };
 
     const userItem: ThreadItem = { kind: 'user', id: itemId(), text: trimmed };
@@ -260,6 +265,16 @@ export function useTabs() {
     }
   }
 
+  // The `/clear` composer command: wipes the active tab's visible thread and
+  // starts a brand-new agent session (a fresh `session_id`), so the backend's
+  // in-memory `SessionStore` (agent/sessions.py) treats the next turn as a
+  // session it has never seen — no stale history or `agent_notes` carries
+  // over. The old session is simply abandoned, the same way closing a tab
+  // already abandons its session (FR90) — not explicitly torn down server-side.
+  function clearAgentThread() {
+    updateTab(activeTabId, () => ({ agentItems: [], agentSessionId: crypto.randomUUID() }));
+  }
+
   return {
     tabs,
     activeTabId,
@@ -282,5 +297,6 @@ export function useTabs() {
     selectedHotspot,
     selectedIndex,
     sendAgentMessage,
+    clearAgentThread,
   };
 }

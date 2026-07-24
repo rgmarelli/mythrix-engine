@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { fetchSegments } from '../api/client';
 import type { Hotspot, HotspotSegment } from '../api/types';
 import { convergenceLabel, hotspotTitle } from '../utils/hotspot';
+import { ConvergenceIcon } from './ConvergenceIcon';
 
 interface Props {
   hotspot: Hotspot | null;
+  hasResult: boolean;
   activeInterpretant: string | null;
   onPrev: () => void;
   onNext: () => void;
@@ -36,6 +38,7 @@ function sortByOrdinal(segments: HotspotSegment[]): HotspotSegment[] {
  * all of this state never leaks from one hotspot to the next. */
 export function HotspotDetailPanel({
   hotspot,
+  hasResult,
   activeInterpretant,
   onPrev,
   onNext,
@@ -51,14 +54,18 @@ export function HotspotDetailPanel({
   const [trailingBounded, setTrailingBounded] = useState(false);
   const [isAddingContext, setIsAddingContext] = useState(false);
   const [contextError, setContextError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   if (!hotspot) {
     return (
       <aside className={open ? 'reader open' : 'reader'}>
-        <div className="reader-empty">
-          <h2>Nothing selected yet</h2>
-          <p>Select a hotspot to see its full text and citation here.</p>
-        </div>
+        {hasResult && (
+          <div className="reader-empty">
+            <ConvergenceIcon />
+            <h2>Nothing selected yet</h2>
+            <p>Choose a hotspot on the left to read its source text, see which interpretants converge there, and ground the agent in that passage.</p>
+          </div>
+        )}
       </aside>
     );
   }
@@ -146,6 +153,8 @@ export function HotspotDetailPanel({
 
   function handleCopyRef() {
     void navigator.clipboard.writeText(citationRef(hotspot!));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1300);
   }
 
   return (
@@ -159,9 +168,11 @@ export function HotspotDetailPanel({
               </svg>
             </button>
           )}
-          <span className="breadcrumb">
-            {attribution} › {hotspotTitle(hotspot)}
-          </span>
+          <div className="breadcrumb-group">
+            <span className="breadcrumb">
+              {attribution} › {hotspotTitle(hotspot)}
+            </span>
+          </div>
           <div className="nav-btns">
             <button type="button" onClick={onPrev} disabled={!canGoPrev} aria-label="Previous hotspot">
               <svg viewBox="0 0 24 24" fill="none">
@@ -202,9 +213,24 @@ export function HotspotDetailPanel({
           <p className="dimmed-note">(dimmed = matched but outside current filter)</p>
         )}
 
-        <button type="button" className="add-context-button" onClick={handleAddContext} disabled={isAddingContext || fullyLoaded}>
-          {isAddingContext ? 'Loading…' : fullyLoaded ? 'Full context loaded' : '+ Add Context'}
-        </button>
+        <div className="reader-actions">
+          <button type="button" className="add-context-button" onClick={handleAddContext} disabled={isAddingContext || fullyLoaded}>
+            {isAddingContext ? 'Loading…' : fullyLoaded ? 'Full context loaded' : '+ Add Context'}
+          </button>
+          <button type="button" className={copied ? 'copy-ref-btn copied' : 'copy-ref-btn'} onClick={handleCopyRef}>
+            {copied ? (
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none">
+                <rect x="9" y="9" width="11" height="11" rx="2" stroke="currentColor" strokeWidth="1.6" />
+                <path d="M5 15V5a2 2 0 0 1 2-2h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              </svg>
+            )}
+            {copied ? 'Copied' : 'Copy reference'}
+          </button>
+        </div>
         {contextError && <p className="error">{contextError}</p>}
 
         <div className="segment-list">
@@ -219,18 +245,6 @@ export function HotspotDetailPanel({
               </div>
             );
           })}
-        </div>
-
-        <div className="reader-footer">
-          <button type="button" onClick={onPrev} disabled={!canGoPrev}>
-            ← prev hotspot
-          </button>
-          <button type="button" onClick={handleCopyRef}>
-            copy ref
-          </button>
-          <button type="button" onClick={onNext} disabled={!canGoNext}>
-            next hotspot →
-          </button>
         </div>
       </div>
     </aside>

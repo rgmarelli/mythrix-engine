@@ -104,6 +104,7 @@ function toAgentUiSelectionWire(selection: AgentUiSelection) {
     interpretant: selection.interpretant,
     min_score: selection.minScore,
     region_id: selection.regionId,
+    locator: selection.locator,
   };
 }
 
@@ -116,6 +117,7 @@ function toAgentContext(wire: AgentTurnResponseWire['context']): AgentContext {
     interpretant: wire.interpretant,
     minScore: wire.min_score,
     regionId: wire.region_id,
+    locator: wire.locator,
   };
 }
 

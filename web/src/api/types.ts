@@ -131,6 +131,7 @@ export interface AgentUiSelectionWire {
   interpretant: string | null;
   min_score: number | null;
   region_id: string | null;
+  locator: string | null;
 }
 
 export interface AgentTurnRequestWire {
@@ -169,6 +170,7 @@ export interface AgentUiSelection {
   interpretant: string | null;
   minScore: number | null;
   regionId: string | null;
+  locator: string | null;
 }
 
 export type AgentContext = AgentUiSelection;

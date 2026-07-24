@@ -7,6 +7,7 @@ interface Props {
   items: ThreadItem[];
   isSending: boolean;
   onSend: (message: string) => void;
+  onClear: () => void;
   selectedHotspot: Hotspot | null;
 }
 
@@ -75,8 +76,15 @@ function AgentCards({ cards }: { cards: AgentCard[] }) {
  * `onSend` network call are owned by `useTabs`, scoped per tab, so switching
  * tabs simply re-renders this same instance against different data. Only the
  * composer's live text and the dock's collapsed/expanded chrome stay local —
- * neither is tab-scoped (FR88). */
-export function AgentChatPanel({ items, isSending, onSend, selectedHotspot }: Props) {
+ * neither is tab-scoped (FR88).
+ *
+ * Collapse/expand is a single persistent element with a `collapsed` class
+ * toggle (matching the reference mockup), not a branch into a different
+ * element — that's what lets `.agent-dock`'s `transition: height, width`
+ * actually animate. An earlier version branched into a separate `<button>`
+ * capsule when collapsed, which is why it never animated (two different DOM
+ * trees can't transition into each other). */
+export function AgentChatPanel({ items, isSending, onSend, onClear, selectedHotspot }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const [inputValue, setInputValue] = useState('');
 
@@ -84,26 +92,24 @@ export function AgentChatPanel({ items, isSending, onSend, selectedHotspot }: Pr
     const message = inputValue.trim();
     if (!message || isSending) return;
     setInputValue('');
+    // `/clear` is a composer command, not a chat message: it never reaches
+    // the agent or appears as a user bubble, it just wipes this tab's thread
+    // and starts a fresh session.
+    if (message.toLowerCase() === '/clear') {
+      onClear();
+      return;
+    }
     onSend(message);
   }
 
-  if (collapsed) {
-    return (
-      <button
-        type="button"
-        className="agent-dock collapsed"
-        onClick={() => setCollapsed(false)}
-        aria-label="Expand agent panel"
-      >
-        <AgentMark thinking={isSending} />
-        <span className="capsule-label">Mythrix Agent</span>
-      </button>
-    );
-  }
-
   return (
-    <div className="agent-dock">
-      <div className="dock-head">
+    <div className={collapsed ? 'agent-dock collapsed' : 'agent-dock'}>
+      <div
+        className="dock-head"
+        onClick={() => {
+          if (collapsed) setCollapsed(false);
+        }}
+      >
         <AgentMark thinking={isSending} />
         <div className="head-text">
           <div className="head-title">Mythrix Agent</div>
@@ -111,8 +117,11 @@ export function AgentChatPanel({ items, isSending, onSend, selectedHotspot }: Pr
         <button
           type="button"
           className="dock-collapse"
-          onClick={() => setCollapsed(true)}
-          aria-label="Collapse agent panel"
+          onClick={(event) => {
+            event.stopPropagation();
+            setCollapsed((prev) => !prev);
+          }}
+          aria-label={collapsed ? 'Expand agent panel' : 'Collapse agent panel'}
         >
           –
         </button>
