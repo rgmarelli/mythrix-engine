@@ -66,10 +66,10 @@ The `data/` directory ships a reference dataset proving the pipeline
 end-to-end: all 22 tarot Major Arcana (Rider-Waite tradition, structured from
 Waite's *Pictorial Key to the Tarot*), all 22 Hebrew letters (`kabbalah`
 domain, Sepher Yetzirah planetary/zodiac/elemental assignments) cross-linked
-to their tarot card via `corresponds_to`, and one independent RAG document
+to their tarot card via `corresponds_to`, and one independent corpus document
 (the complete Douay-Rheims Bible, Old and New Testament, public domain) — see
-`specs/symbol-interpretation-core/spec.md`'s "Reference implementation scope"
-for why the RAG document is deliberately a different source.
+`specs/spec.md`'s "Reference implementation scope"
+for why the corpus document is deliberately a different source.
 
 `load-symbols` walks the whole `data/` tree (`root.rglob("symbols/*.yaml")`,
 etc.), so one command loads every domain — tarot, kabbalah, and bible's
