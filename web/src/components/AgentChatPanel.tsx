@@ -1,29 +1,13 @@
 import { useState } from 'react';
-import { postAgentTurn } from '../api/client';
-import type { AgentCard, AgentUiSelection, Hotspot } from '../api/types';
+import type { AgentCard, Hotspot } from '../api/types';
+import type { ThreadItem } from '../state/useTabs';
 import { hotspotTitle } from '../utils/hotspot';
 
 interface Props {
-  selectedSystem: string;
-  selectedSymbol: string;
-  selectedTradition: string;
-  minScore: number | null;
-  selectedSourceId: string | null;
-  selectedInterpretant: string | null;
-  selectedRegionId: string | null;
+  items: ThreadItem[];
+  isSending: boolean;
+  onSend: (message: string) => void;
   selectedHotspot: Hotspot | null;
-}
-
-type ThreadItem =
-  | { kind: 'user'; id: string; text: string }
-  | { kind: 'ai'; id: string; text: string; cards: AgentCard[] }
-  | { kind: 'reset'; id: string; label: string }
-  | { kind: 'error'; id: string; text: string };
-
-let nextItemId = 0;
-function itemId(): string {
-  nextItemId += 1;
-  return `item-${nextItemId}`;
 }
 
 function AgentMark({ thinking }: { thinking?: boolean }) {
@@ -86,65 +70,21 @@ function AgentCards({ cards }: { cards: AgentCard[] }) {
 }
 
 /** Docked, floating chat panel grounded in the active hotspot
- * (specs/in-app-agent-chat) — replaces the removed "Generate AI summary"
- * button with an ordinary chat request ("summarize this"). Owns its own
- * thread/composer state and `sessionId`; the parent only ever hands over the
- * current UI selection, as-is, each turn (FR4) — this component never fires
- * a query or navigates on its own (v0 scope). */
-export function AgentChatPanel({
-  selectedSystem,
-  selectedSymbol,
-  selectedTradition,
-  minScore,
-  selectedSourceId,
-  selectedInterpretant,
-  selectedRegionId,
-  selectedHotspot,
-}: Props) {
-  const [sessionId] = useState(() => crypto.randomUUID());
+ * (specs/in-app-agent-chat), now a controlled view onto whichever tab is
+ * active (specs/tabbed-workspace-redesign FR88): `items`/`isSending` and the
+ * `onSend` network call are owned by `useTabs`, scoped per tab, so switching
+ * tabs simply re-renders this same instance against different data. Only the
+ * composer's live text and the dock's collapsed/expanded chrome stay local —
+ * neither is tab-scoped (FR88). */
+export function AgentChatPanel({ items, isSending, onSend, selectedHotspot }: Props) {
   const [collapsed, setCollapsed] = useState(false);
-  const [items, setItems] = useState<ThreadItem[]>([]);
   const [inputValue, setInputValue] = useState('');
-  const [isSending, setIsSending] = useState(false);
 
-  async function handleSend() {
+  function handleSend() {
     const message = inputValue.trim();
     if (!message || isSending) return;
-
-    const uiSelection: AgentUiSelection = {
-      semioticSystem: selectedSystem || null,
-      sign: selectedSymbol || null,
-      tradition: selectedTradition || null,
-      sourceId: selectedSourceId,
-      interpretant: selectedInterpretant,
-      minScore,
-      regionId: selectedRegionId,
-    };
-
     setInputValue('');
-    setIsSending(true);
-    const userItem: ThreadItem = { kind: 'user', id: itemId(), text: message };
-    setItems((prev) => [...prev, userItem]);
-
-    try {
-      const result = await postAgentTurn(sessionId, message, uiSelection);
-      const aiItem: ThreadItem = { kind: 'ai', id: itemId(), text: result.replyText, cards: result.cards };
-      if (result.threadReset) {
-        const label = selectedHotspot ? `now reading ${hotspotTitle(selectedHotspot)}` : 'new thread';
-        setItems([{ kind: 'reset', id: itemId(), label }, userItem, aiItem]);
-      } else {
-        setItems((prev) => [...prev, aiItem]);
-      }
-    } catch (error) {
-      const errorItem: ThreadItem = {
-        kind: 'error',
-        id: itemId(),
-        text: error instanceof Error ? error.message : 'Something went wrong reaching the agent.',
-      };
-      setItems((prev) => [...prev, errorItem]);
-    } finally {
-      setIsSending(false);
-    }
+    onSend(message);
   }
 
   if (collapsed) {
@@ -230,7 +170,7 @@ export function AgentChatPanel({
           className="input-row"
           onSubmit={(event) => {
             event.preventDefault();
-            void handleSend();
+            handleSend();
           }}
         >
           <input

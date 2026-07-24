@@ -1,3 +1,6 @@
+# Mythrix local data stores (generated at runtime; see core/config.py)
+.mythrix/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

@@ -10,9 +10,9 @@ interface Props {
 
 export function HotspotList({ headerText, hotspots, selectedRegionId, onSelect }: Props) {
   return (
-    <section className="hotspot-list">
-      <h2>{headerText}</h2>
-      {hotspots.length === 0 && <p className="empty">No hotspots match the current filters.</p>}
+    <section className="hotspot-rail">
+      <div className="rail-header">{headerText}</div>
+      {hotspots.length === 0 && <p className="rail-empty">No hotspots match the current filters.</p>}
       {hotspots.map((hotspot) => (
         <HotspotCard
           key={hotspot.regionId}

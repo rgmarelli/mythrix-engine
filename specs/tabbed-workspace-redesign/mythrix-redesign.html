@@ -1,0 +1,1179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mythrix — Query Viewer (redesign)</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,350;9..144,500;9..144,600;9..144,700&family=Literata:opsz,wght@7..72,400;7..72,500&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+:root{
+  --paper:#f6f1e5;
+  --panel:#fffcf5;
+  --panel-2:#fbf6ea;
+  --ink:#2c2418;
+  --ink-h:#1a140c;
+  --muted:#8a7f68;
+  --line:#e2d8bf;
+  --line-soft:#ece3cc;
+
+  --violet:#33518f;
+  --violet-deep:#25396b;
+  --violet-wash:rgba(51,81,143,.09);
+  --violet-solid:#33518f;
+  --violet-solid-hover:#25396b;
+  --gold:#8f6417;
+  --gold-wash:rgba(143,100,23,.12);
+  --rubric:#a3341f;
+  --rubric-wash:rgba(163,52,31,.08);
+  --teal:#166b64;
+  --teal-wash:rgba(22,107,100,.1);
+
+  --error:#a3341f;
+  --error-bg:rgba(163,52,31,.08);
+
+  --radius-sm:6px;
+  --radius:10px;
+  --radius-lg:16px;
+  --shadow-card:0 1px 2px rgba(26,20,12,.04), 0 8px 20px -12px rgba(26,20,12,.18);
+  --shadow-panel:0 2px 4px rgba(26,20,12,.03), 0 20px 48px -24px rgba(26,20,12,.28);
+  --shadow-dock:0 24px 60px -20px rgba(76,29,149,.22), 0 2px 8px rgba(27,21,35,.08);
+
+  --f-display:'Fraunces', Georgia, serif;
+  --f-read:'Literata', Georgia, serif;
+  --f-body:'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --f-mono:'IBM Plex Mono', ui-monospace, monospace;
+}
+
+*{ box-sizing:border-box; }
+html,body{ height:100%; }
+body{
+  margin:0;
+  font:15px/1.55 var(--f-body);
+  color:var(--ink);
+  background:var(--paper);
+}
+h1,h2,h3{ color:var(--ink-h); font-family:var(--f-display); font-weight:600; margin:0; }
+button{ font:inherit; }
+::selection{ background:var(--violet-wash); }
+
+@media (prefers-reduced-motion: reduce){
+  *{ animation-duration:.001ms !important; transition-duration:.001ms !important; }
+}
+
+/* ============================= layout shell ============================= */
+
+.shell{
+  display:grid;
+  grid-template-columns: 300px 380px 1fr;
+  grid-template-rows: auto 1fr;
+  height:100dvh;
+  overflow:hidden;
+}
+
+.topbar{
+  grid-column:1 / -1;
+  display:flex;
+  align-items:center;
+  gap:.85rem;
+  padding:.75rem 1.25rem;
+  border-bottom:1px solid var(--line);
+  background:linear-gradient(180deg, var(--panel), var(--paper));
+  position:relative;
+}
+.topbar::after{
+  content:'';
+  position:absolute; left:0; right:0; bottom:-1px; height:2px;
+  background:linear-gradient(90deg, var(--gold), transparent 75%);
+  opacity:.5;
+}
+.brand{ display:flex; align-items:center; gap:.55rem; }
+.brand .mark{ width:26px; height:26px; flex:none; }
+.brand .mark svg{ width:100%; height:100%; display:block; }
+.brand-text{ display:flex; flex-direction:column; line-height:1.1; }
+.brand-text .name{ font-family:var(--f-display); font-weight:700; font-size:1.05rem; letter-spacing:-.01em; color:var(--ink-h); }
+.brand-text .name::first-letter{ color:var(--gold); }
+.brand-text .tagline{ font-family:var(--f-mono); font-size:.68rem; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+
+.icon-btn{
+  width:34px; height:34px; border-radius:var(--radius-sm);
+  border:1px solid var(--line); background:var(--panel); color:var(--ink-soft, var(--ink));
+  display:flex; align-items:center; justify-content:center; cursor:pointer;
+  transition:border-color .15s ease, background .15s ease;
+}
+.icon-btn:hover{ border-color:var(--violet); }
+.icon-btn svg{ width:16px; height:16px; }
+.filters-toggle{ display:none; }
+
+/* ---- tab strip (inline in the topbar, right of the brand) ---- */
+.tabstrip{
+  display:flex;
+  align-items:center;
+  gap:.35rem;
+  flex:1;
+  min-width:0;
+  margin-left:.75rem;
+  padding-left:.75rem;
+  border-left:1px solid var(--line-soft);
+  overflow-x:auto;
+  scrollbar-width:thin;
+}
+.tab{
+  display:flex; align-items:center; gap:.4rem;
+  max-width:180px;
+  padding:.35rem .5rem .35rem .7rem;
+  border-radius:999px;
+  border:1px solid var(--line);
+  background:var(--panel);
+  color:var(--muted);
+  cursor:pointer;
+  flex:none;
+  transition:background .12s ease, color .12s ease, border-color .12s ease;
+}
+.tab:hover{ border-color:var(--violet); color:var(--ink); }
+.tab.active{
+  background:var(--violet-wash);
+  border-color:var(--violet);
+  color:var(--ink-h);
+}
+.tab-label{
+  font:.8rem var(--f-body); font-weight:500;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:120px;
+}
+.tab.active .tab-label{ font-weight:600; }
+.tab-close{
+  width:16px; height:16px; border-radius:5px; border:none; background:transparent;
+  color:var(--muted); display:flex; align-items:center; justify-content:center; cursor:pointer; flex:none;
+  font-size:12px; line-height:1;
+}
+.tab-close:hover{ background:var(--rubric-wash); color:var(--rubric); }
+.tab-add{
+  width:26px; height:26px; border-radius:999px; border:1px dashed var(--line);
+  background:transparent; color:var(--muted); cursor:pointer; flex:none;
+  display:flex; align-items:center; justify-content:center; font-size:15px;
+  transition:border-color .15s ease, color .15s ease;
+}
+.tab-add:hover{ border-color:var(--violet); color:var(--violet); border-style:solid; }
+
+/* ============================= control panel ============================= */
+
+.control-panel{
+  grid-row:2;
+  overflow-y:auto;
+  border-right:1px solid var(--line);
+  background:var(--panel);
+  padding:1.1rem 1.1rem 2rem;
+}
+.panel-section{ margin-bottom:1.6rem; }
+.panel-section h2{
+  font-family:var(--f-body); font-size:.7rem; font-weight:700;
+  text-transform:uppercase; letter-spacing:.08em; color:var(--muted);
+  display:flex; align-items:center; gap:.4rem; margin-bottom:.7rem;
+}
+.panel-section h2::before{ content:'¶'; color:var(--gold); font-family:var(--f-display); font-size:.95rem; }
+
+.field{ display:flex; flex-direction:column; gap:.3rem; margin-bottom:.75rem; }
+.field label{
+  font-size:.7rem; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--muted);
+}
+.field select, .field input[type="number"]{
+  font:.87rem/1 var(--f-body);
+  padding:.55rem .7rem;
+  border-radius:var(--radius-sm);
+  border:1px solid var(--line);
+  background:var(--panel-2);
+  color:var(--ink-h);
+  transition:border-color .15s ease, box-shadow .15s ease;
+}
+.field select{
+  appearance:none;
+  padding-right:2rem;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1L6 6L11 1' stroke='%238a7f68' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-position:right .65rem center;
+}
+.field select:focus, .field input:focus{
+  outline:none; border-color:var(--violet); box-shadow:0 0 0 3px var(--violet-wash);
+}
+.score-row{ display:flex; align-items:center; gap:.6rem; }
+.score-row input[type="range"]{ flex:1; accent-color:var(--violet); }
+.score-row input[type="number"]{ width:4.2rem; font-family:var(--f-mono); text-align:center; }
+
+.submit-btn{
+  width:100%;
+  margin-top:.3rem;
+  padding:.68rem 1rem;
+  border-radius:var(--radius-sm);
+  border:none;
+  background:var(--violet-solid);
+  color:#fff;
+  font-weight:600;
+  font-size:.9rem;
+  cursor:pointer;
+  display:flex; align-items:center; justify-content:center; gap:.5rem;
+  transition:background .15s ease;
+}
+.submit-btn:hover:not(:disabled){ background:var(--violet-solid-hover); }
+.submit-btn:disabled{ opacity:.65; cursor:progress; }
+.submit-btn .spinner{
+  width:13px; height:13px; border-radius:50%;
+  border:2px solid rgba(255,255,255,.4); border-top-color:#fff;
+  animation:spin .7s linear infinite;
+  display:none;
+}
+.submit-btn.loading .spinner{ display:inline-block; }
+.submit-btn.loading .label::after{ content:'Querying…'; }
+.submit-btn.loading .label{ font-size:0; }
+.submit-btn.loading .label::after{ font-size:.9rem; }
+@keyframes spin{ to{ transform:rotate(360deg); } }
+
+.load-error{
+  color:var(--error); background:var(--error-bg); border-radius:var(--radius-sm);
+  padding:.5rem .7rem; font-size:.8rem; margin-bottom:.9rem;
+}
+
+.facet-search{
+  display:flex; align-items:center; gap:.4rem;
+  border:1px solid var(--line); border-radius:var(--radius-sm);
+  padding:.4rem .6rem; margin-bottom:.55rem; background:var(--panel-2);
+}
+.facet-search svg{ width:13px; height:13px; color:var(--muted); flex:none; }
+.facet-search input{
+  border:none; outline:none; background:transparent; font:.82rem var(--f-body); color:var(--ink); flex:1;
+}
+
+.facet-list{ display:flex; flex-direction:column; gap:.15rem; max-height:15rem; overflow-y:auto; }
+.facet-item{
+  display:flex; align-items:center; justify-content:space-between; gap:.6rem;
+  padding:.4rem .55rem; border-radius:var(--radius-sm);
+  border:1px solid transparent; cursor:pointer; text-align:left;
+  background:transparent; color:var(--ink); font:.85rem var(--f-body);
+  transition:background .12s ease, border-color .12s ease;
+}
+.facet-item:hover{ background:var(--panel-2); }
+.facet-item.active{
+  background:var(--violet-wash); border-color:var(--violet); color:var(--ink-h); font-weight:600;
+}
+.facet-item .name{ flex:1; display:flex; align-items:center; min-width:0; }
+.facet-item .label-text{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.facet-item .count{ font-family:var(--f-mono); font-size:.72rem; color:var(--muted); flex:none; }
+.facet-item.active .count{ color:var(--ink-h); }
+
+/* ============================= hotspot rail ============================= */
+
+.hotspot-rail{
+  grid-row:2;
+  overflow-y:auto;
+  border-right:1px solid var(--line);
+  background:var(--paper);
+  padding:1.1rem 1rem 2rem;
+}
+.rail-header{
+  font-size:.8rem;
+  color:var(--muted);
+  line-height:1.5;
+  margin-bottom:.9rem;
+  padding-bottom:.8rem;
+  border-bottom:1px solid var(--line-soft);
+}
+.rail-header b{ color:var(--ink-h); font-weight:600; }
+
+.hotspot-card{
+  width:100%;
+  display:flex; flex-direction:column; gap:.45rem;
+  text-align:left;
+  padding:.8rem .9rem;
+  margin-bottom:.55rem;
+  border-radius:var(--radius);
+  border:1px solid var(--line);
+  border-left:3px solid transparent;
+  background:var(--panel);
+  cursor:pointer;
+  transition:border-color .15s ease, box-shadow .15s ease, transform .12s ease;
+}
+.hotspot-card:hover{ border-color:var(--violet); box-shadow:var(--shadow-card); transform:translateY(-1px); }
+.hotspot-card.active{
+  border-color:var(--violet); border-left-color:var(--gold);
+  background:var(--violet-wash); box-shadow:var(--shadow-card);
+}
+.hc-top{ display:flex; align-items:baseline; justify-content:space-between; gap:.6rem; }
+.hc-title{ font-family:var(--f-display); font-weight:600; font-size:1rem; color:var(--ink-h); }
+.hc-source{ font-family:var(--f-mono); font-size:.7rem; color:var(--muted); }
+.hc-badge{
+  flex:none; font-family:var(--f-mono); font-size:.68rem; font-weight:500;
+  padding:.15rem .55rem; border-radius:999px; background:var(--gold-wash); color:var(--gold);
+}
+.hc-dots{ display:flex; flex-wrap:wrap; gap:.3rem; }
+.conv-chip{
+  display:inline-flex; align-items:center; gap:.35rem;
+  font-family:var(--f-mono); font-size:.68rem; color:var(--ink);
+  padding:.15rem .5rem; border-radius:999px; border:1px solid var(--line-soft); background:var(--panel-2);
+}
+
+.rail-empty{ opacity:.7; font-style:italic; font-size:.9rem; padding:1rem 0; }
+
+/* ============================= reader ============================= */
+
+.reader{
+  grid-row:2;
+  overflow-y:auto;
+  background:var(--panel);
+  padding:1.4rem 2rem 3rem;
+}
+.reader-inner{ max-width:640px; animation:fade-in .25s ease; }
+@keyframes fade-in{ from{ opacity:0; transform:translateY(4px); } to{ opacity:1; transform:none; } }
+
+.reader-toolbar{
+  display:flex; align-items:center; justify-content:space-between; gap:1rem;
+  margin-bottom:1.1rem;
+}
+.reader-back{ display:none; }
+.breadcrumb{
+  font-family:var(--f-mono); font-size:.75rem; text-transform:uppercase; letter-spacing:.04em; color:var(--muted);
+}
+.nav-btns{ display:flex; gap:.4rem; }
+.nav-btns button{
+  width:32px; height:32px; border-radius:var(--radius-sm); border:1px solid var(--line);
+  background:var(--panel-2); color:var(--ink); cursor:pointer; display:flex; align-items:center; justify-content:center;
+  transition:border-color .15s ease;
+}
+.nav-btns button:hover:not(:disabled){ border-color:var(--violet); }
+.nav-btns button:disabled{ opacity:.4; cursor:not-allowed; }
+.nav-btns svg{ width:14px; height:14px; }
+
+.reader-title-row{
+  display:flex; align-items:baseline; justify-content:space-between; gap:.75rem;
+  padding-bottom:1rem; margin-bottom:1rem; border-bottom:1px solid var(--line-soft);
+}
+.reader-title-row h2{ font-size:1.5rem; }
+
+.chip-row{ display:flex; flex-wrap:wrap; gap:.45rem; margin-bottom:1rem; }
+.interpretant-chip{
+  font:.78rem var(--f-mono); padding:.32rem .75rem; border-radius:999px;
+  border:1px solid var(--line); background:var(--panel-2); color:var(--ink); cursor:pointer;
+  transition:border-color .15s ease, background .15s ease, box-shadow .15s ease;
+}
+.interpretant-chip.active{ border-color:var(--violet); background:var(--violet-wash); color:var(--ink-h); font-weight:600; }
+.interpretant-chip.dimmed{ opacity:.5; }
+
+.add-context-button{
+  font:.83rem var(--f-body); font-weight:600; padding:.45rem 1rem; border-radius:var(--radius-sm);
+  border:1px solid var(--violet); background:transparent; color:var(--violet); cursor:pointer;
+  transition:background .15s ease, color .15s ease; margin-bottom:1.2rem;
+}
+.add-context-button:hover{ background:var(--violet); color:#fff; }
+
+.segment-list{ display:flex; flex-direction:column; gap:1rem; }
+.segment{
+  padding:.7rem 1rem; border-radius:var(--radius-sm);
+  border:1px solid transparent; border-left:2px solid transparent;
+}
+.segment.active{ border-color:var(--line-soft); border-left-color:var(--violet); background:var(--violet-wash); }
+.segment.context{ border-style:dashed; border-color:var(--line); }
+.segment.context .segment-locator{ color:var(--muted); }
+.segment.context .text{ color:var(--ink); }
+.segment-locator{
+  font-family:var(--f-mono); font-size:.72rem; font-weight:600; letter-spacing:.03em;
+  text-transform:uppercase; color:var(--gold); margin-bottom:.3rem;
+}
+.segment .text{ font-family:var(--f-read); font-size:1.05rem; line-height:1.7; margin:0; white-space:pre-wrap; }
+
+.reader-footer{
+  display:flex; justify-content:space-between; align-items:center; gap:.6rem;
+  margin-top:1.5rem; padding-top:1rem; border-top:1px solid var(--line);
+}
+.reader-footer button{
+  font:.82rem var(--f-body); padding:.45rem .8rem; border-radius:var(--radius-sm);
+  border:1px solid var(--line); background:var(--panel-2); color:var(--ink-h); cursor:pointer;
+  transition:border-color .15s ease;
+}
+.reader-footer button:hover:not(:disabled){ border-color:var(--violet); }
+.reader-footer button:disabled{ opacity:.5; cursor:not-allowed; }
+
+.reader-empty{
+  display:flex; flex-direction:column; align-items:flex-start; gap:.6rem; max-width:420px;
+  color:var(--muted); padding-top:2rem;
+}
+.reader-empty h2{ color:var(--ink-h); font-size:1.2rem; }
+
+/* ============================= agent dock ============================= */
+
+.agent-dock{
+  /* Reuses the app's own warm tokens — a separate cold-neutral surface
+     looked like a pasted-in widget next to the parchment palette. The one
+     thing kept from "agent-standard" convention is a single accent
+     (violet) inside the chat, with no second gold accent in here. */
+  --dock-bg:var(--panel);
+  --dock-surface:var(--paper);
+  --dock-border:var(--line);
+  --dock-border-soft:var(--line-soft);
+  --dock-text:var(--ink);
+  --dock-muted:var(--muted);
+  --dock-accent:var(--violet);
+  --dock-accent-hover:var(--violet-deep);
+  --dock-accent-wash:var(--violet-wash);
+
+  position:fixed; right:24px; bottom:24px; width:378px; height:520px; z-index:1000;
+  display:flex; flex-direction:column; overflow:hidden;
+  background:var(--dock-bg); color:var(--dock-text);
+  border:1px solid var(--dock-border); border-radius:var(--radius-lg);
+  box-shadow:var(--shadow-dock);
+  transition:height .2s ease, width .2s ease;
+}
+.agent-dock.collapsed{ height:60px; width:230px; cursor:pointer; }
+.agent-dock.collapsed .thread, .agent-dock.collapsed .composer, .agent-dock.collapsed .ctx-strip{ display:none; }
+
+.dock-head{ display:flex; align-items:center; gap:.7rem; padding:.9rem .9rem .8rem; border-bottom:1px solid var(--dock-border-soft); flex:none; }
+.dock-head .mark{ width:26px; height:26px; flex:none; }
+.dock-head .mark svg{ width:100%; height:100%; }
+.dock-head .mark .core{ animation:agent-pulse 2.2s ease-in-out infinite; transform-origin:32px 32px; }
+@keyframes agent-pulse{ 0%,100%{ opacity:1; transform:scale(1);} 50%{ opacity:.4; transform:scale(.7);} }
+.head-text{ display:flex; flex-direction:column; gap:1px; min-width:0; flex:1; }
+.head-title{ font-family:var(--f-display); font-weight:600; font-size:.92rem; color:var(--dock-text); }
+.head-sub{ font-family:var(--f-mono); font-size:.68rem; color:var(--dock-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.head-sub .loc{ color:var(--dock-text); font-weight:600; }
+.dock-collapse{
+  width:26px; height:26px; border-radius:8px; border:1px solid var(--dock-border); background:var(--dock-surface);
+  color:var(--dock-muted); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:14px; flex:none;
+}
+
+.ctx-strip{
+  display:flex; align-items:center; gap:.5rem; padding:.55rem .9rem;
+  background:var(--dock-surface); border-bottom:1px solid var(--dock-border-soft);
+  font-family:var(--f-mono); font-size:.68rem; color:var(--dock-muted); flex:none;
+}
+.ctx-strip .dot{ width:5px; height:5px; border-radius:50%; background:var(--gold); flex:none; }
+
+.thread{ flex:1; overflow-y:auto; padding:.9rem; display:flex; flex-direction:column; gap:.7rem; background:var(--dock-surface); }
+
+.msg-group{ display:flex; gap:.5rem; max-width:92%; }
+.msg-group.user{ align-self:flex-end; flex-direction:row-reverse; }
+.msg-group.ai{ align-self:flex-start; }
+
+.avatar{ width:22px; height:22px; flex:none; margin-top:2px; border-radius:50%; }
+.avatar.ai svg{ width:100%; height:100%; display:block; }
+
+.group-content{ display:flex; flex-direction:column; gap:.3rem; min-width:0; }
+.msg-group.user .group-content{ align-items:flex-end; }
+
+.bubble{ font-size:.83rem; line-height:1.55; padding:.6rem .8rem; border-radius:12px; }
+.msg-group.user .bubble{ background:var(--panel-2); color:var(--ink-h); border:1px solid var(--line-soft); border-bottom-right-radius:4px; }
+.msg-group.ai .bubble{ background:var(--dock-bg); color:var(--dock-text); border:1px solid var(--dock-border-soft); border-bottom-left-radius:4px; }
+
+.msg-time{ font-size:.65rem; color:var(--dock-muted); padding:0 .25rem; }
+
+.typing-bubble{
+  display:inline-flex; align-items:center; gap:4px; padding:.65rem .85rem; border-radius:12px;
+  background:var(--dock-bg); border:1px solid var(--dock-border-soft); border-bottom-left-radius:4px;
+}
+.typing-bubble span{ width:5px; height:5px; border-radius:50%; background:var(--dock-muted); animation:dot-bounce 1.1s ease-in-out infinite; }
+.typing-bubble span:nth-child(2){ animation-delay:.15s; }
+.typing-bubble span:nth-child(3){ animation-delay:.3s; }
+@keyframes dot-bounce{ 0%,60%,100%{ transform:translateY(0); opacity:.5; } 30%{ transform:translateY(-3px); opacity:1; } }
+
+.reset-divider{ display:flex; align-items:center; gap:.6rem; margin:.1rem 0; font-family:var(--f-mono); font-size:.65rem; color:var(--dock-muted); }
+.reset-divider::before, .reset-divider::after{ content:''; flex:1; height:1px; background:var(--dock-border); }
+
+.verse{
+  font-family:var(--f-read); font-size:.78rem; color:var(--dock-text);
+  background:var(--dock-bg); border:1px solid var(--dock-border-soft); border-left:3px solid var(--gold);
+  border-radius:0 8px 8px 0; padding:.5rem .75rem; line-height:1.55;
+}
+.verse .cite{ display:block; font-family:var(--f-mono); font-size:.65rem; color:var(--dock-muted); margin-bottom:.2rem; }
+
+.composer{ padding:.8rem; border-top:1px solid var(--dock-border-soft); background:var(--dock-bg); flex:none; }
+.input-row{
+  display:flex; align-items:center; gap:.5rem; border:1px solid var(--dock-border); border-radius:12px;
+  padding:.35rem .35rem .35rem .8rem; background:var(--dock-surface);
+}
+.input-row:focus-within{ border-color:var(--dock-accent); box-shadow:0 0 0 3px var(--dock-accent-wash); }
+.input-row input{ flex:1; border:none; background:transparent; outline:none; font:.82rem var(--f-body); color:var(--dock-text); }
+.send{
+  width:30px; height:30px; border-radius:9px; border:none; cursor:pointer; background:var(--dock-accent);
+  display:flex; align-items:center; justify-content:center; flex:none; transition:background .15s ease;
+}
+.send:hover:not(:disabled){ background:var(--dock-accent-hover); }
+.send:disabled{ opacity:.6; cursor:not-allowed; }
+.send svg{ width:14px; height:14px; }
+
+/* ============================= responsive ============================= */
+
+@media (max-width: 1000px){
+  .shell{ grid-template-columns:1fr; }
+  .filters-toggle{ display:flex; }
+
+  .control-panel{
+    position:fixed; inset:0 auto 0 0; width:290px; z-index:60;
+    transform:translateX(-100%); transition:transform .22s ease; box-shadow:var(--shadow-panel);
+  }
+  .control-panel.open{ transform:translateX(0); }
+  .backdrop{
+    position:fixed; inset:0; background:rgba(20,16,10,.35); z-index:55; opacity:0; pointer-events:none; transition:opacity .2s ease;
+  }
+  .backdrop.show{ opacity:1; pointer-events:auto; }
+
+  .hotspot-rail{ grid-column:1; border-right:none; }
+
+  .reader{
+    position:fixed; inset:0; z-index:50; transform:translateX(100%); transition:transform .22s ease;
+    padding-top:1rem;
+  }
+  .reader.open{ transform:translateX(0); }
+  .reader-back{ display:flex; }
+
+  .agent-dock{ right:12px; bottom:12px; left:12px; width:auto; }
+  .agent-dock.collapsed{ width:180px; left:auto; }
+}
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <header class="topbar">
+    <button class="icon-btn filters-toggle" id="filtersToggle" aria-label="Open filters">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M4 6h16M7 12h10M10 18h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    </button>
+    <div class="brand">
+      <div class="mark">
+        <svg viewBox="0 0 64 64"><line x1="32" y1="10" x2="32" y2="24" stroke="#33518F" stroke-width="2" stroke-linecap="round"/><line x1="32" y1="40" x2="32" y2="54" stroke="#33518F" stroke-width="2" stroke-linecap="round"/><line x1="10" y1="32" x2="24" y2="32" stroke="#33518F" stroke-width="2" stroke-linecap="round"/><line x1="40" y1="32" x2="54" y2="32" stroke="#33518F" stroke-width="2" stroke-linecap="round"/><circle cx="32" cy="32" r="4" fill="#A5761F"/></svg>
+      </div>
+      <div class="brand-text">
+        <span class="name">Mythrix</span>
+        <span class="tagline">Semiotic concordance</span>
+      </div>
+    </div>
+    <nav class="tabstrip" id="tabstrip"></nav>
+  </header>
+
+  <div class="backdrop" id="backdrop"></div>
+
+  <!-- ============ control panel ============ -->
+  <aside class="control-panel" id="controlPanel">
+    <div class="panel-section">
+      <h2>Query</h2>
+      <div class="field">
+        <label for="fSystem">Semiotic system</label>
+        <select id="fSystem">
+          <option value="" disabled>Select a semiotic system…</option>
+          <option value="hebrew_alef_bet">hebrew_alef_bet</option>
+          <option value="tarot" selected>tarot</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="fSymbol">Symbol</label>
+        <select id="fSymbol">
+          <option value="" disabled>Select a symbol…</option>
+          <option value="death" selected>Death</option>
+          <option value="judgement">Judgement</option>
+          <option value="justice">Justice</option>
+          <option value="strength">Strength</option>
+          <option value="temperance">Temperance</option>
+          <option value="the-chariot">The Chariot</option>
+          <option value="the-devil">The Devil</option>
+          <option value="the-emperor">The Emperor</option>
+          <option value="the-empress">The Empress</option>
+          <option value="the-fool">The Fool</option>
+          <option value="the-hanged-man">The Hanged Man</option>
+          <option value="the-hermit">The Hermit</option>
+          <option value="the-hierophant">The Hierophant</option>
+          <option value="the-high-priestess">The High Priestess</option>
+          <option value="the-lovers">The Lovers</option>
+          <option value="the-magician">The Magician</option>
+          <option value="the-moon">The Moon</option>
+          <option value="the-star">The Star</option>
+          <option value="the-sun">The Sun</option>
+          <option value="the-tower">The Tower</option>
+          <option value="the-world">The World</option>
+          <option value="wheel-of-fortune">Wheel of Fortune</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="fTradition">Tradition</label>
+        <select id="fTradition">
+          <option value="" disabled>Select a tradition…</option>
+          <option value="marseille" selected>Tarot de Marseille</option>
+          <option value="rider-waite">Rider-Waite-Smith</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="fScore">Min score <span style="opacity:.6; text-transform:none; font-weight:400;">(server default 0.45)</span></label>
+        <div class="score-row">
+          <input type="range" id="fScoreRange" min="0" max="1" step="0.01" value="0.6">
+          <input type="number" id="fScore" min="0" max="1" step="0.01" value="0.6">
+        </div>
+      </div>
+      <button class="submit-btn" id="submitBtn">
+        <span class="spinner"></span>
+        <span class="label">Find convergences</span>
+      </button>
+    </div>
+
+    <div class="panel-section" id="sourcesSection">
+      <h2>Sources</h2>
+      <div class="facet-list" id="sourcesList"></div>
+    </div>
+
+    <div class="panel-section" id="interpretantsSection">
+      <h2>Interpretants</h2>
+      <div class="facet-search">
+        <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/><path d="M21 21l-4.3-4.3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <input type="text" id="interpretantSearch" placeholder="Filter interpretants…">
+      </div>
+      <div class="facet-list" id="interpretantsList"></div>
+    </div>
+  </aside>
+
+  <!-- ============ hotspot rail ============ -->
+  <section class="hotspot-rail" id="hotspotRail">
+    <div class="rail-header" id="railHeader"></div>
+    <div id="hotspotCards"></div>
+  </section>
+
+  <!-- ============ reader ============ -->
+  <aside class="reader" id="reader">
+    <div id="readerContent"></div>
+  </aside>
+</div>
+
+<!-- ============ agent dock ============ -->
+<div class="agent-dock" id="agentDock">
+  <div class="dock-head" id="dockHead">
+    <div class="mark"><svg viewBox="0 0 64 64"><line x1="32" y1="12" x2="32" y2="24" stroke="#33518F" stroke-width="2" stroke-linecap="round"/><line x1="32" y1="40" x2="32" y2="52" stroke="#33518F" stroke-width="2" stroke-linecap="round"/><line x1="12" y1="32" x2="24" y2="32" stroke="#33518F" stroke-width="2" stroke-linecap="round"/><line x1="40" y1="32" x2="52" y2="32" stroke="#33518F" stroke-width="2" stroke-linecap="round"/><circle class="core" cx="32" cy="32" r="4" fill="#33518F"/></svg></div>
+    <div class="head-text">
+      <div class="head-title">Mythrix Agent</div>
+      <div class="head-sub">grounded in <span class="loc" id="dockLoc">Job 8:21</span></div>
+    </div>
+    <button class="dock-collapse" id="dockCollapse" aria-label="Collapse agent panel">–</button>
+  </div>
+  <div class="ctx-strip"><span class="dot"></span><span id="dockCtx">reading Job 8:21 · interpretants: laughter</span></div>
+  <div class="thread" id="dockThread"></div>
+  <div class="composer">
+    <form class="input-row" id="dockForm">
+      <input type="text" placeholder="Ask about this hotspot…" id="dockInput" autocomplete="off">
+      <button type="submit" class="send" id="dockSend"><svg viewBox="0 0 24 24" fill="none"><path d="M4 12L20 4L14 20L11 13L4 12Z" fill="white"/></svg></button>
+    </form>
+  </div>
+</div>
+
+<script>
+/* ---------------------------------------------------------------------
+   This is a static design mock: all data below stands in for what the
+   real app streams from `fetchQuery` / `fetchSymbols` / `fetchTraditions`.
+   Interactions are wired just enough to demonstrate the intended states
+   (loading, active facet, active hotspot, mobile
+   drawers) — none of it calls a real API.
+--------------------------------------------------------------------- */
+
+const SOURCES = [
+  { id: 'all', label: 'All sources', count: 17 },
+  { id: 'drb', label: 'The Holy Bible, Douay-Rheims, Complete', count: 17 },
+];
+
+const INTERPRETANTS = [
+  { id: 'all', label: 'All', count: 119 },
+  { id: '100', label: '100', count: 5 },
+  { id: 'laughter', label: 'laughter', count: 17 },
+  { id: 'child', label: 'child', count: 37 },
+  { id: 'radiant-sun', label: 'radiant sun', count: 36 },
+  { id: 'white-horse', label: 'white horse', count: 5 },
+  { id: 'naked', label: 'naked', count: 25 },
+];
+const INTERPRETANT_NAMES = INTERPRETANTS.filter(i => i.id !== 'all').map(i => i.id);
+
+const HOTSPOTS = [
+  { id: 'gen-21-5', title: 'Genesis 21:5–8', source: 'drb', sourceLabel: 'Douay-Rheims', matches: [{i:'100',s:.71},{i:'laughter',s:.81},{i:'child',s:.66}],
+    segments: [
+      { locator:'Genesis 21:1', text:'And the Lord visited Sara, as he had promised: and fulfilled what he had spoken.' },
+      { locator:'Genesis 21:2', text:'And she conceived and bore a son in her old age, at the time that God had foretold her.' },
+      { locator:'Genesis 21:3', text:'And Abraham called the name of his son, whom Sara bore him, Isaac.' },
+      { locator:'Genesis 21:4', text:'And he circumcised him the eighth day, as God had commanded him.' },
+      { locator:'Genesis 21:5', text:'When he was a hundred years old: for at this age of his father, was Isaac born.', interpretants:['100'] },
+      { locator:'Genesis 21:6', text:'And Sara said: God hath made a laughter for me: whosoever shall hear of it will laugh with me.', interpretants:['laughter'] },
+      { locator:'Genesis 21:7', text:'And again she said: Who would believe that Abraham should hear that Sara gave suck to a son, whom she bore to him in his old age?', interpretants:['child'] },
+      { locator:'Genesis 21:8', text:'And the child grew, and was weaned: and Abraham made a great feast on the day of his weaning.', interpretants:['child'] },
+      { locator:'Genesis 21:9', text:'And when Sara had seen the son of Agar the Egyptian playing with Isaac her son, she said to Abraham:' },
+      { locator:'Genesis 21:10', text:'Cast out this bondwoman, and her son: for the son of the bondwoman shall not be heir with my son Isaac.' },
+    ]},
+  { id: 'job-8-21', title: 'Job 8:21', source: 'drb', sourceLabel: 'Douay-Rheims', matches: [{i:'laughter',s:.69}],
+    segments: [
+      { locator:'Job 8:21', text:'Until thy mouth be filled with laughter, and thy lips with rejoicing.', interpretants:['laughter'] },
+    ]},
+  { id: 'eccl-21-23', title: 'Ecclesiasticus 21:23', source: 'drb', sourceLabel: 'Douay-Rheims', matches: [{i:'laughter',s:.64}],
+    segments: [{ locator:'Ecclesiasticus 21:23', text:'A fool lifteth up his voice in laughter: but a wise man will scarce laugh low to himself.', interpretants:['laughter'] }]},
+  { id: 'prov-31-25', title: 'Proverbs 31:25', source: 'drb', sourceLabel: 'Douay-Rheims', matches: [{i:'laughter',s:.58}],
+    segments: [{ locator:'Proverbs 31:25', text:'Strength and beauty are her clothing, and she shall laugh in the latter day.', interpretants:['laughter'] }]},
+  { id: 'prov-14-13', title: 'Proverbs 14:13', source: 'drb', sourceLabel: 'Douay-Rheims', matches: [{i:'laughter',s:.57}],
+    segments: [{ locator:'Proverbs 14:13', text:'Laughter shall be mingled with sorrow, and mourning taketh hold of the end of joy.', interpretants:['laughter'] }]},
+  { id: 'gen-18-15', title: 'Genesis 18:15', source: 'drb', sourceLabel: 'Douay-Rheims', matches: [{i:'laughter',s:.62}],
+    segments: [{ locator:'Genesis 18:15', text:'But Sara denied, saying: I did not laugh: for she was afraid. And the Lord said: Nay, but thou didst laugh.', interpretants:['laughter'] }]},
+  { id: 'job-5-22', title: 'Job 5:22', source: 'drb', sourceLabel: 'Douay-Rheims', matches: [{i:'laughter',s:.55}],
+    segments: [{ locator:'Job 5:22', text:'In destruction and famine thou shalt laugh: and thou shalt not be afraid of the beasts of the earth.', interpretants:['laughter'] }]},
+  { id: 'eccle-2-2', title: 'Ecclesiastes 2:2', source: 'drb', sourceLabel: 'Douay-Rheims', matches: [{i:'laughter',s:.6}],
+    segments: [{ locator:'Ecclesiastes 2:2', text:'Laughter I counted error: and to mirth I said: Why art thou vainly deceived?', interpretants:['laughter'] }]},
+  { id: 'eccle-7-4', title: 'Ecclesiastes 7:4', source: 'drb', sourceLabel: 'Douay-Rheims', matches: [{i:'laughter',s:.59}],
+    segments: [{ locator:'Ecclesiastes 7:4', text:'The heart of the wise is where there is mourning, and the heart of fools where there is mirth.', interpretants:['laughter'] }]},
+  { id: 'luke-8-53', title: 'Luke 8:53', source: 'drb', sourceLabel: 'Douay-Rheims', matches: [{i:'laughter',s:.52}],
+    segments: [{ locator:'Luke 8:53', text:'And they laughed him to scorn, knowing that she was dead.', interpretants:['laughter'] }]},
+  { id: 'luke-6-21', title: 'Luke 6:21', source: 'drb', sourceLabel: 'Douay-Rheims', matches: [{i:'laughter',s:.63}],
+    segments: [{ locator:'Luke 6:21', text:'Blessed are ye that weep now: for you shall laugh.', interpretants:['laughter'] }]},
+  { id: 'ps-51-8', title: 'Psalms 51:8', source: 'drb', sourceLabel: 'Douay-Rheims', matches: [{i:'laughter',s:.5}],
+    segments: [{ locator:'Psalms 51:8', text:'The just shall see, and shall fear, and shall laugh at him.', interpretants:['laughter'] }]},
+  { id: 'ps-36-13', title: 'Psalms 36:13', source: 'drb', sourceLabel: 'Douay-Rheims', matches: [{i:'laughter',s:.51}],
+    segments: [{ locator:'Psalms 36:13', text:'But the Lord shall laugh at him: for he foreseeth that his day shall come.', interpretants:['laughter'] }]},
+  { id: 'james-4-9', title: 'James 4:9', source: 'drb', sourceLabel: 'Douay-Rheims', matches: [{i:'laughter',s:.66}],
+    segments: [{ locator:'James 4:9', text:'Be afflicted, and mourn, and weep: let your laughter be turned into mourning, and your joy into sorrow.', interpretants:['laughter'] }]},
+  { id: 'hab-1-10', title: 'Habacuc 1:10', source: 'drb', sourceLabel: 'Douay-Rheims', matches: [{i:'laughter',s:.49}],
+    segments: [{ locator:'Habacuc 1:10', text:'And their prince shall triumph over kings, and princes shall be his laughingstock: he shall laugh at every strong hold.', interpretants:['laughter'] }]},
+  { id: 'ps-58-9', title: 'Psalms 58:9', source: 'drb', sourceLabel: 'Douay-Rheims', matches: [{i:'laughter',s:.53}],
+    segments: [{ locator:'Psalms 58:9', text:'But thou, O Lord, shalt laugh at them: thou shalt bring all the nations to nothing.', interpretants:['laughter'] }]},
+  { id: 'ps-2-4', title: 'Psalms 2:4', source: 'drb', sourceLabel: 'Douay-Rheims', matches: [{i:'laughter',s:.56}],
+    segments: [{ locator:'Psalms 2:4', text:'He that dwelleth in heaven shall laugh at them: and the Lord shall deride them.', interpretants:['laughter'] }]},
+];
+
+const dockThreadEl = document.getElementById('dockThread');
+
+function fmtTime(d){
+  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+let tabSeq = 1;
+function makeTab(overrides){
+  return Object.assign({
+    id: 'tab-' + (tabSeq++),
+    system: '', symbol: '', tradition: '', minScore: 0.6,
+    hasResult: false,
+    sourceFilter: 'all', interpretantFilter: 'all', interpretantSearch: '',
+    activeHotspotId: null,
+    messages: [],
+    isTyping: false,
+  }, overrides);
+}
+
+const seedNow = Date.now();
+const tabs = [
+  makeTab({
+    system: 'tarot', symbol: 'death', tradition: 'marseille', minScore: 0.6,
+    hasResult: true, interpretantFilter: 'laughter', activeHotspotId: 'gen-21-5',
+    messages: [
+      { sender: 'user', text: 'how does Sara’s laughter connect to other places in the text?', time: new Date(seedNow - 3 * 60000) },
+      { sender: 'ai',
+        text: 'Sara’s laughter in Genesis 21 marks the arrival of the promised child — the same beat as Job 8:21, where mourning gives way to laughter as a sign of restoration. Both treat laughter as the marker of a reversal.',
+        verse: { cite: 'GENESIS 21:6', text: 'And Sara said: God hath made a laughter for me: whosoever shall hear of it will laugh with me.' },
+        time: new Date(seedNow - 2 * 60000) },
+    ],
+  }),
+];
+let activeTabId = tabs[0].id;
+function activeTab(){ return tabs.find(t => t.id === activeTabId); }
+
+function symbolLabel(value){
+  if (!value) return '';
+  const opt = document.querySelector(`#fSymbol option[value="${value}"]`);
+  return opt ? opt.textContent : value;
+}
+
+function convergenceCount(h){ return h.matches.length; }
+
+function filteredHotspotsFor(t){
+  return HOTSPOTS.filter(h =>
+    (t.sourceFilter === 'all' || h.source === t.sourceFilter) &&
+    (t.interpretantFilter === 'all' || h.matches.some(m => m.i === t.interpretantFilter))
+  ).sort((a,b) => convergenceCount(b) - convergenceCount(a) || (b.matches[0]?.s||0) - (a.matches[0]?.s||0));
+}
+
+function headerText(t){
+  const label = INTERPRETANTS.find(i => i.id === t.interpretantFilter)?.label;
+  if (t.interpretantFilter === 'all') return 'Hotspots — ranked by distinct interpretants matched';
+  return `Hotspots matching “${label}” — ranked by total interpretants converging in each hotspot`;
+}
+
+/* --- tab strip --- */
+function renderTabs(){
+  const strip = document.getElementById('tabstrip');
+  strip.innerHTML = tabs.map(t => `
+    <div class="tab ${t.id === activeTabId ? 'active' : ''}" data-tab="${t.id}">
+      <span class="tab-label">${t.hasResult ? (symbolLabel(t.symbol) || 'Untitled query') : 'New query'}</span>
+      <button class="tab-close" data-close="${t.id}" aria-label="Close tab">×</button>
+    </div>`).join('') + `<button class="tab-add" id="tabAdd" aria-label="New tab">+</button>`;
+
+  strip.querySelectorAll('.tab').forEach(el => {
+    el.addEventListener('click', () => switchTab(el.dataset.tab));
+  });
+  strip.querySelectorAll('[data-close]').forEach(btn => {
+    btn.addEventListener('click', (e) => { e.stopPropagation(); closeTab(btn.dataset.close); });
+  });
+  document.getElementById('tabAdd').addEventListener('click', addTab);
+}
+
+function addTab(){
+  const t = makeTab({});
+  tabs.push(t);
+  activeTabId = t.id;
+  syncControlsFromTab();
+  renderAll();
+}
+
+function closeTab(id){
+  const idx = tabs.findIndex(t => t.id === id);
+  if (idx === -1) return;
+  if (tabs.length === 1){
+    tabs[0] = makeTab({});
+    activeTabId = tabs[0].id;
+  } else {
+    tabs.splice(idx, 1);
+    if (activeTabId === id) activeTabId = tabs[Math.max(0, idx - 1)].id;
+  }
+  syncControlsFromTab();
+  renderAll();
+}
+
+function switchTab(id){
+  if (id === activeTabId) return;
+  activeTabId = id;
+  syncControlsFromTab();
+  renderAll();
+}
+
+function syncControlsFromTab(){
+  const t = activeTab();
+  document.getElementById('fSystem').value = t.system;
+  document.getElementById('fSymbol').value = t.symbol;
+  document.getElementById('fTradition').value = t.tradition;
+  document.getElementById('fScore').value = t.minScore;
+  document.getElementById('fScoreRange').value = t.minScore;
+  document.getElementById('interpretantSearch').value = t.interpretantSearch;
+}
+
+/* --- facets --- */
+function renderSources(){
+  const t = activeTab();
+  const list = document.getElementById('sourcesList');
+  list.innerHTML = SOURCES.map(s => `
+    <button class="facet-item ${t.sourceFilter === s.id ? 'active' : ''}" data-source="${s.id}">
+      <span class="name"><span class="label-text" title="${s.label}">${s.label}</span></span>
+      <span class="count">${s.count}</span>
+    </button>`).join('');
+  list.querySelectorAll('[data-source]').forEach(btn => {
+    btn.addEventListener('click', () => { activeTab().sourceFilter = btn.dataset.source; renderAll(); });
+  });
+}
+
+function renderInterpretants(){
+  const t = activeTab();
+  const list = document.getElementById('interpretantsList');
+  const q = t.interpretantSearch.toLowerCase();
+  const items = INTERPRETANTS.filter(i => i.label.toLowerCase().includes(q));
+  list.innerHTML = items.map(i => `
+    <button class="facet-item ${t.interpretantFilter === i.id ? 'active' : ''}" data-interpretant="${i.id}">
+      <span class="name"><span class="label-text" title="${i.label}">${i.label}</span></span>
+      <span class="count">${i.count}</span>
+    </button>`).join('') || `<div class="rail-empty" style="padding:.5rem 0;">No interpretants match “${t.interpretantSearch}”.</div>`;
+  list.querySelectorAll('[data-interpretant]').forEach(btn => {
+    btn.addEventListener('click', () => { activeTab().interpretantFilter = btn.dataset.interpretant; renderAll(); });
+  });
+}
+
+/* --- hotspot rail --- */
+function renderRail(){
+  const t = activeTab();
+  const railHeader = document.getElementById('railHeader');
+  const wrap = document.getElementById('hotspotCards');
+
+  if (!t.hasResult){
+    railHeader.textContent = '';
+    wrap.innerHTML = `<div class="rail-empty">Configure a query on the left and press “Find convergences” to see ranked hotspots here.</div>`;
+    return;
+  }
+
+  railHeader.innerHTML = headerText(t).replace(/“([^”]+)”/, '“<b>$1</b>”');
+  const hs = filteredHotspotsFor(t);
+  if (!hs.length){
+    wrap.innerHTML = `<div class="rail-empty">No hotspots match the current filters.</div>`;
+    return;
+  }
+  wrap.innerHTML = hs.map(h => `
+    <button class="hotspot-card ${h.id === t.activeHotspotId ? 'active' : ''}" data-hotspot="${h.id}">
+      <div class="hc-top">
+        <span class="hc-title">${h.title}</span>
+        <span class="hc-badge">${convergenceCount(h)} interpretant${convergenceCount(h) > 1 ? 's' : ''}</span>
+      </div>
+      <span class="hc-source">${h.sourceLabel}</span>
+      <div class="hc-dots">
+        ${h.matches.map(m => `<span class="conv-chip">${m.i} · ${m.s.toFixed(2)}</span>`).join('')}
+      </div>
+    </button>`).join('');
+  wrap.querySelectorAll('[data-hotspot]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      activeTab().activeHotspotId = btn.dataset.hotspot;
+      renderAll();
+      openReaderMobile();
+    });
+  });
+}
+
+/* --- reader --- */
+function renderReader(){
+  const t = activeTab();
+  const el = document.getElementById('readerContent');
+
+  if (!t.hasResult){
+    el.innerHTML = `
+      <div class="reader-empty">
+        <h2>Nothing queried yet</h2>
+        <p>Pick a semiotic system, symbol and tradition on the left, then run a query — its convergences will show up here, ready to read and ground the agent in.</p>
+      </div>`;
+    renderDock();
+    return;
+  }
+
+  const hs = filteredHotspotsFor(t);
+  const idx = hs.findIndex(h => h.id === t.activeHotspotId);
+  const h = idx >= 0 ? hs[idx] : null;
+
+  if (!h){
+    el.innerHTML = `
+      <div class="reader-empty">
+        <h2>Nothing selected yet</h2>
+        <p>Choose a hotspot on the left to read its source text, see which interpretants converge there, and ground the agent in that passage.</p>
+      </div>`;
+    renderDock();
+    return;
+  }
+
+  el.innerHTML = `
+    <div class="reader-inner">
+      <div class="reader-toolbar">
+        <button class="icon-btn reader-back" id="readerBack" aria-label="Back to list">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M15 6l-6 6 6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <span class="breadcrumb">${h.sourceLabel} › ${h.title}</span>
+        <div class="nav-btns">
+          <button id="prevBtn" ${idx <= 0 ? 'disabled' : ''} aria-label="Previous hotspot"><svg viewBox="0 0 24 24" fill="none"><path d="M15 6l-6 6 6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button id="nextBtn" ${idx < 0 || idx >= hs.length - 1 ? 'disabled' : ''} aria-label="Next hotspot"><svg viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
+      </div>
+
+      <div class="reader-title-row">
+        <h2>${h.title}</h2>
+        <span class="hc-badge">${convergenceCount(h)} interpretant${convergenceCount(h) > 1 ? 's' : ''}</span>
+      </div>
+
+      <div class="chip-row">
+        ${h.matches.map(m => `
+          <button class="interpretant-chip
+              ${t.interpretantFilter !== 'all' && t.interpretantFilter !== m.i ? 'dimmed' : ''}
+              ${t.interpretantFilter === m.i ? 'active' : ''}"
+            data-filter="${m.i}">${m.i} · ${m.s.toFixed(2)}</button>
+        `).join('')}
+      </div>
+
+      <button class="add-context-button" id="addContextBtn">+ Add Context</button>
+
+      <div class="segment-list">
+        ${h.segments.map(s => {
+          const hasMatches = s.interpretants && s.interpretants.length > 0;
+          const matchesFilter = hasMatches && (t.interpretantFilter === 'all' || s.interpretants.includes(t.interpretantFilter));
+          const cls = !hasMatches ? 'context' : (matchesFilter ? 'active' : '');
+          return `
+          <div class="segment ${cls}">
+            <p class="segment-locator">${s.locator}</p>
+            <p class="text">${s.text}</p>
+          </div>`;
+        }).join('')}
+      </div>
+
+      <div class="reader-footer">
+        <button id="footerPrev" ${idx <= 0 ? 'disabled' : ''}>← prev hotspot</button>
+        <button id="copyRefBtn">copy ref</button>
+        <button id="footerNext" ${idx < 0 || idx >= hs.length - 1 ? 'disabled' : ''}>next hotspot →</button>
+      </div>
+    </div>`;
+
+  const go = (delta) => {
+    const next = hs[idx + delta];
+    if (next){ activeTab().activeHotspotId = next.id; renderAll(); }
+  };
+  el.querySelector('#prevBtn')?.addEventListener('click', () => go(-1));
+  el.querySelector('#nextBtn')?.addEventListener('click', () => go(1));
+  el.querySelector('#footerPrev')?.addEventListener('click', () => go(-1));
+  el.querySelector('#footerNext')?.addEventListener('click', () => go(1));
+  el.querySelector('#readerBack')?.addEventListener('click', closeReaderMobile);
+  el.querySelectorAll('[data-filter]').forEach(chip => {
+    chip.addEventListener('click', () => {
+      activeTab().interpretantFilter = chip.dataset.filter;
+      renderAll();
+    });
+  });
+
+  renderDock();
+}
+
+/* --- agent dock, scoped to the active tab --- */
+const AI_AVATAR_SVG = '<svg viewBox="0 0 64 64"><line x1="32" y1="12" x2="32" y2="24" stroke="#33518F" stroke-width="2" stroke-linecap="round"/><line x1="32" y1="40" x2="32" y2="52" stroke="#33518F" stroke-width="2" stroke-linecap="round"/><line x1="12" y1="32" x2="24" y2="32" stroke="#33518F" stroke-width="2" stroke-linecap="round"/><line x1="40" y1="32" x2="52" y2="32" stroke="#33518F" stroke-width="2" stroke-linecap="round"/><circle cx="32" cy="32" r="4" fill="#33518F"/></svg>';
+
+function messageBubbleHTML(m){
+  const verse = m.verse ? `<div class="verse"><span class="cite">${m.verse.cite}</span>${m.verse.text}</div>` : '';
+  return `<div class="bubble">${m.text}</div>${verse}`;
+}
+
+// Groups consecutive messages from the same sender under one avatar, and
+// only stamps the time once per group — the same convention Slack/iMessage
+// use to keep a fast back-and-forth from repeating chrome on every line.
+function renderThread(t){
+  const groups = [];
+  for (const m of t.messages){
+    const last = groups[groups.length - 1];
+    if (last && last.sender === m.sender) last.items.push(m);
+    else groups.push({ sender: m.sender, items: [m] });
+  }
+
+  let html = groups.map(g => {
+    const bubbles = g.items.map(messageBubbleHTML).join('');
+    const time = fmtTime(g.items[g.items.length - 1].time);
+    const avatar = g.sender === 'ai' ? `<div class="avatar ai">${AI_AVATAR_SVG}</div>` : '';
+    return `<div class="msg-group ${g.sender}">
+      ${avatar}
+      <div class="group-content">${bubbles}<span class="msg-time">${time}</span></div>
+    </div>`;
+  }).join('');
+
+  if (t.isTyping){
+    html += `<div class="msg-group ai">
+      <div class="avatar ai">${AI_AVATAR_SVG}</div>
+      <div class="group-content"><div class="typing-bubble"><span></span><span></span><span></span></div></div>
+    </div>`;
+  }
+
+  if (!groups.length && !t.isTyping){
+    html = `<div class="rail-empty" style="padding:1.4rem 0; text-align:center;">${
+      t.hasResult ? 'Ask something about this hotspot to get started.' : 'Run a query and select a hotspot to start chatting.'
+    }</div>`;
+  }
+
+  dockThreadEl.innerHTML = html;
+  dockThreadEl.scrollTop = dockThreadEl.scrollHeight;
+}
+
+function renderDock(){
+  const t = activeTab();
+  const hs = t.hasResult ? filteredHotspotsFor(t) : [];
+  const h = hs.find(x => x.id === t.activeHotspotId) || null;
+
+  document.getElementById('dockLoc').textContent = h ? h.title : '—';
+  document.getElementById('dockCtx').textContent = h
+    ? `reading ${h.title} · interpretants: ${h.matches.map(m => m.i).join(', ')}`
+    : 'no hotspot selected';
+
+  renderThread(t);
+  document.getElementById('dockInput').disabled = !h;
+  document.getElementById('dockSend').disabled = !h;
+}
+
+function buildAIReply(t, h){
+  const seg = h.segments.find(s => s.interpretants && s.interpretants.length) || h.segments[0];
+  return {
+    sender: 'ai',
+    text: `In ${h.title}, ${seg.locator} carries the strongest match here — worth reading alongside the other passages converging on the same interpretants.`,
+    verse: { cite: seg.locator.toUpperCase(), text: seg.text },
+    time: new Date(),
+  };
+}
+
+function renderAll(){
+  renderTabs();
+  renderSources();
+  renderInterpretants();
+  renderRail();
+  renderReader();
+}
+
+/* --- control panel wiring: writes into the active tab, not a shared global --- */
+document.getElementById('fSystem').addEventListener('change', e => { activeTab().system = e.target.value; renderTabs(); });
+document.getElementById('fSymbol').addEventListener('change', e => { activeTab().symbol = e.target.value; renderTabs(); });
+document.getElementById('fTradition').addEventListener('change', e => { activeTab().tradition = e.target.value; });
+
+const scoreRange = document.getElementById('fScoreRange');
+const scoreNum = document.getElementById('fScore');
+scoreRange.addEventListener('input', () => { scoreNum.value = scoreRange.value; activeTab().minScore = +scoreRange.value; });
+scoreNum.addEventListener('input', () => { scoreRange.value = scoreNum.value; activeTab().minScore = +scoreNum.value; });
+
+document.getElementById('interpretantSearch').addEventListener('input', (e) => {
+  activeTab().interpretantSearch = e.target.value;
+  renderInterpretants();
+});
+
+document.getElementById('submitBtn').addEventListener('click', (e) => {
+  e.preventDefault();
+  const btn = e.currentTarget;
+  const t = activeTab();
+  btn.classList.add('loading');
+  btn.disabled = true;
+  setTimeout(() => {
+    btn.classList.remove('loading');
+    btn.disabled = false;
+    t.hasResult = true;
+    t.sourceFilter = 'all';
+    t.interpretantFilter = 'all';
+    t.activeHotspotId = filteredHotspotsFor(t)[0]?.id ?? null;
+    renderAll();
+  }, 650);
+});
+
+/* --- mobile drawers --- */
+const controlPanel = document.getElementById('controlPanel');
+const backdrop = document.getElementById('backdrop');
+document.getElementById('filtersToggle').addEventListener('click', () => {
+  controlPanel.classList.add('open');
+  backdrop.classList.add('show');
+});
+backdrop.addEventListener('click', () => {
+  controlPanel.classList.remove('open');
+  backdrop.classList.remove('show');
+  closeReaderMobile();
+});
+function openReaderMobile(){
+  if (window.matchMedia('(max-width: 1000px)').matches){
+    document.getElementById('reader').classList.add('open');
+  }
+}
+function closeReaderMobile(){
+  document.getElementById('reader').classList.remove('open');
+}
+
+/* --- agent dock chrome (collapse/expand) --- */
+const dock = document.getElementById('agentDock');
+document.getElementById('dockCollapse').addEventListener('click', (e) => {
+  e.stopPropagation();
+  dock.classList.toggle('collapsed');
+});
+document.getElementById('dockHead').addEventListener('click', () => {
+  if (dock.classList.contains('collapsed')) dock.classList.remove('collapsed');
+});
+document.getElementById('dockForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const t = activeTab();
+  const hs = t.hasResult ? filteredHotspotsFor(t) : [];
+  const h = hs.find(x => x.id === t.activeHotspotId) || null;
+  const input = document.getElementById('dockInput');
+  const text = input.value.trim();
+  if (!text || !h) return;
+
+  t.messages.push({ sender: 'user', text, time: new Date() });
+  input.value = '';
+  t.isTyping = true;
+  renderThread(t);
+
+  setTimeout(() => {
+    // Guard against the tab having been switched away while "typing".
+    if (activeTab().id !== t.id) { t.isTyping = false; t.messages.push(buildAIReply(t, h)); return; }
+    t.isTyping = false;
+    t.messages.push(buildAIReply(t, h));
+    renderThread(t);
+  }, 900);
+});
+
+syncControlsFromTab();
+renderAll();
+</script>
+</body>
+</html>

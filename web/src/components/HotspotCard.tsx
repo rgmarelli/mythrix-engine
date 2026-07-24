@@ -10,11 +10,18 @@ interface Props {
 export function HotspotCard({ hotspot, isActive, onSelect }: Props) {
   return (
     <button type="button" className={isActive ? 'hotspot-card active' : 'hotspot-card'} onClick={onSelect}>
-      <div className="hotspot-card-header">
-        <span className="title">{hotspotTitle(hotspot)}</span>
-        <span className="badge">{convergenceLabel(hotspot.convergenceCount)}</span>
+      <div className="hc-top">
+        <span className="hc-title">{hotspotTitle(hotspot)}</span>
+        <span className="hc-badge">{convergenceLabel(hotspot.convergenceCount)}</span>
       </div>
-      <span className="subtitle">{hotspot.matches.map((match) => match.interpretant).join(', ')}</span>
+      <span className="hc-source">{hotspot.source.citation_label || hotspot.source.title}</span>
+      <div className="hc-dots">
+        {hotspot.matches.map((match) => (
+          <span className="conv-chip" key={`${match.interpretant}-${match.segmentOrdinal}`}>
+            {match.interpretant} · {match.kind === 'exact' ? 'exact' : match.score.toFixed(2)}
+          </span>
+        ))}
+      </div>
     </button>
   );
 }

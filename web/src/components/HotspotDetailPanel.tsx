@@ -10,6 +10,8 @@ interface Props {
   onNext: () => void;
   canGoPrev: boolean;
   canGoNext: boolean;
+  onBack?: () => void;
+  open?: boolean;
 }
 
 function citationRef(hotspot: Hotspot): string {
@@ -32,7 +34,16 @@ function sortByOrdinal(segments: HotspotSegment[]): HotspotSegment[] {
  * gap-filled/expanded via Add Context, `hotspot-context-expansion`) and
  * hotspot navigation. Mounted by `App.tsx` with `key={hotspot.regionId}` so
  * all of this state never leaks from one hotspot to the next. */
-export function HotspotDetailPanel({ hotspot, activeInterpretant, onPrev, onNext, canGoPrev, canGoNext }: Props) {
+export function HotspotDetailPanel({
+  hotspot,
+  activeInterpretant,
+  onPrev,
+  onNext,
+  canGoPrev,
+  canGoNext,
+  onBack,
+  open,
+}: Props) {
   const [activeSegmentOrdinal, setActiveSegmentOrdinal] = useState<number | null>(null);
   const [segments, setSegments] = useState<HotspotSegment[]>(() => sortByOrdinal(hotspot?.segments ?? []));
   const [matchedOrdinals] = useState<Set<number>>(() => new Set((hotspot?.segments ?? []).map((s) => s.ordinal)));
@@ -43,8 +54,11 @@ export function HotspotDetailPanel({ hotspot, activeInterpretant, onPrev, onNext
 
   if (!hotspot) {
     return (
-      <aside className="hotspot-detail empty">
-        <p>Select a hotspot to see its full text and citation here.</p>
+      <aside className={open ? 'reader open' : 'reader'}>
+        <div className="reader-empty">
+          <h2>Nothing selected yet</h2>
+          <p>Select a hotspot to see its full text and citation here.</p>
+        </div>
       </aside>
     );
   }
@@ -135,72 +149,89 @@ export function HotspotDetailPanel({ hotspot, activeInterpretant, onPrev, onNext
   }
 
   return (
-    <aside className="hotspot-detail">
-      <p className="breadcrumb">
-        {attribution} › {hotspotTitle(hotspot)}
-      </p>
-      <div className="title-row">
-        <h2>{hotspotTitle(hotspot)}</h2>
-        <span className="badge">{convergenceLabel(hotspot.convergenceCount)}</span>
-      </div>
+    <aside className={open ? 'reader open' : 'reader'}>
+      <div className="reader-inner">
+        <div className="reader-toolbar">
+          {onBack && (
+            <button type="button" className="icon-btn reader-back" onClick={onBack} aria-label="Back to list">
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M15 6l-6 6 6 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          )}
+          <span className="breadcrumb">
+            {attribution} › {hotspotTitle(hotspot)}
+          </span>
+          <div className="nav-btns">
+            <button type="button" onClick={onPrev} disabled={!canGoPrev} aria-label="Previous hotspot">
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M15 6l-6 6 6 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+            <button type="button" onClick={onNext} disabled={!canGoNext} aria-label="Next hotspot">
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          </div>
+        </div>
 
-      <div className="chip-row">
-        {hotspot.matches.map((match) => (
-          <button
-            type="button"
-            key={`${match.interpretant}-${match.segmentOrdinal}`}
-            className={
-              (activeInterpretant === null || match.interpretant === activeInterpretant
-                ? 'interpretant-chip active'
-                : 'interpretant-chip dimmed') +
-              (match.segmentOrdinal === activeSegmentOrdinal ? ' anchored' : '')
-            }
-            onClick={() => goToSegment(match.segmentOrdinal)}
-          >
-            {match.interpretant} · {match.kind === 'exact' ? 'exact' : match.score.toFixed(2)}
+        <div className="reader-title-row">
+          <h2>{hotspotTitle(hotspot)}</h2>
+          <span className="hc-badge">{convergenceLabel(hotspot.convergenceCount)}</span>
+        </div>
+
+        <div className="chip-row">
+          {hotspot.matches.map((match) => (
+            <button
+              type="button"
+              key={`${match.interpretant}-${match.segmentOrdinal}`}
+              className={
+                (activeInterpretant === null || match.interpretant === activeInterpretant
+                  ? 'interpretant-chip active'
+                  : 'interpretant-chip dimmed') +
+                (match.segmentOrdinal === activeSegmentOrdinal ? ' anchored' : '')
+              }
+              onClick={() => goToSegment(match.segmentOrdinal)}
+            >
+              {match.interpretant} · {match.kind === 'exact' ? 'exact' : match.score.toFixed(2)}
+            </button>
+          ))}
+        </div>
+        {activeInterpretant !== null && hasDimmedMatch && (
+          <p className="dimmed-note">(dimmed = matched but outside current filter)</p>
+        )}
+
+        <button type="button" className="add-context-button" onClick={handleAddContext} disabled={isAddingContext || fullyLoaded}>
+          {isAddingContext ? 'Loading…' : fullyLoaded ? 'Full context loaded' : '+ Add Context'}
+        </button>
+        {contextError && <p className="error">{contextError}</p>}
+
+        <div className="segment-list">
+          {segments.map((segment) => {
+            const classes = ['segment'];
+            if (!matchedOrdinals.has(segment.ordinal)) classes.push('context');
+            if (segment.ordinal === activeSegmentOrdinal) classes.push('active');
+            return (
+              <div key={segment.ordinal} id={segmentElementId(hotspot.regionId, segment.ordinal)} className={classes.join(' ')}>
+                {segment.locator && <p className="segment-locator">{segment.locator}</p>}
+                <p className="text">{segment.text}</p>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="reader-footer">
+          <button type="button" onClick={onPrev} disabled={!canGoPrev}>
+            ← prev hotspot
           </button>
-        ))}
-      </div>
-      {activeInterpretant !== null && hasDimmedMatch && (
-        <p className="dimmed-note">(dimmed = matched but outside current filter)</p>
-      )}
-
-      <div className="button-row">
-        <button
-          type="button"
-          className="add-context-button"
-          onClick={handleAddContext}
-          disabled={isAddingContext || fullyLoaded}
-        >
-          {isAddingContext ? 'Loading…' : fullyLoaded ? 'Full context loaded' : 'Add Context'}
-        </button>
-      </div>
-      {contextError && <p className="error">{contextError}</p>}
-
-      <div className="segment-list">
-        {segments.map((segment) => {
-          const classes = ['segment'];
-          if (!matchedOrdinals.has(segment.ordinal)) classes.push('context');
-          if (segment.ordinal === activeSegmentOrdinal) classes.push('active');
-          return (
-            <div key={segment.ordinal} id={segmentElementId(hotspot.regionId, segment.ordinal)} className={classes.join(' ')}>
-              {segment.locator && <p className="segment-locator">{segment.locator}</p>}
-              <p className="text">{segment.text}</p>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="hotspot-footer">
-        <button type="button" onClick={onPrev} disabled={!canGoPrev}>
-          ← prev hotspot
-        </button>
-        <button type="button" onClick={onNext} disabled={!canGoNext}>
-          next hotspot →
-        </button>
-        <button type="button" onClick={handleCopyRef}>
-          copy ref
-        </button>
+          <button type="button" onClick={handleCopyRef}>
+            copy ref
+          </button>
+          <button type="button" onClick={onNext} disabled={!canGoNext}>
+            next hotspot →
+          </button>
+        </div>
       </div>
     </aside>
   );
