@@ -1,8 +1,7 @@
 """Shared embedding abstraction — used by both the document loader (embedding
 chunks at ingestion time) and the retrieval pipeline (embedding query text at
 query time), so both go through the identical interface and a test can inject
-one fake instead of requiring a running Ollama daemon (plan.md Risks: "Testing
-LLM-dependent code")."""
+one fake instead of requiring a running Ollama daemon."""
 
 from __future__ import annotations
 

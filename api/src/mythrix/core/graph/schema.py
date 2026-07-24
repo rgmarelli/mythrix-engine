@@ -21,8 +21,7 @@ optional" requirement it must support).
 `Property` and `Interpretant` are separate node tables: a property is never used
 to build retrieval query text regardless of scope (FR-CO-03, FR-DM-04), while an
 interpretant always is unless it carries a `query_directive` (FR-RT-09) — the two
-roles have different columns and no shared upsert path, unlike the earlier
-single `Attribute` table this schema replaces.
+roles have different columns and no shared upsert path.
 
 Kùzu is pre-1.0 and its DDL syntax has changed release-to-release, so this module is
 validated against the exact `kuzu` version pinned in pyproject.toml (see

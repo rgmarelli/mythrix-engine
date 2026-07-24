@@ -84,7 +84,7 @@ def source_segments(
 ) -> list[Segment]:
     """A contiguous ordinal range of one source's segments, verbatim — the
     coordinate lookup behind the web UI's Add Context action
-    (`specs/hotspot-context-expansion/plan.md`), distinct from `/api/query`:
+    (`specs/retrieval/context-expansion.md`), distinct from `/api/query`:
     no embedding model is invoked and no similarity ranking happens, just a
     range read against the vector store.
 

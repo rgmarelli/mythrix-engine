@@ -3,8 +3,7 @@
 
 Idempotent/updatable via a content hash recorded on the `Source` node (FR-CO-04):
 unseen hash -> chunk/embed/add; unchanged hash -> no-op; changed hash -> delete
-the source's old chunks before adding the new ones. See plan.md's "Idempotent/
-updatable ingestion via content hash" section.
+the source's old chunks before adding the new ones.
 """
 
 from __future__ import annotations

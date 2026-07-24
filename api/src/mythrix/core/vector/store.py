@@ -1,11 +1,9 @@
-"""`ChromaVectorStore`: embedded Chroma persistence for ingested document chunks
-(plan.md "Chroma vector store design").
+"""`ChromaVectorStore`: embedded Chroma persistence for ingested document chunks.
 
 Deliberately takes precomputed embeddings on every call rather than embedding
 internally — the store never invokes an embedding model itself, so a unit test
 can inject arbitrary fake vectors and a real caller (document loader, retrieval
-pipeline) is free to swap embedding backends without touching this module. This
-mirrors the `Embedder` abstraction plan.md's Risks section calls for.
+pipeline) is free to swap embedding backends without touching this module.
 
 Single `mythrix_sources` collection, not per-domain, so a future
 cross-domain query doesn't need to fan out across collections — `domain` is
@@ -16,7 +14,7 @@ of its own.
 The collection is configured for cosine distance explicitly (rather than
 Chroma's l2 default), since cosine is the standard choice for text embeddings
 and it gives `VectorHit.distance` a predictable `[0, 2]` range — `1 - distance`
-is a stable similarity score in `RetrievalPipeline` (T15), which an l2 distance
+is a stable similarity score in `RetrievalPipeline`, which an l2 distance
 (unbounded, scale-dependent on the embedding model) would not support.
 """
 
@@ -35,8 +33,7 @@ DEFAULT_COLLECTION_NAME = "mythrix_sources"
 
 
 class ChunkMetadata(BaseModel):
-    """Metadata shared by every chunk ingested from one document (plan.md's
-    "Chunk metadata" list)."""
+    """Metadata shared by every chunk ingested from one document."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 

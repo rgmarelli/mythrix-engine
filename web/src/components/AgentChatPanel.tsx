@@ -71,7 +71,7 @@ function AgentCards({ cards }: { cards: AgentCard[] }) {
 }
 
 /** Docked, floating chat panel grounded in the active hotspot
- * (master spec.md FR-AG-14–FR-AG-22), now a controlled view onto whichever tab is
+ * (specs/interfaces/agent.md FR-AG-14–FR-AG-22), now a controlled view onto whichever tab is
  * active (FR-WEB-10): `items`/`isSending` and the
  * `onSend` network call are owned by `useTabs`, scoped per tab, so switching
  * tabs simply re-renders this same instance against different data. Only the
@@ -79,11 +79,9 @@ function AgentCards({ cards }: { cards: AgentCard[] }) {
  * neither is tab-scoped (FR-WEB-10).
  *
  * Collapse/expand is a single persistent element with a `collapsed` class
- * toggle (matching the reference mockup), not a branch into a different
- * element — that's what lets `.agent-dock`'s `transition: height, width`
- * actually animate. An earlier version branched into a separate `<button>`
- * capsule when collapsed, which is why it never animated (two different DOM
- * trees can't transition into each other). */
+ * toggle, not a branch into a different element — that's what lets
+ * `.agent-dock`'s `transition: height, width` actually animate; two
+ * different DOM trees can't transition into each other. */
 export function AgentChatPanel({ items, isSending, onSend, onClear, selectedHotspot }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const [inputValue, setInputValue] = useState('');

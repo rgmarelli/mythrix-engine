@@ -9,8 +9,7 @@ Cypher features not needed anywhere else in this codebase.
 
 Upserts use Kùzu's `MERGE ... ON CREATE SET ... ON MATCH SET ...`, which is idempotent
 against the pinned Kùzu version (see tests/unit/test_graph_store.py) — no custom
-exists-then-insert/update logic is needed, contrary to what plan.md's Risks section
-anticipated before this was verified.
+exists-then-insert/update logic is needed.
 """
 
 from __future__ import annotations

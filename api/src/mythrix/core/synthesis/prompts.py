@@ -1,16 +1,6 @@
 """Domain-agnostic rendering of already-retrieved graph facts and passages
-into markered text blocks (FR-RT-05, FR-RT-06). Originally this module also assembled
-LLM prompts for concept-scoped synthesis; that orchestration is retired
-(FR25, FR-RT-10 — see `synthesis/chain.py`) and this module now serves two
-survivors of that design: `cli/formatting.py`'s human-readable output (which
-reuses `render_graph_facts_block`/`render_passages_block` verbatim, so what a
-researcher reads matches exactly what a future agent loop would be shown),
-and a `[G#]`/`[S#]` marker vocabulary kept for that future agent loop and for
-`synthesis/citations.py` to validate against.
-
-`SYSTEM_PROMPT` is retained for the same reason — a future agent loop needs
-system instructions with the same data-not-instructions framing this project
-has always used; it is not currently sent anywhere.
+into markered text blocks (FR-RT-05, FR-RT-06), reused by `cli/formatting.py`
+for both human-readable and JSON output.
 
 `graph_fact_ids`/`passage_ids` are the authoritative enumeration of what
 markers are *valid* for a given `GraphFacts`/passage set — `synthesis/citations.py`
@@ -71,9 +61,8 @@ def render_graph_facts_block(graph_facts: GraphFacts) -> str:
 def render_passage_summary_prompt(text: str, concepts: tuple[str, ...]) -> str:
     """A single ad-hoc summarization prompt for one already-retrieved passage,
     focused on the concept(s) it was retrieved for — the web UI's per-passage
-    AI Summary action (`api/routes.py::summarize_passage`). Distinct from
-    `SYSTEM_PROMPT`/the retired per-concept synthesis: no markers, no
-    GRAPH FACTS/PASSAGES framing, one passage at a time, on demand rather
+    AI Summary action (`api/routes.py::summarize_passage`). No markers, no
+    GRAPH FACTS/PASSAGES framing: one passage at a time, on demand rather
     than on every query (FR-RT-10 still governs the `query` path itself)."""
     concept_list = ", ".join(concepts)
     return f'Summarize the following passage, focusing on the concepts: {concept_list}.\n\nPassage:\n"{text}"'

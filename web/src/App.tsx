@@ -26,7 +26,7 @@ function App() {
   const [traditions, setTraditions] = useState<Tradition[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Mobile-only slide-over drawer chrome (master spec.md FR-WEB-14) — UI chrome,
+  // Mobile-only slide-over drawer chrome (specs/interfaces/web-viewer.md FR-WEB-14) — UI chrome,
   // not tab data, so not tab-scoped.
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [readerOpen, setReaderOpen] = useState(false);

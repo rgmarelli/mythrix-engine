@@ -20,7 +20,7 @@ export function itemId(): string {
   return `item-${nextItemId}`;
 }
 
-// One independent unit of workspace state (master spec.md FR-WEB-06): a query
+// One independent unit of workspace state (specs/interfaces/web-viewer.md FR-WEB-06): a query
 // selection, its facets/result/selected hotspot, and its own agent
 // session/thread. Tabs never share or merge state with one another.
 export interface Tab {
@@ -73,10 +73,10 @@ function tieBreakScore(hotspot: Hotspot, activeInterpretant: string | null): num
 
 type TabPatch = Partial<Tab> | ((tab: Tab) => Partial<Tab>);
 
-/** Owns the tab array and every piece of state/derived data that used to be
- * flat on `App.tsx` (master spec.md FR-WEB-06) — one query selection,
- * its facets/result/selected hotspot, and its own agent session/thread,
- * fully isolated per tab (FR-WEB-06). Existing presentational components
+/** Owns the tab array and every piece of per-tab state/derived data
+ * (specs/interfaces/web-viewer.md FR-WEB-06) — one query selection, its facets/result/selected
+ * hotspot, and its own agent session/thread, fully isolated per tab
+ * (FR-WEB-06). Existing presentational components
  * (`SignTraditionPicker`, `FacetRow`, `HotspotList`, `HotspotDetailPanel`)
  * need no prop changes: this hook's setters match their existing callback
  * shapes exactly, just scoped to whichever tab is active. */

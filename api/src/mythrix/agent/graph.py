@@ -1,5 +1,6 @@
-"""The agent's LangGraph state machine — productionizes the scratch
-`prueba2.py` agent-node/`ToolNode` loop into a tested, injectable module.
+"""The agent's LangGraph state machine (ADR-006): an `agent` node bound to a
+fixed read-only tool set, looping through a `tools` node until the model
+answers without a further tool call.
 
 Builds its **own** tool-capable `ChatOllama` here rather than reusing
 `core/synthesis/chain.py::OllamaChatClient`, which wraps `ChatOllama` behind a
@@ -8,10 +9,9 @@ client narrow (it is also used, unchanged, by the `summarize_passage` tool)
 and giving the agent node its own construction avoids overloading one class
 with two different jobs (plain completion vs. tool-calling). The
 "not found"/"can't reach the daemon" message-text matching below mirrors
-`OllamaChatClient.__init__`'s empirically-derived mapping (see that module's
-docstring) — duplicated rather than factored into `core/`, since this package
-is otherwise self-contained from `core/` beyond the read-only
-`list_semiotic_systems` addition (`specs/interfaces/agent.md`).
+`OllamaChatClient.__init__` — duplicated rather than factored into `core/`,
+since this package is otherwise self-contained from `core/` beyond the
+read-only `list_semiotic_systems` addition (`specs/interfaces/agent.md`).
 """
 
 from __future__ import annotations
@@ -36,8 +36,8 @@ class AgentState(TypedDict):
 
 
 def _build_tool_chat_model(*, generation_model: str, base_url: str, num_ctx: int) -> ChatOllama:
-    """Constructs the tool-capable chat model, fail-fast (master spec.md
-    FR-AG-08) — mirrors `OllamaChatClient.__init__`'s message-text error mapping."""
+    """Constructs the tool-capable chat model, fail-fast (agent.md FR-AG-08)
+    — mirrors `OllamaChatClient.__init__`'s message-text error mapping."""
     if not generation_model:
         raise ModelUnavailableError(generation_model or "<unset>")
     try:
@@ -51,7 +51,7 @@ def _build_tool_chat_model(*, generation_model: str, base_url: str, num_ctx: int
     except Exception as exc:  # noqa: BLE001 - validate_model_on_init raises inconsistent exception
         # types across langchain_ollama/httpx versions for "model not found" and
         # "can't reach the daemon at all" alike, so match on message rather than
-        # type — same empirically-derived mapping as OllamaChatClient.
+        # type — same mapping as OllamaChatClient.
         message = str(exc)
         if "not found in Ollama" in message or "Failed to connect to Ollama" in message:
             raise ModelUnavailableError(generation_model) from exc
@@ -75,8 +75,8 @@ def _safe_json_loads(content: object) -> object:
 def _needs_key(payload: object) -> str | None:
     """The first truthy `needs_*` key in a tool-result payload, if any —
     `get_sign`'s `needs_tradition` is the first (and, in v0, only) case,
-    but this is not hardcoded to that one key/tool (spec.md's Context object,
-    "Clarification, not guessing", generalized from master FR-AG-05/FR-AG-07)."""
+    but this is not hardcoded to that one key/tool (agent.md's context object,
+    generalized from FR-AG-05/FR-AG-07 by FR-AG-18)."""
     if not isinstance(payload, dict):
         return None
     return next((key for key, value in payload.items() if key.startswith("needs_") and value), None)
@@ -85,13 +85,8 @@ def _needs_key(payload: object) -> str | None:
 def route_after_tools(state: AgentState) -> str:
     """Intercepts any tool result carrying a truthy `needs_*` key — e.g.
     `get_sign`'s `needs_tradition` — before it ever reaches the model
-    (master spec.md FR-AG-18). Observed live: a tool result carrying no interpretive content
-    at all (just a candidate list) is still, occasionally, followed by the
-    model composing fabricated denotations rather than asking —
-    sampling-dependent, not reliably reproduced, so not something a stronger
-    prompt can be trusted to prevent. A candidate list needs no model
-    synthesis to relay, so this removes the model from the decision instead
-    of asking it more forcefully to behave. Every other tool result is
+    (FR-AG-18), bypassing the model entirely for a reply that is pure
+    formatting rather than synthesis (ADR-006). Every other tool result is
     unaffected and still routes to `agent`."""
     last_message = state["messages"][-1]
     if isinstance(last_message, ToolMessage) and _needs_key(_safe_json_loads(last_message.content)):
@@ -121,7 +116,7 @@ def compile_agent_graph(llm_with_tools, tools: list) -> CompiledStateGraph:  # n
     any `context_summary`) routes to `tools` (a `ToolNode` over the fixed
     read-only tool set) whenever the model's response carries tool calls, and
     back to `agent` afterward — except for a tool result carrying a truthy
-    `needs_*` key, which routes to `clarify` instead (master spec.md FR-AG-18) and
+    `needs_*` key, which routes to `clarify` instead (agent.md FR-AG-18) and
     straight on to `END`. Ends at `END` once the model answers without calling a tool.
 
     Kept separate from `build_agent_graph` so a test can inject a stub
@@ -154,7 +149,7 @@ def compile_agent_graph(llm_with_tools, tools: list) -> CompiledStateGraph:  # n
 
 
 def build_agent_graph(*, generation_model: str, base_url: str, num_ctx: int, tools: list) -> CompiledStateGraph:
-    """Constructs the real, tool-bound `ChatOllama` (fail-fast, master spec.md FR-AG-08) and
+    """Constructs the real, tool-bound `ChatOllama` (fail-fast, agent.md FR-AG-08) and
     compiles the graph around it. `mythrix.api.dependencies`'s only call into
     this module."""
     llm_with_tools = _build_tool_chat_model(

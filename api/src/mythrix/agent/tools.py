@@ -1,4 +1,4 @@
-"""The agent's fixed, read-only tool set (master spec.md FR-AG-03, FR-AG-04) — every
+"""The agent's fixed, read-only tool set (specs/interfaces/agent.md FR-AG-03, FR-AG-04) — every
 tool is a thin wrapper over an existing Mythrix service function; none of this
 module implements retrieval, graph, embedding, or synthesis logic of its own.
 
@@ -107,8 +107,8 @@ def _render_regions(result: RegionQueryResult) -> dict:
 
 
 def build_tools(stores: Stores, settings: Settings, chat_client: ChatClient) -> list:
-    """Returns the seven read-only tools the agent may call (master spec.md
-    FR-AG-03). The registered set contains no `upsert_*`, `load_*`, or reload
+    """Returns the seven read-only tools the agent may call
+    (specs/interfaces/agent.md FR-AG-03). The registered set contains no `upsert_*`, `load_*`, or reload
     operation — read-only is a structural property of this list, not a
     runtime check (FR-AG-04)."""
 

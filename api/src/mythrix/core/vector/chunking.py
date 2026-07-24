@@ -1,11 +1,10 @@
-"""Structure-aware chunking for source documents ingested into the vector store
-(plan.md "Chroma vector store design").
+"""Structure-aware chunking for source documents ingested into the vector store.
 
 Chunk size/overlap are measured in whitespace-delimited words, used as a
 lightweight, dependency-free proxy for LLM tokens (no tokenizer package is
-pinned in `pyproject.toml`) — close enough for the target ranges plan.md
-describes (~500-800 tokens, ~100 overlap) without adding a dependency whose
-only job is counting.
+pinned in `pyproject.toml`) — close enough for target ranges of ~500-800
+tokens with ~100 overlap, without adding a dependency whose only job is
+counting.
 
 Paragraph boundaries are preferred over a plain word-count cut, since naive
 fixed-size chunking risks severing a claim from its supporting context in
@@ -132,8 +131,8 @@ def _first_word_at_or_after(word_starts: list[int], char_pos: int) -> int:
 def _paragraph_aware_windows(paragraph_ranges: list[tuple[int, int]], chunk_size: int) -> list[tuple[int, int]]:
     """Greedily accumulates whole paragraphs into a window up to `chunk_size`
     words; a paragraph longer than `chunk_size` on its own is hard-sliced by
-    word count (the "recursive splitter fallback" from plan.md, simplified to
-    a flat word-count cut since a single paragraph has no further structure)."""
+    word count, since a single paragraph has no further structure to split
+    on."""
     windows: list[tuple[int, int]] = []
     current: tuple[int, int] | None = None
 

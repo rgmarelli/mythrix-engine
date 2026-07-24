@@ -278,11 +278,9 @@ class ConceptCandidates(MythrixModel):
     interpretant value, exactly as decomposed by `retrieval.pipeline.build_query_texts`.
     Kept separate from every other concept's candidates rather than merged into
     one shared pool, so a well-supported concept (e.g. a precise exact-value
-    match) can't be crowded out of the final output by unrelated concepts that
-    simply generated more queries — the empirical failure this restructuring
-    exists to fix (see plan.md's "Concept-scoped retrieval and synthesis").
-    Where two concepts both retrieve the same passage, that convergence is
-    surfaced separately as `ConceptPairCandidates` (FR-RT-08).
+    match) can't be crowded out by unrelated concepts that simply generated
+    more queries. Where two concepts both retrieve the same passage, that
+    convergence is surfaced separately as `ConceptPairCandidates` (FR-RT-08).
 
     `concept` doubles as both the grouping key and the human-readable label shown in
     output — it's the atomic query text itself (e.g. "white horse", "laughter"),
@@ -336,19 +334,14 @@ class ConceptPairCandidates(MythrixModel):
     has to adjudicate between the two kinds of result.
 
     Candidates are ranked by the geometric mean of the pair's *semantic* component
-    scores, clamped at zero. Geometric rather than arithmetic because convergence is
-    conjunctive: a passage scoring (0.90, 0.20) and one scoring (0.57, 0.53) have
-    identical sums and means, but only the second genuinely sits at the intersection
-    — the first is a strong match on one concept that merely reached the other's
-    matching pool. Clamped because `1 - cosine_distance` spans [-1, 1], so a
-    negative component would otherwise make the square root complex; a passage
-    anti-correlated with one member has no conjunctive strength anyway. An
-    `exact_value` member (FR-RT-09) contributes membership but no score, so a
-    concept-plus-filter-token pair is scored by its semantic concept alone.
+    scores, clamped at zero — geometric rather than arithmetic because convergence
+    is conjunctive, not additive (ADR-007). An `exact_value` member (FR-RT-09)
+    contributes membership but no score, so a concept-plus-filter-token pair is
+    scored by its semantic concept alone.
 
     Scores are only comparable *within* a group, where every candidate is scored by
     the same two queries and any per-query bias is constant across the rows being
-    compared. They are not comparable across groups — see plan.md's Risks.
+    compared. They are not comparable across groups.
     """
 
     concepts: tuple[str, ...] = ()

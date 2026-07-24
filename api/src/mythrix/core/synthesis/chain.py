@@ -1,20 +1,10 @@
-"""Ollama chat client (FR-RT-02) retained for a future conversational agent loop
-(spec.md's non-goal on conversational request parsing) — the `query` path
-itself invokes no generation model at all (FR-RT-10). `OllamaChatClient` only
-ever sends rendered prompt text and reads back plain text; it has no
-tool-calling access to the graph or vector store, by construction. Whatever
-context an agent loop assembles for it should use `synthesis/prompts.py`'s
-`[G#]`/`[S#]` rendering, so `synthesis/citations.py` can validate the result
-the same way this project always has.
-
-Retained from the pre-Phase-11 synthesis orchestration: the `ChatOllama`
-construction and its error mapping. The mapping matches on *message text*
-because `validate_model_on_init` raises inconsistent exception types across
-`langchain_ollama`/`httpx` versions for "model not pulled" and "daemon
-unreachable" alike — established empirically (plan.md's "LangChain + Ollama
-synthesis"), not something to rediscover later. Removed: the per-concept and
-general-summary orchestration (`synthesize()`/`_synthesize_concept()`) — the
-query path no longer produces synthesized text at all (FR-RT-10).
+"""Ollama chat client (FR-RT-02) used by the conversational agent layer
+(`mythrix.agent`) — the `query` path itself invokes no generation model at
+all (FR-RT-10). `OllamaChatClient` only ever sends rendered prompt text and
+reads back plain text; it has no tool-calling access to the graph or vector
+store, by construction. Context assembled for it should use
+`synthesis/prompts.py`'s `[G#]`/`[S#]` rendering, so `synthesis/citations.py`
+can validate the result.
 """
 
 from __future__ import annotations

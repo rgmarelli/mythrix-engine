@@ -1,5 +1,5 @@
 """Pydantic models mirroring the human-authored YAML structured-data format
-(spec.md "Structured-data authoring format", plan.md "Authoring YAML format").
+(`specs/domain/structured-data.md`).
 
 These models validate *shape* only (FR-SD-01's schema-validation half). Referential
 integrity (does a named tradition/source/sign actually exist) is `sign_loader.py`'s
@@ -174,8 +174,9 @@ class ManifestationEntry(LoaderModel):
     @classmethod
     def _coerce_single_cites_to_tuple(cls, value: object) -> object:
         """`cites: "..."` (a single string) is sugar for a one-element list —
-        matches the worked example in spec.md, which shows the common case of a
-        single citation without requiring a curator to wrap it in `[...]`."""
+        matches the worked example in `specs/domain/domain-model.md`, which
+        shows the common case of a single citation without requiring a
+        curator to wrap it in `[...]`."""
         return (value,) if isinstance(value, str) else value
 
 

@@ -6,12 +6,9 @@ markers that were genuinely available (via `synthesis/prompts.py`'s
 `graph_fact_ids`/`passage_ids` — the same enumerations used to render
 context, so validation can't drift from what was shown).
 
-The `query` path itself produces no generated text to validate (FR-RT-10) — this
-module is retained for the planned conversational agent loop, which will
-need exactly this check against its own output. It was originally two
-validators matching concept-scoped synthesis's two stages (FR25/FR26);
-collapsed to one now that there is only one stage's worth of context to
-validate against.
+The `query` path itself produces no generated text to validate (FR-RT-10) —
+this module is used by the conversational agent layer (`mythrix.agent`) to
+check its own generated output.
 """
 
 from __future__ import annotations
@@ -32,7 +29,7 @@ def extract_markers(text: str) -> tuple[str, ...]:
 def strip_markers(text: str) -> str:
     """Removes every `[G#]`/`[S#]`/`[C#]` marker from `text`, valid or not —
     used by the conversational agent, which never shows marker syntax in
-    visible replies (spec.md Non-goals) regardless of validation outcome."""
+    visible replies, regardless of validation outcome."""
     return _MARKER_PATTERN.sub("", text)
 
 

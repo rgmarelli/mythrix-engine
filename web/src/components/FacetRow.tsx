@@ -20,7 +20,7 @@ interface Props {
  * an "All" row plus one row per option, single-select. Both rows are
  * structurally identical, so this one component renders either. When
  * `search`/`onSearchChange` are both supplied (Interpretants only, master
- * spec.md FR-WEB-13), a text filter narrows which options are listed without
+ * specs/interfaces/web-viewer.md FR-WEB-13), a text filter narrows which options are listed without
  * touching counts or selection. */
 export function FacetRow({
   title,

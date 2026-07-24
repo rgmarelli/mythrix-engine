@@ -1,4 +1,4 @@
-"""The chat panel's structured working memory (master spec.md FR-AG-17) —
+"""The chat panel's structured working memory (specs/interfaces/agent.md FR-AG-17) —
 distinct from the raw per-turn message history the generation model already
 sees via `AgentState["messages"]`. `AgentContext` is deliberately the single
 class used both as `turn_service`'s internal working context and as
@@ -19,7 +19,7 @@ import json
 from langchain_core.messages import AIMessage, ToolMessage
 from pydantic import BaseModel
 
-# Session-scoped fields (master spec.md FR-AG-17's Context object) whose change
+# Session-scoped fields (specs/interfaces/agent.md FR-AG-17's Context object) whose change
 # identifies a different query subject, not just a display filter — these,
 # plus a changed `region_id`, are what trigger a thread reset (FR-AG-16).
 # `source_id`, `interpretant`, and `min_score` are also session-scoped per
@@ -29,7 +29,7 @@ _RESET_FIELDS = ("semiotic_system", "sign", "tradition")
 
 
 class AgentUiSelection(BaseModel):
-    """What the browser sends, as-is, each turn (master spec.md FR-AG-17) — the
+    """What the browser sends, as-is, each turn (specs/interfaces/agent.md FR-AG-17) — the
     client never pre-clears or diffs this before sending."""
 
     semiotic_system: str | None = None
@@ -44,7 +44,7 @@ class AgentUiSelection(BaseModel):
 
 class AgentContext(BaseModel):
     """The backend-confirmed context, returned alongside every turn's reply
-    (master spec.md FR-AG-17)."""
+    (specs/interfaces/agent.md FR-AG-17)."""
 
     semiotic_system: str | None = None
     sign: str | None = None
@@ -58,7 +58,7 @@ class AgentContext(BaseModel):
 
 def detect_thread_reset(previous: AgentContext, incoming: AgentUiSelection) -> bool:
     """`True` if the incoming turn's UI selection no longer matches the
-    hotspot/subject the stored context was scoped to (master spec.md FR-AG-16): a different
+    hotspot/subject the stored context was scoped to (specs/interfaces/agent.md FR-AG-16): a different
     `region_id`, or a different `semiotic_system`/`sign`/`tradition`. Facet
     selection (`source_id`/`interpretant`) and `min_score` changing alone
     does not reset the thread — those narrow which hotspots are displayed,
@@ -72,7 +72,7 @@ def apply_ui_selection(context: AgentContext, incoming: AgentUiSelection) -> Age
     """Merges the browser's current UI selection onto the stored context.
     `region_id` and `locator` are always taken from `incoming` as-is, even
     when `None` — "no hotspot selected" is itself meaningful information for
-    a thread-scoped field (master spec.md's "not yet determined" case, FR-AG-18),
+    a thread-scoped field (specs/interfaces/agent.md's "not yet determined" case, FR-AG-18),
     and `locator` (the hotspot's human-readable citation, e.g. "Ecclesiasticus
     43:1-4", FR-AG-21) always describes the same hotspot `region_id` does, so it
     follows the same all-or-nothing rule. Every other (session-scoped) field

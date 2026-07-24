@@ -1,5 +1,5 @@
-"""`mythrix` CLI entrypoint — registers the three commands from `plan.md`'s CLI
-design: `query`, `load-signs`, `load-documents`."""
+"""`mythrix` CLI entrypoint — registers the three commands: `query`,
+`load-signs`, `load-documents`."""
 
 from __future__ import annotations
 

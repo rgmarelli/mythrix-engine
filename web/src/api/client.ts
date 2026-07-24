@@ -75,7 +75,7 @@ export async function fetchQuery(
 }
 
 // Coordinate-based range lookup behind the Add Context action
-// (specs/hotspot-context-expansion/plan.md) — no query embedding, no
+// (specs/retrieval/context-expansion.md) — no query embedding, no
 // similarity ranking; distinct from `fetchQuery`.
 export async function fetchSegments(
   sourceId: string,
@@ -136,7 +136,7 @@ function toAgentCard(card: AgentCardWire): AgentCard {
   return { type: 'citation', sourceLabel: card.source_label ?? '', locator: card.locator ?? '', text: card.text ?? '' };
 }
 
-// The chat panel's one turn (master spec.md FR-AG-14–FR-AG-22) — the browser sends
+// The chat panel's one turn (specs/interfaces/agent.md FR-AG-14–FR-AG-22) — the browser sends
 // its message plus its current UI selection, as-is, each turn; the backend
 // returns the updated context, grounded reply text, and structured cards.
 export async function postAgentTurn(

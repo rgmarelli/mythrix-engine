@@ -1,4 +1,4 @@
-"""Structural segmenters (plan.md area A, FR-CO-05–FR-CO-06).
+"""Structural segmenters (FR-CO-05–FR-CO-06).
 
 Each scheme below turns a source's raw text into one `Chunk` (segment) per
 smallest structural unit the source itself declares (a scripture verse, a
@@ -130,6 +130,12 @@ def _segment_paragraph(text: str) -> list[Chunk]:
     chunks: list[Chunk] = []
     for ordinal, (start, end) in enumerate(_paragraphs(text)):
         chunks.append(
-            Chunk(index=ordinal, text=normalize_chunk_text(text[start:end]), char_start=start, char_end=end, ordinal=ordinal)
+            Chunk(
+                index=ordinal,
+                text=normalize_chunk_text(text[start:end]),
+                char_start=start,
+                char_end=end,
+                ordinal=ordinal,
+            )
         )
     return chunks

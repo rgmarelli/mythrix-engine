@@ -1,4 +1,4 @@
-"""Per-browser-session conversation + context state (master spec.md FR-AG-20:
+"""Per-browser-session conversation + context state (specs/interfaces/agent.md FR-AG-20:
 retained only for the life of the backend process, never persisted to disk)."""
 
 from __future__ import annotations
