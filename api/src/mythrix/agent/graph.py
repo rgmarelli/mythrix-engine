@@ -45,6 +45,7 @@ def _build_tool_chat_model(*, generation_model: str, base_url: str, num_ctx: int
             model=generation_model,
             base_url=base_url,
             temperature=0.15,
+            num_predict=2048,  # FIXME: make configurable
             num_ctx=num_ctx,
             validate_model_on_init=True,
         )
