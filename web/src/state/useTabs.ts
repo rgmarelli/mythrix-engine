@@ -6,7 +6,7 @@ import { hotspotTitle } from '../utils/hotspot';
 // Mirrors `Settings.retrieval_min_score`'s default (`src/mythrix/core/config.py`)
 // for display only — a `minScore` of `null` sends no `min_score` param at all,
 // so the server's own default always governs unless the user overrides it.
-export const DEFAULT_MIN_SCORE = 0.45;
+export const DEFAULT_MIN_SCORE = 0.6;
 
 export type ThreadItem =
   | { kind: 'user'; id: string; text: string }

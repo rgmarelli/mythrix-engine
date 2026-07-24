@@ -213,7 +213,7 @@ def test_query_min_score_param_overrides_the_settings_default(
     truthiness, since `0.0` is a meaningful explicit value): an identical
     query/chunk embedding here always scores `1.0`, so a `min_score` above
     that excludes it even though it clears `Settings.retrieval_min_score`'s
-    own default (`0.45`)."""
+    own default (`0.6`)."""
     vector_store.add_chunks(
         [Chunk(index=0, text="The Tower represents sudden upheaval.", char_start=0, char_end=38)],
         embeddings=[[1.0, 0.0]],

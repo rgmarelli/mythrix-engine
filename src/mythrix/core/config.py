@@ -60,7 +60,7 @@ class Settings(BaseSettings):
     match was consistently recovered across a `30`/`60`/`100`/`150`/`250` sweep,
     with no further improvement past `100` and negligible added query latency.
 
-    `retrieval_min_score` defaults to `0.45`, not `0.0` — confirmed empirically
+    `retrieval_min_score` defaults to `0.6`, not `0.0` — confirmed empirically
     against a real query (The Sun/Rider-Waite, `nomic-embed-text`, 1621-chunk
     corpus): the distribution of match scores across all retrieved fragments is a
     smooth, single-humped curve from ~0.36 to ~0.55 with no natural gap between
@@ -69,12 +69,11 @@ class Settings(BaseSettings):
     weak its score is, which let a long, topically broad chunk (Deuteronomy 33, an
     imagery-dense passage) register as converging on 8 of 10 interpretants at once
     — none of them individually strong (each below or barely at that interpretant's
-    own weakest top-6 corpus-wide score). `0.45` sits at the observed median; on the
-    same query it cut that chunk's convergence from 8 interpretants to 3 (the ones
-    with genuinely above-median scores) and the total eligible-fragment count from
-    44 to 25, without a principled "correct" cutoff existing in the data — override
-    per-request via `/api/query`'s `min_score` param or `mythrix query --min-score`
-    if this default doesn't suit a particular corpus.
+    own weakest top-6 corpus-wide score). `0.6` sits comfortably above that observed
+    median, favoring precision over recall, without a principled "correct" cutoff
+    existing in the data — override per-request via `/api/query`'s `min_score`
+    param or `mythrix query --min-score` if this default doesn't suit a particular
+    corpus.
 
     `symbols_data_path` is where `POST /api/reload-symbols` reads from when the
     request omits a path — the same directory the local dev workflow already
@@ -114,7 +113,7 @@ class Settings(BaseSettings):
     retrieval_top_k: int = 6
     retrieval_match_pool_size: int = 100
     merge_top_k: int = 6
-    retrieval_min_score: float = 0.45
+    retrieval_min_score: float = 0.6
     generation_num_ctx: int = 8192
     symbols_data_path: Path = Path("data/semiotic_systems")
     region_window_size: int = 3

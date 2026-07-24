@@ -49,7 +49,7 @@ def query(
     """Returns one query's facets and ranked region list
     (`convergence-rollup-retrieval`).
 
-    `min_score` overrides `Settings.retrieval_min_score` (default `0.45`) for
+    `min_score` overrides `Settings.retrieval_min_score` (default `0.6`) for
     this request only — checked with `is None`, not truthiness, since `0.0`
     is itself a meaningful explicit value (pass `min_score=0` to disable the
     floor entirely for one request).

@@ -14,7 +14,7 @@ def test_defaults() -> None:
     assert settings.retrieval_top_k == 6
     assert settings.retrieval_match_pool_size == 100
     assert settings.merge_top_k == 6
-    assert settings.retrieval_min_score == 0.45
+    assert settings.retrieval_min_score == 0.6
     assert settings.generation_num_ctx == 8192
     assert settings.region_window_size == 3
     assert settings.region_min_interpretants == 1
