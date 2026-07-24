@@ -59,7 +59,7 @@ def _render_pair_block(pair: ConceptPairCandidates, *, max_chars: int | None) ->
         if max_chars is not None and len(text) > max_chars:
             text = text[:max_chars].rstrip() + "… [truncated for display — full text in --json]"
         lines.append(
-            f"[S{i + 1}] Symbols: {label}   {candidate.combined_score:.2f}  ({components})\n"
+            f"[S{i + 1}] Signs: {label}   {candidate.combined_score:.2f}  ({components})\n"
             f'     ({attribution}): "{text}"'
         )
     return f"CANDIDATES — [{label}]\n" + "\n".join(lines)

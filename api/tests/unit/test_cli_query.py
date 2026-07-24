@@ -77,7 +77,7 @@ def test_query_succeeds_and_never_constructs_a_generation_model(
     `synthesizer_factory` parameter left for a test to fail-fast on, which is
     itself the structural proof."""
     exit_code = _run(
-        symbol="the-tower",
+        sign="the-tower",
         tradition="rider-waite",
         graph_store=graph_store,
         vector_store=vector_store,
@@ -104,7 +104,7 @@ def test_unreachable_embedder_is_a_clean_error_not_a_traceback(
             raise ModelUnavailableError(self.model_name)
 
     exit_code = _run(
-        symbol="the-tower",
+        sign="the-tower",
         tradition="rider-waite",
         graph_store=graph_store,
         vector_store=vector_store,
@@ -115,11 +115,11 @@ def test_unreachable_embedder_is_a_clean_error_not_a_traceback(
     assert "Error" in capsys.readouterr().err
 
 
-def test_unknown_symbol_returns_nonzero_exit(
+def test_unknown_sign_returns_nonzero_exit(
     graph_store: KuzuGraphStore, vector_store: ChromaVectorStore, capsys: pytest.CaptureFixture[str]
 ) -> None:
     exit_code = _run(
-        symbol="nonexistent",
+        sign="nonexistent",
         tradition="rider-waite",
         graph_store=graph_store,
         vector_store=vector_store,
@@ -136,7 +136,7 @@ def test_json_output_includes_pair_candidates_key(
     """FR-RT-06, FR-RT-08: `--json` output carries the pair-convergence evidence
     alongside per-concept candidates, even when empty."""
     exit_code = _run(
-        symbol="the-tower",
+        sign="the-tower",
         tradition="rider-waite",
         graph_store=graph_store,
         vector_store=vector_store,
@@ -180,7 +180,7 @@ def test_query_surfaces_a_concept_pair_convergence(
     )
 
     exit_code = _run(
-        symbol="the-tower",
+        sign="the-tower",
         tradition="rider-waite",
         graph_store=graph_store,
         vector_store=vector_store,

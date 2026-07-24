@@ -2,18 +2,18 @@
 
 ## 1. Problem
 
-Existing symbolic-interpretation tools fall into two unsatisfying categories: opaque divinatory black boxes that offer no reasoning trail, or unstructured LLM wrappers that generate plausible-sounding but invented interpretations. Researchers and practitioners working in comparative symbolism, digital humanities, and related fields need a tool where every conclusion is traceable back to (a) the specific symbols identified, (b) the primary sources retrieved, and (c) the reasoning chain connecting them — with interpretive traditions kept distinct rather than blended into one composite "meaning."
+Existing symbolic-interpretation tools fall into two unsatisfying categories: opaque divinatory black boxes that offer no reasoning trail, or unstructured LLM wrappers that generate plausible-sounding but invented interpretations. Researchers and practitioners working in comparative symbolism, digital humanities, and related fields need a tool where every conclusion is traceable back to (a) the specific signs identified, (b) the primary sources retrieved, and (c) the reasoning chain connecting them — with interpretive traditions kept distinct rather than blended into one composite "meaning."
 
 ## 2. Vision
 
-A domain-agnostic knowledge graph of symbols, cross-referenced against real document corpora through a deterministic, code-driven retrieval pipeline, running entirely locally. The LLM never decides what a result *is* — retrieval and ranking are code, not model output — it only orchestrates read-only tool calls and composes cited evidence into conversation, at the layer where generated text is explicitly permitted. Every conclusion traces to a cited primary source, never a generated guess.
+A domain-agnostic knowledge graph of signs, cross-referenced against real document corpora through a deterministic, code-driven retrieval pipeline, running entirely locally. The LLM never decides what a result *is* — retrieval and ranking are code, not model output — it only orchestrates read-only tool calls and composes cited evidence into conversation, at the layer where generated text is explicitly permitted. Every conclusion traces to a cited primary source, never a generated guess.
 
 ## 3. Goals
 
 - A domain-agnostic **Sign Graph** data model representing signs, interpretive traditions, tradition-scoped manifestations, properties, interpretants, and intersemiotic interpretants — see [Domain Model](domain/domain-model.md) and [Structured Data](domain/structured-data.md).
 - A **retrieval pipeline** grounded in curated primary-source documents, searched as one independent corpus rather than scoped by interpretive tradition — see [Corpus](retrieval/corpus.md) and [Retrieval](retrieval/retrieval.md).
 - A **local-only pipeline** (no hosted API dependency) that returns ranked, cited evidence for a query — retrieved graph facts and source passages — rather than a generated narrative.
-- **Three tools sharing one core library**: a CLI for querying/interpreting symbols, a structured-data loader that populates the Sign Graph, and a document loader that ingests primary source texts into the vector store.
+- **Three tools sharing one core library**: a CLI for querying/interpreting signs, a structured-data loader that populates the Sign Graph, and a document loader that ingests primary source texts into the vector store.
 - **Tarot as the first reference dataset**, proving a single-sign, single-tradition query end-to-end through the full pipeline — see [Reference Implementation](#9-reference-implementation).
 - **Structural, source-declared segmentation** of corpus documents into atomic segments, rolled up into specificity-weighted, ranked regions — a second retrieval path alongside per-concept/concept-pair retrieval, sharing the same live per-interpretant matching engine — see [Ranking](retrieval/ranking.md).
 - **A web viewer and an independent backend HTTP API** presenting the same evidentiary content as the CLI, reusing the core retrieval pipeline and stores with no duplicated logic — see [Backend API](interfaces/api.md) and [Web Viewer](interfaces/web-viewer.md).
@@ -23,7 +23,7 @@ A domain-agnostic knowledge graph of symbols, cross-referenced against real docu
 
 ## 4. Non-Goals
 
-- Multi-symbol or spread-style queries (e.g. interpreting several symbols together in one request).
+- Multi-sign or spread-style queries (e.g. interpreting several signs together in one request).
 - Conversational or free-text natural-language request parsing on the `query` path — v1 uses structured CLI arguments only. The conversational agent ([interfaces/agent.md](interfaces/agent.md)) is a separate, additive layer and does not change this.
 - Hardening against adversarial input / prompt injection beyond baseline mitigations (data-not-instructions framing, citation-id validation). v1 assumes curator-supplied, not arbitrary, source documents.
 - Verifying that LLM paraphrases are faithful to their cited source, beyond confirming the citation marker refers to real, in-context material. Faithfulness/entailment checking is future work.
@@ -130,7 +130,7 @@ These invariants apply across every subsystem in §6 and are not renegotiated pe
 
 ### 8.1 Structured Data Loading
 
-A curator authors or edits YAML sign files under `data/semiotic_systems/`. `mythrix load-symbols` validates schema and referential integrity, then upserts idempotently into the Sign Graph ([structured-data.md](domain/structured-data.md) FR-SD-01/FR-SD-02). Invalid data is rejected before anything is written.
+A curator authors or edits YAML sign files under `data/semiotic_systems/`. `mythrix load-signs` validates schema and referential integrity, then upserts idempotently into the Sign Graph ([structured-data.md](domain/structured-data.md) FR-SD-01/FR-SD-02). Invalid data is rejected before anything is written.
 
 ### 8.2 Document Ingestion
 
@@ -138,7 +138,7 @@ A curator supplies a primary-source text plus its colocated source metadata (id,
 
 ### 8.3 CLI Query
 
-`mythrix query --symbol <sign> --tradition <tradition>` resolves the sign's interpretants (including cross-domain ones), retrieves candidate passages per concept and per concept-pair convergence, and prints (or emits as JSON) ranked, cited evidence ([retrieval.md](retrieval/retrieval.md)).
+`mythrix query --sign <sign> --tradition <tradition>` resolves the sign's interpretants (including cross-domain ones), retrieves candidate passages per concept and per concept-pair convergence, and prints (or emits as JSON) ranked, cited evidence ([retrieval.md](retrieval/retrieval.md)).
 
 ### 8.4 Web Query
 

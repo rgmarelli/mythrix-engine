@@ -103,7 +103,7 @@ def _new_messages(previous_history: list, new_history: list) -> list:
 def _build_valid_marker_ids(tool_messages: list[ToolMessage]) -> set[str]:
     """Counts citable items across this turn's tool results, in the order
     they appear, per `agent/prompts.py`'s marker convention: each
-    `get_symbol` citation is a "G" item, each `query_symbol`/`fetch_segments`
+    `get_sign` citation is a "G" item, each `query_sign`/`fetch_segments`
     segment is an "S" item. Counting continues across multiple tool calls in
     the same turn rather than restarting per call."""
     valid_ids: set[str] = set()
@@ -111,11 +111,11 @@ def _build_valid_marker_ids(tool_messages: list[ToolMessage]) -> set[str]:
     s_count = 0
     for message in tool_messages:
         payload = _safe_json_loads(message.content)
-        if message.name == "get_symbol" and isinstance(payload, dict) and "error" not in payload:
+        if message.name == "get_sign" and isinstance(payload, dict) and "error" not in payload:
             for _ in payload.get("citations", ()):
                 g_count += 1
                 valid_ids.add(f"G{g_count}")
-        elif message.name == "query_symbol" and isinstance(payload, dict) and "error" not in payload:
+        elif message.name == "query_sign" and isinstance(payload, dict) and "error" not in payload:
             for region in payload.get("regions", ()):
                 for _ in region.get("segments", ()):
                     s_count += 1

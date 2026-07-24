@@ -1,4 +1,4 @@
-import { fetchQuery, fetchSegments, fetchSymbols, fetchTraditions, postAgentTurn } from './client';
+import { fetchQuery, fetchSegments, fetchSigns, fetchTraditions, postAgentTurn } from './client';
 import type { AgentTurnResponseWire, RegionQueryResult } from './types';
 import { makeRegion, makeSignSummary, makeTradition } from '../test/fixtures';
 
@@ -28,24 +28,24 @@ describe('fetchTraditions', () => {
   });
 });
 
-describe('fetchSymbols', () => {
-  it('GETs /api/symbols and returns the parsed list', async () => {
+describe('fetchSigns', () => {
+  it('GETs /api/signs and returns the parsed list', async () => {
     const signs = [makeSignSummary()];
     vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(signs));
-    const result = await fetchSymbols();
-    expect(fetch).toHaveBeenCalledWith('/api/symbols');
+    const result = await fetchSigns();
+    expect(fetch).toHaveBeenCalledWith('/api/signs');
     expect(result).toEqual(signs);
   });
 });
 
 describe('fetchQuery', () => {
-  it('encodes symbol/tradition/opts as query params', async () => {
+  it('encodes sign/tradition/opts as query params', async () => {
     const wire: RegionQueryResult = { facets: { sources: [], interpretants: [] }, regions: [] };
     vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(wire));
     await fetchQuery('the-sun', 'rider-waite', { topK: 10, matchPool: 50, minScore: 0.5 });
     const calledUrl = vi.mocked(fetch).mock.calls[0][0] as string;
     expect(calledUrl).toContain('/api/query?');
-    expect(calledUrl).toContain('symbol=the-sun');
+    expect(calledUrl).toContain('sign=the-sun');
     expect(calledUrl).toContain('tradition=rider-waite');
     expect(calledUrl).toContain('top_k=10');
     expect(calledUrl).toContain('match_pool=50');

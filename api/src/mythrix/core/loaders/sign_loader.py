@@ -122,8 +122,8 @@ class LoadPlan:
 
 def summarize_plan(plan: LoadPlan) -> dict[str, int]:
     """Counts for a `LoadPlan`, shared by every caller that reports what
-    was/would be loaded (`cli/commands/load_symbols.py`, `api/routes.py`'s
-    `/reload-symbols`) — one summary shape regardless of which process ran
+    was/would be loaded (`cli/commands/load_signs.py`, `api/routes.py`'s
+    `/reload-signs`) — one summary shape regardless of which process ran
     `build_plan`/`load_directory`."""
     return {
         "traditions": len(plan.traditions),
@@ -222,7 +222,7 @@ def load_directory(root: Path, store: KuzuGraphStore) -> LoadPlan:
     schema error, unresolvable/ambiguous name reference, duplicate slug, or
     target semiotic system with no matching sign.
 
-    Returns the `LoadPlan` that was written — `cli/commands/load_symbols.py`
+    Returns the `LoadPlan` that was written — `cli/commands/load_signs.py`
     uses this (and the standalone `build_plan()` below, for `--dry-run`) to
     report what was/would be loaded.
     """

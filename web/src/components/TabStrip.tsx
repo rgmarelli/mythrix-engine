@@ -12,7 +12,7 @@ interface Props {
 
 function tabLabel(tab: Tab, signs: SignSummary[]): string {
   if (!tab.queryResult) return 'New query';
-  return signs.find((s) => s.slug === tab.selectedSymbol)?.canonical_name ?? 'Untitled query';
+  return signs.find((s) => s.slug === tab.selectedSign)?.canonical_name ?? 'Untitled query';
 }
 
 /** The tab strip in the top bar (master spec.md FR-WEB-07/FR-WEB-08) — pure rendering

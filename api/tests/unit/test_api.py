@@ -84,7 +84,7 @@ def graph_store(tmp_path: Path) -> KuzuGraphStore:
         created_at=datetime(2026, 1, 1, tzinfo=UTC),
     )
     store.upsert_sign_with_manifestation(the_tower, manifestation)
-    # A correspondence-only sign with zero manifestations — must not appear from /api/symbols.
+    # A correspondence-only sign with zero manifestations — must not appear from /api/signs.
     store.upsert_sign(
         Sign(
             id="path-anchor",
@@ -117,11 +117,11 @@ def test_list_traditions(graph_store: KuzuGraphStore, vector_store: ChromaVector
     assert [t["slug"] for t in response.json()] == ["rider-waite"]
 
 
-def test_list_symbols_excludes_signs_with_no_manifestation(
+def test_list_signs_excludes_signs_with_no_manifestation(
     graph_store: KuzuGraphStore, vector_store: ChromaVectorStore
 ) -> None:
     client = _client(graph_store, vector_store)
-    response = client.get("/api/symbols")
+    response = client.get("/api/signs")
     assert response.status_code == 200
     body = response.json()
     assert [s["slug"] for s in body] == ["the-tower"]
@@ -131,22 +131,22 @@ def test_list_symbols_excludes_signs_with_no_manifestation(
 
 def test_query_returns_facets_and_regions(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore) -> None:
     client = _client(graph_store, vector_store)
-    response = client.get("/api/query", params={"symbol": "the-tower", "tradition": "rider-waite"})
+    response = client.get("/api/query", params={"sign": "the-tower", "tradition": "rider-waite"})
     assert response.status_code == 200
     body = response.json()
     assert body == {"facets": {"sources": [], "interpretants": []}, "regions": []}
 
 
-def test_query_unknown_symbol_returns_404(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore) -> None:
+def test_query_unknown_sign_returns_404(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore) -> None:
     client = _client(graph_store, vector_store)
-    response = client.get("/api/query", params={"symbol": "nonexistent", "tradition": "rider-waite"})
+    response = client.get("/api/query", params={"sign": "nonexistent", "tradition": "rider-waite"})
     assert response.status_code == 404
     assert "detail" in response.json()
 
 
 def test_query_unreachable_embedder_returns_502(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore) -> None:
     client = _client(graph_store, vector_store, embedder=UnreachableEmbedder())
-    response = client.get("/api/query", params={"symbol": "the-tower", "tradition": "rider-waite"})
+    response = client.get("/api/query", params={"sign": "the-tower", "tradition": "rider-waite"})
     assert response.status_code == 502
     assert "detail" in response.json()
 
@@ -189,7 +189,7 @@ def test_query_returns_a_region_converging_on_every_matching_interpretant(
     )
 
     client = _client(graph_store, vector_store)
-    response = client.get("/api/query", params={"symbol": "the-sun", "tradition": "rider-waite"})
+    response = client.get("/api/query", params={"sign": "the-sun", "tradition": "rider-waite"})
 
     assert response.status_code == 200
     body = response.json()
@@ -223,7 +223,7 @@ def test_query_min_score_param_overrides_the_settings_default(
     )
     client = _client(graph_store, vector_store)
 
-    response = client.get("/api/query", params={"symbol": "the-tower", "tradition": "rider-waite", "min_score": 1.5})
+    response = client.get("/api/query", params={"sign": "the-tower", "tradition": "rider-waite", "min_score": 1.5})
 
     assert response.status_code == 200
     assert response.json()["regions"] == []
@@ -260,13 +260,13 @@ def test_segments_unknown_source_returns_404(graph_store: KuzuGraphStore, vector
     assert "detail" in response.json()
 
 
-def test_reload_symbols_loads_yaml_into_the_running_graph_store(
+def test_reload_signs_loads_yaml_into_the_running_graph_store(
     graph_store: KuzuGraphStore, vector_store: ChromaVectorStore, tmp_path: Path
 ) -> None:
     """Proves the endpoint writes through the *same* `graph_store` instance
     the running app was already using (dependency-injected here, just as
     `Stores` is injected once at real startup) rather than opening a second
-    connection — the scenario `/api/reload-symbols` exists to support."""
+    connection — the scenario `/api/reload-signs` exists to support."""
     data_root = tmp_path / "data"
     (data_root / "traditions").mkdir(parents=True)
     (data_root / "traditions" / "rider-waite.yaml").write_text(
@@ -287,7 +287,7 @@ sign:
     )
     client = _client(graph_store, vector_store)
 
-    response = client.post("/api/reload-symbols", params={"path": str(data_root)})
+    response = client.post("/api/reload-signs", params={"path": str(data_root)})
 
     assert response.status_code == 200
     assert response.json() == {
@@ -301,7 +301,7 @@ sign:
     assert the_fool.manifestation.display_name == "The Fool"
 
 
-def test_reload_symbols_invalid_data_returns_422_and_writes_nothing(
+def test_reload_signs_invalid_data_returns_422_and_writes_nothing(
     graph_store: KuzuGraphStore, vector_store: ChromaVectorStore, tmp_path: Path
 ) -> None:
     data_root = tmp_path / "data"
@@ -325,7 +325,7 @@ sign:
     )
     client = _client(graph_store, vector_store)
 
-    response = client.post("/api/reload-symbols", params={"path": str(data_root)})
+    response = client.post("/api/reload-signs", params={"path": str(data_root)})
 
     assert response.status_code == 422
     assert "detail" in response.json()
@@ -360,11 +360,11 @@ def test_summarize_passage_unavailable_model_is_502(
     assert "detail" in response.json()
 
 
-@tool("get_symbol")
-def _fake_get_symbol(symbol: str, tradition: str | None = None) -> dict:
-    """Fake get_symbol for `/api/agent` integration tests."""
+@tool("get_sign")
+def _fake_get_sign(sign: str, tradition: str | None = None) -> dict:
+    """Fake get_sign for `/api/agent` integration tests."""
     if tradition is None:
-        return {"needs_tradition": True, "symbol": "The Magician", "traditions": ["rider-waite", "marseille"]}
+        return {"needs_tradition": True, "sign": "The Magician", "traditions": ["rider-waite", "marseille"]}
     return {
         "sign": "The Magician",
         "semiotic_system": "tarot",
@@ -388,7 +388,7 @@ def _agent_client(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore, 
     client = _client(graph_store, vector_store)
     client.app.dependency_overrides[get_agent_sessions] = lambda: SessionStore()
     client.app.dependency_overrides[get_agent_graph] = lambda: compile_agent_graph(
-        _ScriptedLLM(script), [_fake_get_symbol]
+        _ScriptedLLM(script), [_fake_get_sign]
     )
     return client
 
@@ -399,9 +399,7 @@ def test_agent_turn_returns_grounded_reply_context_and_cards(
     script = [
         AIMessage(
             content="",
-            tool_calls=[
-                {"name": "get_symbol", "args": {"symbol": "The Magician", "tradition": "rider-waite"}, "id": "c1"}
-            ],
+            tool_calls=[{"name": "get_sign", "args": {"sign": "The Magician", "tradition": "rider-waite"}, "id": "c1"}],
         ),
         AIMessage(content="The Magician represents willpower [G1]."),
     ]
@@ -433,7 +431,7 @@ def test_agent_turn_reset_on_hotspot_change(graph_store: KuzuGraphStore, vector_
     sessions = SessionStore()
     client.app.dependency_overrides[get_agent_sessions] = lambda: sessions
     client.app.dependency_overrides[get_agent_graph] = lambda: compile_agent_graph(
-        _ScriptedLLM(script + [AIMessage(content="Hi again.")]), [_fake_get_symbol]
+        _ScriptedLLM(script + [AIMessage(content="Hi again.")]), [_fake_get_sign]
     )
 
     first = client.post(
@@ -454,11 +452,11 @@ def test_agent_turn_ambiguous_tradition_asks_with_no_second_model_call(
     graph_store: KuzuGraphStore, vector_store: ChromaVectorStore
 ) -> None:
     llm = _ScriptedLLM(
-        [AIMessage(content="", tool_calls=[{"name": "get_symbol", "args": {"symbol": "The Magician"}, "id": "c1"}])]
+        [AIMessage(content="", tool_calls=[{"name": "get_sign", "args": {"sign": "The Magician"}, "id": "c1"}])]
     )
     client = _client(graph_store, vector_store)
     client.app.dependency_overrides[get_agent_sessions] = lambda: SessionStore()
-    client.app.dependency_overrides[get_agent_graph] = lambda: compile_agent_graph(llm, [_fake_get_symbol])
+    client.app.dependency_overrides[get_agent_graph] = lambda: compile_agent_graph(llm, [_fake_get_sign])
 
     response = client.post(
         "/api/agent",

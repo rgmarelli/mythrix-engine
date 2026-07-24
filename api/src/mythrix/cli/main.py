@@ -1,17 +1,17 @@
 """`mythrix` CLI entrypoint — registers the three commands from `plan.md`'s CLI
-design: `query`, `load-symbols`, `load-documents`."""
+design: `query`, `load-signs`, `load-documents`."""
 
 from __future__ import annotations
 
 import typer
 
 from mythrix.cli.commands.load_documents import load_documents
-from mythrix.cli.commands.load_symbols import load_symbols
+from mythrix.cli.commands.load_signs import load_signs
 from mythrix.cli.commands.query import query
 
 app = typer.Typer(name="mythrix", help="Explainable symbolic-interpretation engine.")
 app.command(name="query")(query)
-app.command(name="load-symbols")(load_symbols)
+app.command(name="load-signs")(load_signs)
 app.command(name="load-documents")(load_documents)
 
 

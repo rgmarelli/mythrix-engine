@@ -14,7 +14,7 @@ def test_root_help_lists_all_three_commands() -> None:
 
     assert result.exit_code == 0
     assert "query" in result.output
-    assert "load-symbols" in result.output
+    assert "load-signs" in result.output
     assert "load-documents" in result.output
 
 
@@ -25,14 +25,14 @@ def test_query_help_lists_expected_options() -> None:
     result = runner.invoke(app, ["query", "--help"])
 
     assert result.exit_code == 0
-    for option in ("--symbol", "--tradition", "--top-k", "--match-pool", "--json"):
+    for option in ("--sign", "--tradition", "--top-k", "--match-pool", "--json"):
         assert option in result.output
     for removed_option in ("--facts-only", "--strict"):
         assert removed_option not in result.output
 
 
-def test_load_symbols_help_lists_expected_options() -> None:
-    result = runner.invoke(app, ["load-symbols", "--help"])
+def test_load_signs_help_lists_expected_options() -> None:
+    result = runner.invoke(app, ["load-signs", "--help"])
 
     assert result.exit_code == 0
     assert "--dry-run" in result.output

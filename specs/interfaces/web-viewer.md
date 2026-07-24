@@ -4,7 +4,7 @@ The tabbed frontend presenting [Ranking](../retrieval/ranking.md) results, backe
 
 ## Vocabulary
 
-- **tab**: An independent unit of web-viewer workspace state — one semiotic system/symbol/tradition/min-score selection, its facet selections, its query result (if any), its selected hotspot, and its own agent chat session and thread. Tabs never share or merge state with one another.
+- **tab**: An independent unit of web-viewer workspace state — one semiotic system/sign/tradition/min-score selection, its facet selections, its query result (if any), its selected hotspot, and its own agent chat session and thread. Tabs never share or merge state with one another.
 
 ## Functional requirements
 
@@ -18,10 +18,10 @@ The tabbed frontend presenting [Ranking](../retrieval/ranking.md) results, backe
 
 ### Tabbed workspace & redesign
 
-- FR-WEB-06: The web viewer holds one or more tabs at a time. Each tab owns, in isolation from every other tab: the selected semiotic system, symbol, tradition, and min-score override (FR-WEB-01/FR-WEB-04); the current query result, if any (FR-WEB-02); the Sources/Interpretants facet selections and the interpretant-search filter text (FR-WEB-02, FR-WEB-13); and the selected hotspot (FR-WEB-03). Changing any of these in one tab never affects another tab's state.
+- FR-WEB-06: The web viewer holds one or more tabs at a time. Each tab owns, in isolation from every other tab: the selected semiotic system, sign, tradition, and min-score override (FR-WEB-01/FR-WEB-04); the current query result, if any (FR-WEB-02); the Sources/Interpretants facet selections and the interpretant-search filter text (FR-WEB-02, FR-WEB-13); and the selected hotspot (FR-WEB-03). Changing any of these in one tab never affects another tab's state.
 - FR-WEB-07: A tab strip, in the top bar, lists every open tab in creation order and visually distinguishes the active tab. The user can: switch to any tab by selecting it; open a new, empty tab; and close any tab. Closing the only remaining open tab replaces it with a new, empty tab — the viewer always has at least one tab.
-- FR-WEB-08: A tab's displayed label reflects its own state: the queried symbol's name once that tab has a result, otherwise a placeholder indicating no query has run yet in that tab.
-- FR-WEB-09: A new tab starts with no system/symbol/tradition selected, no query result, and no facet selections — the same empty state the viewer has before a first query — never copying another tab's selections.
+- FR-WEB-08: A tab's displayed label reflects its own state: the queried sign's name once that tab has a result, otherwise a placeholder indicating no query has run yet in that tab.
+- FR-WEB-09: A new tab starts with no system/sign/tradition selected, no query result, and no facet selections — the same empty state the viewer has before a first query — never copying another tab's selections.
 - FR-WEB-10: The docked agent chat panel ([agent.md](agent.md)) is a single, shared dock (its collapsed/expanded state is not per-tab), but its grounding context and its message thread always reflect the active tab: the context strip shows the active tab's selected hotspot (or that none is selected), and the thread shown is that tab's own thread and no other's. Switching tabs switches which tab's context and thread the dock displays; it never merges two tabs' threads.
 - FR-WEB-11: Each tab has its own agent session (its own session id and its own conversation history/context, per [agent.md](agent.md) FR-AG-17's per-session context state). A message sent from one tab is answered within that tab's own thread and session even if the user switches to a different tab before the reply arrives; the reply is appended to the originating tab's thread, not whichever tab happens to be active when it arrives.
 - FR-WEB-12: Closing a tab discards that tab's agent session and thread along with the rest of its state (FR-WEB-06); it is not recoverable.

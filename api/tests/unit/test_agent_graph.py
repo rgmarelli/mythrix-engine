@@ -19,10 +19,10 @@ def echo(text: str) -> str:
 
 
 @tool
-def get_symbol(symbol: str, tradition: str | None = None) -> dict:
-    """Fake get_symbol for routing tests."""
+def get_sign(sign: str, tradition: str | None = None) -> dict:
+    """Fake get_sign for routing tests."""
     if tradition is None:
-        return {"needs_tradition": True, "symbol": "The Magician", "traditions": ["rider-waite", "marseille"]}
+        return {"needs_tradition": True, "sign": "The Magician", "traditions": ["rider-waite", "marseille"]}
     return {"sign": "The Magician", "tradition": tradition}
 
 
@@ -85,22 +85,22 @@ def test_compiled_graph_raises_graph_recursion_error_on_runaway_loop() -> None:
 
 
 def test_route_after_tools_routes_to_clarify_on_needs_tradition() -> None:
-    payload = '{"needs_tradition": true, "symbol": "The Magician", "traditions": ["rider-waite", "marseille"]}'
-    state = {"messages": [ToolMessage(content=payload, name="get_symbol", tool_call_id="c")]}
+    payload = '{"needs_tradition": true, "sign": "The Magician", "traditions": ["rider-waite", "marseille"]}'
+    state = {"messages": [ToolMessage(content=payload, name="get_sign", tool_call_id="c")]}
     assert route_after_tools(state) == "clarify"
 
 
 def test_route_after_tools_routes_to_clarify_for_a_different_needs_key_and_tool() -> None:
     """Proves the routing rule is generic — keyed on any truthy `needs_*`
-    field in the payload, not hardcoded to `get_symbol`/`needs_tradition`."""
-    payload = '{"needs_system": true, "symbol": "The Sun", "systems": ["tarot", "hebrew_alef_bet"]}'
+    field in the payload, not hardcoded to `get_sign`/`needs_tradition`."""
+    payload = '{"needs_system": true, "sign": "The Sun", "systems": ["tarot", "hebrew_alef_bet"]}'
     state = {"messages": [ToolMessage(content=payload, name="some_other_tool", tool_call_id="c")]}
     assert route_after_tools(state) == "clarify"
 
 
-def test_route_after_tools_routes_to_agent_for_a_normal_get_symbol_result() -> None:
+def test_route_after_tools_routes_to_agent_for_a_normal_get_sign_result() -> None:
     payload = '{"sign": "The Magician", "tradition": "rider-waite"}'
-    state = {"messages": [ToolMessage(content=payload, name="get_symbol", tool_call_id="c")]}
+    state = {"messages": [ToolMessage(content=payload, name="get_sign", tool_call_id="c")]}
     assert route_after_tools(state) == "agent"
 
 
@@ -111,14 +111,14 @@ def test_route_after_tools_routes_to_agent_when_no_needs_key_is_present() -> Non
 
 
 def test_route_after_tools_routes_to_agent_when_needs_key_is_falsy() -> None:
-    payload = '{"needs_tradition": false, "symbol": "The Magician", "tradition": "rider-waite"}'
-    state = {"messages": [ToolMessage(content=payload, name="get_symbol", tool_call_id="c")]}
+    payload = '{"needs_tradition": false, "sign": "The Magician", "tradition": "rider-waite"}'
+    state = {"messages": [ToolMessage(content=payload, name="get_sign", tool_call_id="c")]}
     assert route_after_tools(state) == "agent"
 
 
 def test_clarify_node_builds_a_deterministic_reply_from_the_payload() -> None:
-    payload = '{"needs_tradition": true, "symbol": "The Magician", "traditions": ["rider-waite", "marseille"]}'
-    state = {"messages": [ToolMessage(content=payload, name="get_symbol", tool_call_id="c")]}
+    payload = '{"needs_tradition": true, "sign": "The Magician", "traditions": ["rider-waite", "marseille"]}'
+    state = {"messages": [ToolMessage(content=payload, name="get_sign", tool_call_id="c")]}
 
     result = clarify_node(state)
 
@@ -139,13 +139,13 @@ def test_needs_tradition_never_reaches_the_model() -> None:
             last_human = next(m for m in reversed(messages) if type(m).__name__ == "HumanMessage")
             if "tradition" not in str(last_human.content).lower():
                 return AIMessage(
-                    content="", tool_calls=[{"name": "get_symbol", "args": {"symbol": "The Magician"}, "id": "c1"}]
+                    content="", tool_calls=[{"name": "get_sign", "args": {"sign": "The Magician"}, "id": "c1"}]
                 )
             # If ever invoked again this turn, it would fabricate — the test
             # fails if the graph lets this branch run at all.
             raise AssertionError("model was invoked after a needs_tradition tool result")
 
-    graph = compile_agent_graph(FabricatingLLM(), [get_symbol])
+    graph = compile_agent_graph(FabricatingLLM(), [get_sign])
     final_state = None
     for state in graph.stream(
         {"messages": [HumanMessage(content="tell me about The Magician")]},

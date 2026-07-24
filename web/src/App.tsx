@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { fetchSymbols, fetchTraditions } from './api/client';
+import { fetchSigns, fetchTraditions } from './api/client';
 import type { SignSummary, Tradition } from './api/types';
 import { AgentChatPanel } from './components/AgentChatPanel';
 import { ControlPanel } from './components/ControlPanel';
@@ -33,7 +33,7 @@ function App() {
 
   useEffect(() => {
     fetchTraditions().then(setTraditions).catch((error: Error) => setLoadError(error.message));
-    fetchSymbols().then(setSigns).catch((error: Error) => setLoadError(error.message));
+    fetchSigns().then(setSigns).catch((error: Error) => setLoadError(error.message));
   }, []);
 
   const {
@@ -44,7 +44,7 @@ function App() {
     addTab,
     closeTab,
     setSystem,
-    setSymbol,
+    setSign,
     setTradition,
     setMinScore,
     setSourceId,
@@ -88,13 +88,13 @@ function App() {
         signs={signs}
         traditions={traditions}
         selectedSystem={activeTab.selectedSystem}
-        selectedSymbol={activeTab.selectedSymbol}
+        selectedSign={activeTab.selectedSign}
         selectedTradition={activeTab.selectedTradition}
         minScore={activeTab.minScore}
         minScoreDefault={DEFAULT_MIN_SCORE}
         isStreaming={activeTab.isQuerying}
         onSystemChange={setSystem}
-        onSymbolChange={setSymbol}
+        onSignChange={setSign}
         onTraditionChange={setTradition}
         onMinScoreChange={setMinScore}
         onSubmit={runQuery}

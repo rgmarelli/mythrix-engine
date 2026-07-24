@@ -81,7 +81,7 @@ def test_execute_query_returns_a_retrieval_context(
     graph_store: KuzuGraphStore, vector_store: ChromaVectorStore
 ) -> None:
     context = execute_query(
-        symbol="the-tower",
+        sign="the-tower",
         tradition="rider-waite",
         graph_store=graph_store,
         vector_store=vector_store,
@@ -95,7 +95,7 @@ def test_execute_query_returns_a_retrieval_context(
 def test_execute_query_propagates_mythrix_error(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore) -> None:
     with pytest.raises(SignNotFoundError):
         execute_query(
-            symbol="nonexistent",
+            sign="nonexistent",
             tradition="rider-waite",
             graph_store=graph_store,
             vector_store=vector_store,
@@ -108,7 +108,7 @@ def test_query_regions_returns_a_region_query_result(
     graph_store: KuzuGraphStore, vector_store: ChromaVectorStore
 ) -> None:
     result = query_regions(
-        symbol="the-tower",
+        sign="the-tower",
         tradition="rider-waite",
         graph_store=graph_store,
         vector_store=vector_store,
@@ -124,7 +124,7 @@ def test_query_regions_returns_a_region_query_result(
 def test_query_regions_propagates_mythrix_error(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore) -> None:
     with pytest.raises(SignNotFoundError):
         query_regions(
-            symbol="nonexistent",
+            sign="nonexistent",
             tradition="rider-waite",
             graph_store=graph_store,
             vector_store=vector_store,

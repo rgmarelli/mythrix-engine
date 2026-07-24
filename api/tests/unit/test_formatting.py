@@ -145,7 +145,7 @@ def test_render_facts_human_includes_a_pair_group_with_combined_and_component_sc
     output = render_facts_human(_context_with_a_pair())
 
     assert "CANDIDATES — [laughter, child]" in output
-    assert "Symbols: laughter, child" in output
+    assert "Signs: laughter, child" in output
     assert "0.58" in output  # combined score
     assert "laughter 0.61" in output
     assert "child 0.55" in output

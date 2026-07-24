@@ -2,18 +2,18 @@
 
 **An explainable symbolic-interpretation engine — every conclusion traces back to a cited primary source, never a generated guess.**
 
-Most "AI symbol interpreter" tools fall into one of two camps: opaque divinatory black boxes with no reasoning trail, or LLM wrappers that hallucinate plausible-sounding meanings. Mythrix takes a third path — a domain-agnostic knowledge graph of symbols, cross-referenced against a real document corpus through a deterministic, code-driven retrieval pipeline. The LLM never decides what a result *is*; it only orchestrates tool calls and composes cited evidence into conversation. Everything runs **locally** — no hosted API dependency, no data leaving your machine.
+Most "AI symbol interpreter" tools fall into one of two camps: opaque divinatory black boxes with no reasoning trail, or LLM wrappers that hallucinate plausible-sounding meanings. Mythrix takes a third path — a domain-agnostic knowledge graph of signs, cross-referenced against a real document corpus through a deterministic, code-driven retrieval pipeline. The LLM never decides what a result *is*; it only orchestrates tool calls and composes cited evidence into conversation. Everything runs **locally** — no hosted API dependency, no data leaving your machine.
 
 Built end-to-end as a solo project: data model, retrieval engine, ranking algorithm, HTTP API, React frontend, and a tool-calling conversational agent.
 
 ## What it does
 
-Query a symbol — say, the Tower card in Rider-Waite tarot — and get back **ranked, cited evidence**, not a paragraph of invented meaning:
+Query a sign — say, the Tower card in Rider-Waite tarot — and get back **ranked, cited evidence**, not a paragraph of invented meaning:
 
 - **Graph facts** — the sign's properties, interpretants, and cross-domain correspondences (e.g. the Tower's Hebrew-letter correspondence via a Golden Dawn attribution), pulled from a structured knowledge graph.
-- **Concept & concept-pair retrieval** — each of the symbol's interpretants (`"fire"`, `"falling figures"`, `"lightning"`...) independently retrieves matching passages from an unrelated reference corpus (the Douay-Rheims Bible, Sefer HaBahir), and passages hit by *multiple* interpretants surface as their own ranked convergence groups.
+- **Concept & concept-pair retrieval** — each of the sign's interpretants (`"fire"`, `"falling figures"`, `"lightning"`...) independently retrieves matching passages from an unrelated reference corpus (the Douay-Rheims Bible, Sefer HaBahir), and passages hit by *multiple* interpretants surface as their own ranked convergence groups.
 - **Ranked hotspots** — contiguous passages scored by a specificity-weighted convergence formula (rarer surface forms weigh more), so a passage matched by three distinct concepts outranks one matched by a single common word — with full verbatim text and exact citation, never just a locator.
-- **A grounded chat agent** — a docked panel where a local model answers questions *about* a result by calling the same read-only tools the API exposes (symbol lookup, region query, segment fetch, summarize) — never asserting a fact absent from a tool result, with the tool trace shown for every turn.
+- **A grounded chat agent** — a docked panel where a local model answers questions *about* a result by calling the same read-only tools the API exposes (sign lookup, region query, segment fetch, summarize) — never asserting a fact absent from a tool result, with the tool trace shown for every turn.
 
 The reference dataset proves this is genuinely domain-agnostic: all 22 tarot Major Arcana, all 22 Hebrew letters (Sepher Yetzirah correspondences), cross-linked to each other, both read *through* an entirely unrelated corpus (Biblical and Kabbalistic texts) to demonstrate that retrieval works on any curated document set, not just tarot-specific writing.
 
@@ -74,11 +74,11 @@ cd api && uv sync
 # install Ollama, pull nomic-embed-text — see docs/SETUP.md for the full walkthrough
 cd ..
 
-uv run --project api mythrix load-symbols data --json
+uv run --project api mythrix load-signs data --json
 uv run --project api mythrix load-documents data/corpus/scripture/en_drb/douay-rheims-bible.txt \
   --tradition douay-rheims --source-slug douay-rheims-bible --json
 
-uv run --project api mythrix query --symbol the-tower --tradition rider-waite
+uv run --project api mythrix query --sign the-tower --tradition rider-waite
 ```
 
 Full setup — Ollama models, configuration, and running the API + web viewer together — is in [`docs/SETUP.md`](docs/SETUP.md).

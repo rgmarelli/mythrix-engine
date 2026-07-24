@@ -102,12 +102,12 @@ def backfill_from_tool_results(context: AgentContext, new_messages: list) -> Age
     (ADR-006). No involvement from the generation model in deciding what to
     backfill.
 
-    Mapping: `get_symbol` (result carries no `needs_tradition`) backfills all
+    Mapping: `get_sign` (result carries no `needs_tradition`) backfills all
     three fields straight from its own result payload (which already
-    includes `sign`/`tradition`/`semiotic_system`). `query_symbol` backfills
+    includes `sign`/`tradition`/`semiotic_system`). `query_sign` backfills
     `sign`/`tradition` from the *call's own arguments* (its result payload
     carries region/segment data, not sign identity). `list_traditions`/
-    `list_symbols`/`list_semiotic_systems` never backfill (discovery only).
+    `list_signs`/`list_semiotic_systems` never backfill (discovery only).
     `fetch_segments`/`summarize_passage` never backfill sign/tradition
     (operate on coordinates/text, not sign identity)."""
     updates: dict[str, str] = {}
@@ -125,7 +125,7 @@ def backfill_from_tool_results(context: AgentContext, new_messages: list) -> Age
         payload = _safe_json_loads(message.content)
         call = pending_call_args.get(message.tool_call_id)
 
-        if message.name == "get_symbol":
+        if message.name == "get_sign":
             if isinstance(payload, dict) and not payload.get("needs_tradition"):
                 if payload.get("sign"):
                     updates["sign"] = payload["sign"]
@@ -133,10 +133,10 @@ def backfill_from_tool_results(context: AgentContext, new_messages: list) -> Age
                     updates["tradition"] = payload["tradition"]
                 if payload.get("semiotic_system"):
                     updates["semiotic_system"] = payload["semiotic_system"]
-        elif message.name == "query_symbol" and call is not None:
+        elif message.name == "query_sign" and call is not None:
             args = call.get("args", {})
-            if args.get("symbol"):
-                updates["sign"] = args["symbol"]
+            if args.get("sign"):
+                updates["sign"] = args["sign"]
             if args.get("tradition"):
                 updates["tradition"] = args["tradition"]
 

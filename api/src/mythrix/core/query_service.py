@@ -14,7 +14,7 @@ from mythrix.core.vector.store import ChromaVectorStore
 
 def execute_query(
     *,
-    symbol: str,
+    sign: str,
     tradition: str,
     graph_store: KuzuGraphStore,
     vector_store: ChromaVectorStore,
@@ -24,7 +24,7 @@ def execute_query(
     merge_top_k: int,
     min_score: float,
 ) -> RetrievalContext:
-    graph_facts = graph_store.get_manifestation(symbol, tradition)
+    graph_facts = graph_store.get_manifestation(sign, tradition)
     pipeline = RetrievalPipeline(
         graph_store=graph_store,
         vector_store=vector_store,
@@ -39,7 +39,7 @@ def execute_query(
 
 def query_regions(
     *,
-    symbol: str,
+    sign: str,
     tradition: str,
     graph_store: KuzuGraphStore,
     vector_store: ChromaVectorStore,
@@ -53,7 +53,7 @@ def query_regions(
 ) -> RegionQueryResult:
     """Region-centric retrieval (see `specs/retrieval/ranking.md`) — the query
     path `/api/query` runs."""
-    graph_facts = graph_store.get_manifestation(symbol, tradition)
+    graph_facts = graph_store.get_manifestation(sign, tradition)
     pipeline = RetrievalPipeline(
         graph_store=graph_store,
         vector_store=vector_store,

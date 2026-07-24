@@ -21,7 +21,7 @@ The domain-agnostic data model representing signs, interpretive traditions, and 
 
 ## Non-goals
 
-- Cross-tradition comparison synthesis as a query capability — e.g. surfacing two *interpretive* traditions' competing readings of the same symbol (Crowley's vs. Waite's) side by side and adjudicating which one a document corpus better supports. The data model must support intersemiotic interpretants between traditions (FR-DM-03), but no query surface for comparing traditions ships in v1. This is distinct from reading an independent, non-interpretive document corpus through one tradition's established symbolism, which is in scope (see [Corpus](../retrieval/corpus.md) FR-CO-02).
+- Cross-tradition comparison synthesis as a query capability — e.g. surfacing two *interpretive* traditions' competing readings of the same sign (Crowley's vs. Waite's) side by side and adjudicating which one a document corpus better supports. The data model must support intersemiotic interpretants between traditions (FR-DM-03), but no query surface for comparing traditions ships in v1. This is distinct from reading an independent, non-interpretive document corpus through one tradition's established symbolism, which is in scope (see [Corpus](../retrieval/corpus.md) FR-CO-02).
 
 ## Worked example
 

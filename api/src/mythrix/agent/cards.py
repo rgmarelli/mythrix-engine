@@ -26,7 +26,7 @@ def _interpretant_chips_card(matches: list[dict]) -> dict:
     }
 
 
-def _cards_for_query_symbol(payload: dict) -> list[dict]:
+def _cards_for_query_sign(payload: dict) -> list[dict]:
     cards: list[dict] = []
     for region in payload.get("regions", ()):
         source_label = region.get("source", "")
@@ -49,7 +49,7 @@ def _cards_for_fetch_segments(payload: list) -> list[dict]:
     ]
 
 
-def _cards_for_get_symbol(payload: dict) -> list[dict]:
+def _cards_for_get_sign(payload: dict) -> list[dict]:
     return [
         _citation_card(source_label=citation.get("source", ""), locator=citation.get("locator", ""), text="")
         for citation in payload.get("citations", ())
@@ -61,10 +61,10 @@ def build_cards(tool_name: str, payload: object) -> list[dict]:
     `turn_service.py`) — a `dict` for every tool except `fetch_segments`,
     which returns a `list`. A `{"error": ...}` payload (a caught
     `MythrixError`, `agent/tools.py`) produces no cards."""
-    if tool_name == "query_symbol" and isinstance(payload, dict) and "error" not in payload:
-        return _cards_for_query_symbol(payload)
+    if tool_name == "query_sign" and isinstance(payload, dict) and "error" not in payload:
+        return _cards_for_query_sign(payload)
     if tool_name == "fetch_segments" and isinstance(payload, list):
         return _cards_for_fetch_segments(payload)
-    if tool_name == "get_symbol" and isinstance(payload, dict) and "error" not in payload:
-        return _cards_for_get_symbol(payload)
+    if tool_name == "get_sign" and isinstance(payload, dict) and "error" not in payload:
+        return _cards_for_get_sign(payload)
     return []

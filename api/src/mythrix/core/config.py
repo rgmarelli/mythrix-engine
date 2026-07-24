@@ -75,9 +75,9 @@ class Settings(BaseSettings):
     param or `mythrix query --min-score` if this default doesn't suit a particular
     corpus.
 
-    `symbols_data_path` is where `POST /api/reload-symbols` reads from when the
+    `signs_data_path` is where `POST /api/reload-signs` reads from when the
     request omits a path — the same directory the local dev workflow already
-    passes to `mythrix load-symbols` by hand.
+    passes to `mythrix load-signs` by hand.
 
     `region_window_size` (FR-RK-02) is how many
     consecutive segment ordinals of one source a region rollup can chain
@@ -115,7 +115,7 @@ class Settings(BaseSettings):
     merge_top_k: int = 6
     retrieval_min_score: float = 0.6
     generation_num_ctx: int = 8192
-    symbols_data_path: Path = Path("data/semiotic_systems")
+    signs_data_path: Path = Path("data/semiotic_systems")
     region_window_size: int = 3
     region_min_interpretants: int = 1
     agent_model: str | None = None

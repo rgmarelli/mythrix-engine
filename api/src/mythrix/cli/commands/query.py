@@ -32,7 +32,7 @@ from mythrix.core.vector.store import ChromaVectorStore
 
 def run_query(
     *,
-    symbol: str,
+    sign: str,
     tradition: str,
     graph_store: KuzuGraphStore,
     vector_store: ChromaVectorStore,
@@ -49,7 +49,7 @@ def run_query(
     generation model (FR-RT-10)."""
     try:
         context = execute_query(
-            symbol=symbol,
+            sign=sign,
             tradition=tradition,
             graph_store=graph_store,
             vector_store=vector_store,
@@ -68,8 +68,8 @@ def run_query(
 
 
 def query(
-    symbol: Annotated[str, typer.Option("--symbol", help="Symbol slug, as loaded via load-symbols")],
-    tradition: Annotated[str, typer.Option("--tradition", help="Tradition slug, as loaded via load-symbols")],
+    sign: Annotated[str, typer.Option("--sign", help="Sign slug, as loaded via load-signs")],
+    tradition: Annotated[str, typer.Option("--tradition", help="Tradition slug, as loaded via load-signs")],
     top_k: Annotated[int | None, typer.Option("--top-k", help="Override retrieval_top_k")] = None,
     match_pool: Annotated[
         int | None,
@@ -82,7 +82,7 @@ def query(
     stores = build_stores(settings)
 
     exit_code = run_query(
-        symbol=symbol,
+        sign=sign,
         tradition=tradition,
         graph_store=stores.graph_store,
         vector_store=stores.vector_store,

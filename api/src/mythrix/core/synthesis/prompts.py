@@ -23,7 +23,7 @@ from __future__ import annotations
 from mythrix.core.models import GraphFacts, RetrievedPassage
 
 SYSTEM_PROMPT = """\
-You are a research assistant explaining a symbol's interpretation to a researcher.
+You are a research assistant explaining a sign's interpretation to a researcher.
 Only state what is present in the GRAPH FACTS and PASSAGES blocks below — never invent \
 facts, sources, or relationships that aren't there.
 Cite every substantive claim with the marker of the fact or passage it comes from \
@@ -41,7 +41,7 @@ def graph_fact_lines(graph_facts: GraphFacts) -> list[str]:
     rendered prompt (`render_graph_facts_block`)."""
     sign, manifestation = graph_facts.sign, graph_facts.manifestation
     lines = [
-        f'Symbol "{sign.canonical_name}" ({sign.sign_type}), interpreted in '
+        f'Sign "{sign.canonical_name}" ({sign.sign_type}), interpreted in '
         f'{manifestation.tradition.name} as "{manifestation.display_name}": {manifestation.denotation}'
     ]
     lines += [

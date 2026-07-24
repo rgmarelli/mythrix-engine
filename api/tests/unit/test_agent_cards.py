@@ -4,7 +4,7 @@ directly from a tool result payload, one test per tool in the mapping."""
 from mythrix.agent.cards import build_cards
 
 
-def test_query_symbol_builds_citation_and_interpretant_chip_cards() -> None:
+def test_query_sign_builds_citation_and_interpretant_chip_cards() -> None:
     payload = {
         "regions": [
             {
@@ -20,7 +20,7 @@ def test_query_symbol_builds_citation_and_interpretant_chip_cards() -> None:
         ]
     }
 
-    cards = build_cards("query_symbol", payload)
+    cards = build_cards("query_sign", payload)
 
     assert cards == [
         {
@@ -36,12 +36,12 @@ def test_query_symbol_builds_citation_and_interpretant_chip_cards() -> None:
     ]
 
 
-def test_query_symbol_with_no_regions_returns_no_cards() -> None:
-    assert build_cards("query_symbol", {"regions": []}) == []
+def test_query_sign_with_no_regions_returns_no_cards() -> None:
+    assert build_cards("query_sign", {"regions": []}) == []
 
 
-def test_query_symbol_error_payload_returns_no_cards() -> None:
-    assert build_cards("query_symbol", {"error": "unknown symbol"}) == []
+def test_query_sign_error_payload_returns_no_cards() -> None:
+    assert build_cards("query_sign", {"error": "unknown sign"}) == []
 
 
 def test_fetch_segments_builds_citation_cards() -> None:
@@ -56,17 +56,17 @@ def test_fetch_segments_skips_error_entries() -> None:
     assert build_cards("fetch_segments", [{"error": "no such source"}]) == []
 
 
-def test_get_symbol_builds_attribution_only_citation_cards() -> None:
+def test_get_sign_builds_attribution_only_citation_cards() -> None:
     payload = {"sign": "The Tower", "citations": [{"source": "Waite", "locator": "p. 12"}]}
 
-    cards = build_cards("get_symbol", payload)
+    cards = build_cards("get_sign", payload)
 
     assert cards == [{"type": "citation", "source_label": "Waite", "locator": "p. 12", "text": ""}]
 
 
-def test_get_symbol_needs_tradition_returns_no_cards() -> None:
-    assert build_cards("get_symbol", {"needs_tradition": True, "symbol": "X", "traditions": []}) == []
+def test_get_sign_needs_tradition_returns_no_cards() -> None:
+    assert build_cards("get_sign", {"needs_tradition": True, "sign": "X", "traditions": []}) == []
 
 
 def test_unrelated_tool_returns_no_cards() -> None:
-    assert build_cards("list_symbols", [{"slug": "the-tower"}]) == []
+    assert build_cards("list_signs", [{"slug": "the-tower"}]) == []

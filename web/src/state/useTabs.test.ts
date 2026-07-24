@@ -21,7 +21,7 @@ describe('tab lifecycle', () => {
   it('starts with exactly one empty tab', () => {
     const { result } = renderHook(() => useTabs());
     expect(result.current.tabs).toHaveLength(1);
-    expect(result.current.activeTab.selectedSymbol).toBe('');
+    expect(result.current.activeTab.selectedSign).toBe('');
   });
 
   it('addTab appends a new tab and makes it active', () => {
@@ -36,11 +36,11 @@ describe('tab lifecycle', () => {
   it('closeTab on the only remaining tab replaces it with a fresh empty tab', () => {
     const { result } = renderHook(() => useTabs());
     const originalId = result.current.tabs[0].id;
-    act(() => result.current.setSymbol('the-sun'));
+    act(() => result.current.setSign('the-sun'));
     act(() => result.current.closeTab(originalId));
     expect(result.current.tabs).toHaveLength(1);
     expect(result.current.tabs[0].id).not.toBe(originalId);
-    expect(result.current.tabs[0].selectedSymbol).toBe('');
+    expect(result.current.tabs[0].selectedSign).toBe('');
   });
 
   it('closing the active tab selects the previous tab', () => {
@@ -78,18 +78,18 @@ describe('tab lifecycle', () => {
 });
 
 describe('per-tab isolation', () => {
-  it('setSymbol on the active tab never touches another tab', () => {
+  it('setSign on the active tab never touches another tab', () => {
     const { result } = renderHook(() => useTabs());
     const firstId = result.current.tabs[0].id;
     act(() => result.current.addTab());
     const secondId = result.current.activeTabId;
 
-    act(() => result.current.setSymbol('the-sun'));
+    act(() => result.current.setSign('the-sun'));
     act(() => result.current.selectTab(firstId));
     const first = result.current.tabs.find((t) => t.id === firstId)!;
     const second = result.current.tabs.find((t) => t.id === secondId)!;
-    expect(second.selectedSymbol).toBe('the-sun');
-    expect(first.selectedSymbol).toBe('');
+    expect(second.selectedSign).toBe('the-sun');
+    expect(first.selectedSign).toBe('');
   });
 });
 
@@ -105,7 +105,7 @@ describe('rankedHotspots', () => {
 
     const { result } = renderHook(() => useTabs());
     act(() => {
-      result.current.setSymbol('the-sun');
+      result.current.setSign('the-sun');
       result.current.setTradition('rider-waite');
     });
     await act(async () => {
@@ -136,7 +136,7 @@ describe('rankedHotspots', () => {
 
     const { result } = renderHook(() => useTabs());
     act(() => {
-      result.current.setSymbol('the-sun');
+      result.current.setSign('the-sun');
       result.current.setTradition('rider-waite');
     });
     await act(async () => {
@@ -171,7 +171,7 @@ describe('rankedHotspots', () => {
 
     const { result } = renderHook(() => useTabs());
     act(() => {
-      result.current.setSymbol('the-sun');
+      result.current.setSign('the-sun');
       result.current.setTradition('rider-waite');
     });
     await act(async () => {
@@ -203,7 +203,7 @@ describe('facet options', () => {
 
     const { result } = renderHook(() => useTabs());
     act(() => {
-      result.current.setSymbol('the-sun');
+      result.current.setSign('the-sun');
       result.current.setTradition('rider-waite');
     });
     await act(async () => {
@@ -230,7 +230,7 @@ describe('facet options', () => {
 
     const { result } = renderHook(() => useTabs());
     act(() => {
-      result.current.setSymbol('the-sun');
+      result.current.setSign('the-sun');
       result.current.setTradition('rider-waite');
     });
     await act(async () => {
@@ -253,7 +253,7 @@ describe('runQuery', () => {
 
     const { result } = renderHook(() => useTabs());
     act(() => {
-      result.current.setSymbol('the-sun');
+      result.current.setSign('the-sun');
       result.current.setTradition('rider-waite');
     });
     await act(async () => {
@@ -271,7 +271,7 @@ describe('runQuery', () => {
 
     const { result } = renderHook(() => useTabs());
     act(() => {
-      result.current.setSymbol('missing');
+      result.current.setSign('missing');
       result.current.setTradition('rider-waite');
     });
     await act(async () => {

@@ -18,7 +18,7 @@ export function HotspotList({ headerText, hasResult, hotspots, selectedRegionId,
         <div className="rail-empty-state">
           <ConvergenceIcon />
           <strong>No query yet</strong>
-          <p>Set a system, symbol and tradition on the left, then press "Explore" to see semantic hotspots here.</p>
+          <p>Set a system, sign and tradition on the left, then press "Explore" to see semantic hotspots here.</p>
         </div>
       )}
       {hasResult && hotspots.length === 0 && (

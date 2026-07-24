@@ -12,13 +12,13 @@ interface Props {
   signs: SignSummary[];
   traditions: Tradition[];
   selectedSystem: string;
-  selectedSymbol: string;
+  selectedSign: string;
   selectedTradition: string;
   minScore: number | null;
   minScoreDefault: number;
   isStreaming: boolean;
   onSystemChange: (semioticSystem: string) => void;
-  onSymbolChange: (slug: string) => void;
+  onSignChange: (slug: string) => void;
   onTraditionChange: (slug: string) => void;
   onMinScoreChange: (value: number | null) => void;
   onSubmit: () => void;
@@ -47,13 +47,13 @@ export function ControlPanel({
   signs,
   traditions,
   selectedSystem,
-  selectedSymbol,
+  selectedSign,
   selectedTradition,
   minScore,
   minScoreDefault,
   isStreaming,
   onSystemChange,
-  onSymbolChange,
+  onSignChange,
   onTraditionChange,
   onMinScoreChange,
   onSubmit,
@@ -81,13 +81,13 @@ export function ControlPanel({
           signs={signs}
           traditions={traditions}
           selectedSystem={selectedSystem}
-          selectedSymbol={selectedSymbol}
+          selectedSign={selectedSign}
           selectedTradition={selectedTradition}
           minScore={minScore}
           minScoreDefault={minScoreDefault}
           isStreaming={isStreaming}
           onSystemChange={onSystemChange}
-          onSymbolChange={onSymbolChange}
+          onSignChange={onSignChange}
           onTraditionChange={onTraditionChange}
           onMinScoreChange={onMinScoreChange}
           onSubmit={onSubmit}

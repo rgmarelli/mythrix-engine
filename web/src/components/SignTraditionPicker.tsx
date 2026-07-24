@@ -5,44 +5,44 @@ interface Props {
   signs: SignSummary[];
   traditions: Tradition[];
   selectedSystem: string;
-  selectedSymbol: string;
+  selectedSign: string;
   selectedTradition: string;
   minScore: number | null;
   minScoreDefault: number;
   isStreaming: boolean;
   onSystemChange: (semioticSystem: string) => void;
-  onSymbolChange: (slug: string) => void;
+  onSignChange: (slug: string) => void;
   onTraditionChange: (slug: string) => void;
   onMinScoreChange: (value: number | null) => void;
   onSubmit: () => void;
 }
 
-/** Restricted to symbol/tradition combinations that have a manifestation
+/** Restricted to sign/tradition combinations that have a manifestation
  * (FR-WEB-01): the tradition dropdown only ever lists the selected sign's own
- * `tradition_slugs`, from `/api/symbols` — a `/api/query` error for an
+ * `tradition_slugs`, from `/api/signs` — a `/api/query` error for an
  * unknown sign/tradition/manifestation-less pair is
  * unreachable through normal use of this form. The semiotic-system
- * dropdown (FR-WEB-01) scopes which signs the symbol dropdown offers — its
+ * dropdown (FR-WEB-01) scopes which signs the sign dropdown offers — its
  * options are the distinct `semiotic_system` values already present in
  * `signs`, no separate endpoint needed. */
 export function SignTraditionPicker({
   signs,
   traditions,
   selectedSystem,
-  selectedSymbol,
+  selectedSign,
   selectedTradition,
   minScore,
   minScoreDefault,
   isStreaming,
   onSystemChange,
-  onSymbolChange,
+  onSignChange,
   onTraditionChange,
   onMinScoreChange,
   onSubmit,
 }: Props) {
   const systems = [...new Set(signs.map((s) => s.semiotic_system))].sort();
   const availableSigns = selectedSystem ? signs.filter((s) => s.semiotic_system === selectedSystem) : [];
-  const currentSummary = signs.find((s) => s.slug === selectedSymbol);
+  const currentSummary = signs.find((s) => s.slug === selectedSign);
   const availableTraditions = currentSummary
     ? traditions.filter((t) => currentSummary.tradition_slugs.includes(t.slug))
     : [];
@@ -60,7 +60,7 @@ export function SignTraditionPicker({
           value={selectedSystem}
           onChange={(event) => {
             onSystemChange(event.target.value);
-            onSymbolChange('');
+            onSignChange('');
             onTraditionChange('');
           }}
         >
@@ -76,17 +76,17 @@ export function SignTraditionPicker({
       </label>
 
       <label>
-        Symbol
+        Sign
         <select
-          value={selectedSymbol}
+          value={selectedSign}
           onChange={(event) => {
-            onSymbolChange(event.target.value);
+            onSignChange(event.target.value);
             onTraditionChange('');
           }}
           disabled={!selectedSystem}
         >
           <option value="" disabled>
-            Select a symbol…
+            Select a sign…
           </option>
           {availableSigns.map((sign) => (
             <option key={sign.slug} value={sign.slug}>
@@ -101,7 +101,7 @@ export function SignTraditionPicker({
         <select
           value={selectedTradition}
           onChange={(event) => onTraditionChange(event.target.value)}
-          disabled={!selectedSymbol}
+          disabled={!selectedSign}
         >
           <option value="" disabled>
             Select a tradition…
@@ -131,7 +131,7 @@ export function SignTraditionPicker({
         />
       </label>
 
-      <button type="submit" disabled={!selectedSymbol || !selectedTradition || isStreaming}>
+      <button type="submit" disabled={!selectedSign || !selectedTradition || isStreaming}>
         {isStreaming ? 'Querying…' : 'Explore'}
       </button>
     </form>

@@ -1,4 +1,4 @@
-"""`mythrix load-symbols`: wraps `sign_loader` (FR-SD-01, FR-SD-02).
+"""`mythrix load-signs`: wraps `sign_loader` (FR-SD-01, FR-SD-02).
 
 `--dry-run` calls `build_plan()` only — the same validation pass `load_directory`
 runs internally, just without the write phase — so "nothing is written" is
@@ -19,7 +19,7 @@ from mythrix.core.graph.store import KuzuGraphStore
 from mythrix.core.loaders.sign_loader import build_plan, load_directory, summarize_plan
 
 
-def run_load_symbols(path: Path, *, graph_store: KuzuGraphStore | None, dry_run: bool, as_json: bool) -> int:
+def run_load_signs(path: Path, *, graph_store: KuzuGraphStore | None, dry_run: bool, as_json: bool) -> int:
     """`graph_store=None` is only valid together with `dry_run=True` — a real
     load needs somewhere to write to."""
     try:
@@ -41,11 +41,11 @@ def run_load_symbols(path: Path, *, graph_store: KuzuGraphStore | None, dry_run:
     return 0
 
 
-def load_symbols(
+def load_signs(
     path: Annotated[Path, typer.Argument(help="Directory containing traditions/sources/signs YAML")],
     dry_run: Annotated[bool, typer.Option("--dry-run", help="Validate and report without writing")] = False,
     as_json: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     graph_store = None if dry_run else KuzuGraphStore(Settings().kuzu_db_path)
-    exit_code = run_load_symbols(path, graph_store=graph_store, dry_run=dry_run, as_json=as_json)
+    exit_code = run_load_signs(path, graph_store=graph_store, dry_run=dry_run, as_json=as_json)
     raise typer.Exit(code=exit_code)

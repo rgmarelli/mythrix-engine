@@ -1,5 +1,5 @@
-"""`GET /api/traditions`, `GET /api/symbols`, `GET /api/query`,
-`POST /api/reload-symbols` — see `specs/retrieval/ranking.md`
+"""`GET /api/traditions`, `GET /api/signs`, `GET /api/query`,
+`POST /api/reload-signs` — see `specs/retrieval/ranking.md`
 for `/api/query`'s `RegionQueryResult` contract, and
 `specs/interfaces/api.md` for the other
 GET routes."""
@@ -32,14 +32,14 @@ def list_traditions(stores: Stores = Depends(get_stores)) -> list[Tradition]:
     return list(stores.graph_store.list_traditions())
 
 
-@router.get("/symbols", response_model=list[SignSummary])
-def list_symbols(stores: Stores = Depends(get_stores)) -> list[SignSummary]:
+@router.get("/signs", response_model=list[SignSummary])
+def list_signs(stores: Stores = Depends(get_stores)) -> list[SignSummary]:
     return list(stores.graph_store.list_signs())
 
 
 @router.get("/query", response_model=RegionQueryResult)
 def query(
-    symbol: str,
+    sign: str,
     tradition: str,
     top_k: int | None = None,
     match_pool: int | None = None,
@@ -54,14 +54,14 @@ def query(
     is itself a meaningful explicit value (pass `min_score=0` to disable the
     floor entirely for one request).
 
-    A symbol/tradition/manifestation that doesn't exist, or a failure
+    A sign/tradition/manifestation that doesn't exist, or a failure
     reaching the embedding model, is handled by the registered
-    `MythrixError` exception handler, same as `/api/traditions`/`/api/symbols`
+    `MythrixError` exception handler, same as `/api/traditions`/`/api/signs`
     (404/502 JSON).
     """
     settings = Settings()
     return query_regions(
-        symbol=symbol,
+        sign=sign,
         tradition=tradition,
         graph_store=stores.graph_store,
         vector_store=stores.vector_store,
@@ -102,7 +102,7 @@ def source_segments(
     )
 
 
-class ReloadSymbolsResponse(BaseModel):
+class ReloadSignsResponse(BaseModel):
     traditions: int
     sources: int
     signs: int
@@ -110,18 +110,18 @@ class ReloadSymbolsResponse(BaseModel):
     intersemiotic_interpretants: int
 
 
-@router.post("/reload-symbols", response_model=ReloadSymbolsResponse)
-def reload_symbols(path: str | None = None, stores: Stores = Depends(get_stores)) -> ReloadSymbolsResponse:
+@router.post("/reload-signs", response_model=ReloadSignsResponse)
+def reload_signs(path: str | None = None, stores: Stores = Depends(get_stores)) -> ReloadSignsResponse:
     """Re-reads every tradition/source/sign YAML under `path` (default
-    `Settings.symbols_data_path`) and upserts it into the graph store `Stores`
+    `Settings.signs_data_path`) and upserts it into the graph store `Stores`
     already holds open for the process's full lifetime (`app.py`'s
     `lifespan`) — no second Kùzu connection is opened, so, unlike
-    `mythrix load-symbols` against the same `.mythrix/` directory, this works
+    `mythrix load-signs` against the same `.mythrix/` directory, this works
     with the API server running (see `specs/interfaces/api.md` Non-goals'
     Kùzu single-writer note).
 
     Writes land as each `store.upsert_*` call runs, not in one transaction —
-    a request already in flight against `/api/query`/`/api/symbols` can
+    a request already in flight against `/api/query`/`/api/signs` can
     observe a partially-reloaded graph. Acceptable for a local, single-user
     dev tool; not a guarantee to build on for a multi-user deployment.
 
@@ -131,9 +131,9 @@ def reload_symbols(path: str | None = None, stores: Stores = Depends(get_stores)
     route's errors.
     """
     settings = Settings()
-    root = Path(path) if path else settings.symbols_data_path
+    root = Path(path) if path else settings.signs_data_path
     plan = load_directory(root, stores.graph_store)
-    return ReloadSymbolsResponse(**summarize_plan(plan))
+    return ReloadSignsResponse(**summarize_plan(plan))
 
 
 class SummarizeRequest(BaseModel):

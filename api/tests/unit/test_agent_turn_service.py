@@ -11,10 +11,10 @@ from mythrix.agent.turn_service import run_chat_turn
 
 
 @tool
-def get_symbol(symbol: str, tradition: str | None = None) -> dict:
-    """Fake get_symbol mirroring the real tool's needs_tradition shape."""
+def get_sign(sign: str, tradition: str | None = None) -> dict:
+    """Fake get_sign mirroring the real tool's needs_tradition shape."""
     if tradition is None:
-        return {"needs_tradition": True, "symbol": "The Magician", "traditions": ["rider-waite", "marseille"]}
+        return {"needs_tradition": True, "sign": "The Magician", "traditions": ["rider-waite", "marseille"]}
     return {
         "sign": "The Magician",
         "semiotic_system": "tarot",
@@ -29,7 +29,7 @@ def summarize_passage(passage_text: str, concepts: list[str]) -> dict:
     return {"summary": f"Summary of: {passage_text} ({', '.join(concepts)})"}
 
 
-_TOOLS = [get_symbol, summarize_passage]
+_TOOLS = [get_sign, summarize_passage]
 
 
 class ScriptedLLM:
@@ -54,9 +54,7 @@ def test_normal_turn_grounds_the_reply_backfills_context_and_builds_cards() -> N
     script = [
         AIMessage(
             content="",
-            tool_calls=[
-                {"name": "get_symbol", "args": {"symbol": "The Magician", "tradition": "rider-waite"}, "id": "c1"}
-            ],
+            tool_calls=[{"name": "get_sign", "args": {"sign": "The Magician", "tradition": "rider-waite"}, "id": "c1"}],
         ),
         AIMessage(content="The Magician represents willpower [G1]."),
     ]
@@ -86,16 +84,12 @@ def test_hotspot_navigation_resets_the_thread_and_clears_agent_notes() -> None:
     script = [
         AIMessage(
             content="",
-            tool_calls=[
-                {"name": "get_symbol", "args": {"symbol": "The Magician", "tradition": "rider-waite"}, "id": "c1"}
-            ],
+            tool_calls=[{"name": "get_sign", "args": {"sign": "The Magician", "tradition": "rider-waite"}, "id": "c1"}],
         ),
         AIMessage(content="Noted [G1].\n```agent-notes\nalready summarized this passage\n```"),
         AIMessage(
             content="",
-            tool_calls=[
-                {"name": "get_symbol", "args": {"symbol": "The Magician", "tradition": "rider-waite"}, "id": "c2"}
-            ],
+            tool_calls=[{"name": "get_sign", "args": {"sign": "The Magician", "tradition": "rider-waite"}, "id": "c2"}],
         ),
         AIMessage(content="Second reply [G1]."),
     ]
@@ -138,16 +132,12 @@ def test_model_driven_reset_drops_the_stale_pre_reset_history_too() -> None:
     script = [
         AIMessage(
             content="",
-            tool_calls=[
-                {"name": "get_symbol", "args": {"symbol": "The Magician", "tradition": "rider-waite"}, "id": "c1"}
-            ],
+            tool_calls=[{"name": "get_sign", "args": {"sign": "The Magician", "tradition": "rider-waite"}, "id": "c1"}],
         ),
         AIMessage(content="First reply [G1]."),
         AIMessage(
             content="",
-            tool_calls=[
-                {"name": "get_symbol", "args": {"symbol": "The Magician", "tradition": "marseille"}, "id": "c2"}
-            ],
+            tool_calls=[{"name": "get_sign", "args": {"sign": "The Magician", "tradition": "marseille"}, "id": "c2"}],
         ),
         AIMessage(content="Second reply, different tradition [G1]."),
     ]
@@ -180,7 +170,7 @@ def test_model_driven_reset_drops_the_stale_pre_reset_history_too() -> None:
 
 def test_ambiguous_tradition_short_circuits_with_no_second_model_call() -> None:
     llm = ScriptedLLM(
-        [AIMessage(content="", tool_calls=[{"name": "get_symbol", "args": {"symbol": "The Magician"}, "id": "c1"}])]
+        [AIMessage(content="", tool_calls=[{"name": "get_sign", "args": {"sign": "The Magician"}, "id": "c1"}])]
     )
     graph = compile_agent_graph(llm, _TOOLS)
     sessions = SessionStore()

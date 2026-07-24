@@ -26,7 +26,7 @@ export function itemId(): string {
 export interface Tab {
   id: string;
   selectedSystem: string;
-  selectedSymbol: string;
+  selectedSign: string;
   selectedTradition: string;
   minScore: number | null;
   queryResult: HotspotQueryResult | null;
@@ -47,7 +47,7 @@ function makeTab(): Tab {
   return {
     id: `tab-${nextTabId}`,
     selectedSystem: '',
-    selectedSymbol: '',
+    selectedSign: '',
     selectedTradition: '',
     minScore: null,
     queryResult: null,
@@ -123,7 +123,7 @@ export function useTabs() {
   }
 
   const setSystem = (value: string) => updateActiveTab({ selectedSystem: value });
-  const setSymbol = (value: string) => updateActiveTab({ selectedSymbol: value });
+  const setSign = (value: string) => updateActiveTab({ selectedSign: value });
   const setTradition = (value: string) => updateActiveTab({ selectedTradition: value });
   const setMinScore = (value: number | null) => updateActiveTab({ minScore: value });
   const setSourceId = (value: string | null) => updateActiveTab({ selectedSourceId: value });
@@ -139,7 +139,7 @@ export function useTabs() {
     updateTab(tabId, { isQuerying: true, queryError: null, selectedSourceId: null, selectedInterpretant: null });
 
     try {
-      const result = await fetchQuery(tab.selectedSymbol, tab.selectedTradition, { minScore: tab.minScore ?? undefined });
+      const result = await fetchQuery(tab.selectedSign, tab.selectedTradition, { minScore: tab.minScore ?? undefined });
       updateTab(tabId, { queryResult: result, selectedRegionId: result.hotspots[0]?.regionId ?? null, isQuerying: false });
     } catch (error) {
       updateTab(tabId, {
@@ -229,7 +229,7 @@ export function useTabs() {
     const selectedHotspot = tab.queryResult?.hotspots.find((h) => h.regionId === tab.selectedRegionId) ?? null;
     const uiSelection: AgentUiSelection = {
       semioticSystem: tab.selectedSystem || null,
-      sign: tab.selectedSymbol || null,
+      sign: tab.selectedSign || null,
       tradition: tab.selectedTradition || null,
       sourceId: tab.selectedSourceId,
       interpretant: tab.selectedInterpretant,
@@ -283,7 +283,7 @@ export function useTabs() {
     addTab,
     closeTab,
     setSystem,
-    setSymbol,
+    setSign,
     setTradition,
     setMinScore,
     setSourceId,

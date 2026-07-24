@@ -29,8 +29,8 @@ export function fetchTraditions(): Promise<Tradition[]> {
   return fetchJson('/api/traditions');
 }
 
-export function fetchSymbols(): Promise<SignSummary[]> {
-  return fetchJson('/api/symbols');
+export function fetchSigns(): Promise<SignSummary[]> {
+  return fetchJson('/api/signs');
 }
 
 // The single seam translating the wire `Region` shape (snake_case, as
@@ -56,11 +56,11 @@ function toHotspot(region: Region): Hotspot {
 }
 
 export async function fetchQuery(
-  symbol: string,
+  sign: string,
   tradition: string,
   opts?: { topK?: number; matchPool?: number; minScore?: number },
 ): Promise<HotspotQueryResult> {
-  const params = new URLSearchParams({ symbol, tradition });
+  const params = new URLSearchParams({ sign, tradition });
   if (opts?.topK !== undefined) params.set('top_k', String(opts.topK));
   if (opts?.matchPool !== undefined) params.set('match_pool', String(opts.matchPool));
   if (opts?.minScore !== undefined) params.set('min_score', String(opts.minScore));

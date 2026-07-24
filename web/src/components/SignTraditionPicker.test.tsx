@@ -20,13 +20,13 @@ function renderPicker(overrides: Partial<ComponentProps<typeof SignTraditionPick
     signs,
     traditions,
     selectedSystem: '',
-    selectedSymbol: '',
+    selectedSign: '',
     selectedTradition: '',
     minScore: null,
     minScoreDefault: 0.6,
     isStreaming: false,
     onSystemChange: vi.fn(),
-    onSymbolChange: vi.fn(),
+    onSignChange: vi.fn(),
     onTraditionChange: vi.fn(),
     onMinScoreChange: vi.fn(),
     onSubmit: vi.fn(),
@@ -36,23 +36,23 @@ function renderPicker(overrides: Partial<ComponentProps<typeof SignTraditionPick
   return props;
 }
 
-it('scopes the symbol dropdown to the selected semiotic system', () => {
+it('scopes the sign dropdown to the selected semiotic system', () => {
   renderPicker({ selectedSystem: 'tarot' });
-  const symbolSelect = screen.getByLabelText('Symbol');
-  expect(symbolSelect).toBeEnabled();
-  const options = Array.from(symbolSelect.querySelectorAll('option')).map((o) => o.textContent);
+  const signSelect = screen.getByLabelText('Sign');
+  expect(signSelect).toBeEnabled();
+  const options = Array.from(signSelect.querySelectorAll('option')).map((o) => o.textContent);
   expect(options).toContain('The Sun');
   expect(options).toContain('The Moon');
   expect(options).not.toContain('Samekh');
 });
 
-it('disables the symbol dropdown until a system is selected', () => {
+it('disables the sign dropdown until a system is selected', () => {
   renderPicker();
-  expect(screen.getByLabelText('Symbol')).toBeDisabled();
+  expect(screen.getByLabelText('Sign')).toBeDisabled();
 });
 
-it('scopes the tradition dropdown to the selected symbol\'s tradition_slugs', () => {
-  renderPicker({ selectedSystem: 'tarot', selectedSymbol: 'the-moon' });
+it('scopes the tradition dropdown to the selected sign\'s tradition_slugs', () => {
+  renderPicker({ selectedSystem: 'tarot', selectedSign: 'the-moon' });
   const traditionSelect = screen.getByLabelText('Tradition');
   expect(traditionSelect).toBeEnabled();
   const options = Array.from(traditionSelect.querySelectorAll('option')).map((o) => o.textContent);
@@ -61,29 +61,29 @@ it('scopes the tradition dropdown to the selected symbol\'s tradition_slugs', ()
   expect(options).not.toContain('Golden Dawn');
 });
 
-it('resets symbol and tradition when the system changes', async () => {
+it('resets sign and tradition when the system changes', async () => {
   const props = renderPicker({ selectedSystem: 'tarot' });
   await userEvent.selectOptions(screen.getByLabelText('Semiotic system'), 'hebrew_alef_bet');
   expect(props.onSystemChange).toHaveBeenCalledWith('hebrew_alef_bet');
-  expect(props.onSymbolChange).toHaveBeenCalledWith('');
+  expect(props.onSignChange).toHaveBeenCalledWith('');
   expect(props.onTraditionChange).toHaveBeenCalledWith('');
 });
 
-it('resets tradition when the symbol changes', async () => {
+it('resets tradition when the sign changes', async () => {
   const props = renderPicker({ selectedSystem: 'tarot' });
-  await userEvent.selectOptions(screen.getByLabelText('Symbol'), 'the-moon');
-  expect(props.onSymbolChange).toHaveBeenCalledWith('the-moon');
+  await userEvent.selectOptions(screen.getByLabelText('Sign'), 'the-moon');
+  expect(props.onSignChange).toHaveBeenCalledWith('the-moon');
   expect(props.onTraditionChange).toHaveBeenCalledWith('');
 });
 
-it('disables submit until both symbol and tradition are chosen', () => {
-  renderPicker({ selectedSystem: 'tarot', selectedSymbol: 'the-sun', selectedTradition: '' });
+it('disables submit until both sign and tradition are chosen', () => {
+  renderPicker({ selectedSystem: 'tarot', selectedSign: 'the-sun', selectedTradition: '' });
   expect(screen.getByRole('button', { name: 'Explore' })).toBeDisabled();
 });
 
-it('enables submit once symbol and tradition are chosen, and calls onSubmit without a page reload', async () => {
+it('enables submit once sign and tradition are chosen, and calls onSubmit without a page reload', async () => {
   const onSubmit = vi.fn();
-  renderPicker({ selectedSystem: 'tarot', selectedSymbol: 'the-sun', selectedTradition: 'rider-waite', onSubmit });
+  renderPicker({ selectedSystem: 'tarot', selectedSign: 'the-sun', selectedTradition: 'rider-waite', onSubmit });
   const button = screen.getByRole('button', { name: 'Explore' });
   expect(button).toBeEnabled();
   await userEvent.click(button);
@@ -91,7 +91,7 @@ it('enables submit once symbol and tradition are chosen, and calls onSubmit with
 });
 
 it('shows "Querying…" and disables submit while streaming', () => {
-  renderPicker({ selectedSystem: 'tarot', selectedSymbol: 'the-sun', selectedTradition: 'rider-waite', isStreaming: true });
+  renderPicker({ selectedSystem: 'tarot', selectedSign: 'the-sun', selectedTradition: 'rider-waite', isStreaming: true });
   const button = screen.getByRole('button', { name: 'Querying…' });
   expect(button).toBeDisabled();
 });

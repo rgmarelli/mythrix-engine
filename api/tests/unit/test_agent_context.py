@@ -81,11 +81,11 @@ def _tool_call_and_result(name: str, args: dict, result: dict | list) -> list:
     ]
 
 
-def test_backfill_from_get_symbol_result() -> None:
+def test_backfill_from_get_sign_result() -> None:
     context = AgentContext()
     messages = _tool_call_and_result(
-        "get_symbol",
-        {"symbol": "The Tower"},
+        "get_sign",
+        {"sign": "The Tower"},
         {"sign": "The Tower", "semiotic_system": "tarot", "tradition": "rider-waite"},
     )
     updated = backfill_from_tool_results(context, messages)
@@ -94,23 +94,23 @@ def test_backfill_from_get_symbol_result() -> None:
     assert updated.semiotic_system == "tarot"
 
 
-def test_backfill_from_get_symbol_needs_tradition_does_not_backfill() -> None:
+def test_backfill_from_get_sign_needs_tradition_does_not_backfill() -> None:
     context = AgentContext()
     messages = _tool_call_and_result(
-        "get_symbol",
-        {"symbol": "The Tower"},
-        {"needs_tradition": True, "symbol": "The Tower", "traditions": ["rider-waite", "marseille"]},
+        "get_sign",
+        {"sign": "The Tower"},
+        {"needs_tradition": True, "sign": "The Tower", "traditions": ["rider-waite", "marseille"]},
     )
     updated = backfill_from_tool_results(context, messages)
     assert updated.sign is None
     assert updated.tradition is None
 
 
-def test_backfill_from_query_symbol_uses_call_args() -> None:
+def test_backfill_from_query_sign_uses_call_args() -> None:
     context = AgentContext()
     messages = _tool_call_and_result(
-        "query_symbol",
-        {"symbol": "The Tower", "tradition": "rider-waite"},
+        "query_sign",
+        {"sign": "The Tower", "tradition": "rider-waite"},
         {"regions": []},
     )
     updated = backfill_from_tool_results(context, messages)
@@ -121,8 +121,8 @@ def test_backfill_from_query_symbol_uses_call_args() -> None:
 def test_backfill_from_list_tools_never_backfills() -> None:
     context = AgentContext(sign="The Sun")
     messages = [
-        AIMessage(content="", tool_calls=[{"name": "list_symbols", "args": {}, "id": "c1"}]),
-        ToolMessage(content="[]", name="list_symbols", tool_call_id="c1"),
+        AIMessage(content="", tool_calls=[{"name": "list_signs", "args": {}, "id": "c1"}]),
+        ToolMessage(content="[]", name="list_signs", tool_call_id="c1"),
     ]
     updated = backfill_from_tool_results(context, messages)
     assert updated.sign == "The Sun"

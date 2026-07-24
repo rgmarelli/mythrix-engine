@@ -32,21 +32,21 @@ def _error(exc: MythrixError) -> dict:
     return {"error": str(exc)}
 
 
-def _resolve_sign(signs, symbol: str):  # noqa: ANN001, ANN201 - SignSummary | None; avoids importing it just for this
-    """Matches `symbol` against a sign's slug or canonical name,
-    case/whitespace-insensitive. `get_symbol`/`query_symbol` take `symbol`
+def _resolve_sign(signs, sign: str):  # noqa: ANN001, ANN201 - SignSummary | None; avoids importing it just for this
+    """Matches `sign` against a sign's slug or canonical name,
+    case/whitespace-insensitive. `get_sign`/`query_sign` take `sign`
     straight from the model's own wording of the user's request (e.g. "The
     Magician") before any tool has ever surfaced the real slug
     ("the-magician") — matching by slug alone would fail on exactly the
     phrasing the spec's own example uses."""
-    normalized = symbol.strip().casefold()
+    normalized = sign.strip().casefold()
     return next(
         (s for s in signs if s.slug.casefold() == normalized or s.canonical_name.casefold() == normalized), None
     )
 
 
 def _render_graph_facts(facts: GraphFacts) -> dict:
-    """Compact rendering of one sign's graph facts — the `get_symbol`
+    """Compact rendering of one sign's graph facts — the `get_sign`
     counterpart to `_render_regions`, built from the same `GraphFacts`
     `KuzuGraphStore.get_manifestation` already returns."""
     sign, manifestation = facts.sign, facts.manifestation
@@ -114,9 +114,9 @@ def build_tools(stores: Stores, settings: Settings, chat_client: ChatClient) -> 
 
     @tool
     def list_semiotic_systems() -> list[str]:
-        """List the available semiotic systems (top-level symbol domains,
+        """List the available semiotic systems (top-level sign domains,
         e.g. "tarot", "hebrew_alef_bet"). Call this and ask the user which one
-        to use before listing symbols/traditions or getting/querying a symbol
+        to use before listing signs/traditions or getting/querying a sign
         whenever the semiotic system is ambiguous."""
         return list(stores.graph_store.list_semiotic_systems())
 
@@ -136,8 +136,8 @@ def build_tools(stores: Stores, settings: Settings, chat_client: ChatClient) -> 
         return [{"slug": t.slug, "name": t.name} for t in traditions if t.slug in scoped_slugs]
 
     @tool
-    def list_symbols(semiotic_system: str | None = None) -> list[dict]:
-        """List available signs (symbols), optionally scoped to one semiotic
+    def list_signs(semiotic_system: str | None = None) -> list[dict]:
+        """List available signs, optionally scoped to one semiotic
         system. Each entry includes the traditions the sign is manifested in."""
         return [
             {
@@ -151,31 +151,31 @@ def build_tools(stores: Stores, settings: Settings, chat_client: ChatClient) -> 
         ]
 
     @tool
-    def get_symbol(symbol: str, tradition: str | None = None) -> dict:
+    def get_sign(sign: str, tradition: str | None = None) -> dict:
         """The tool for "tell me about X" / "what is X" / "what does X mean"
         requests. Retrieve one named sign's graph facts (e.g.
-        symbol="the-magician" or symbol="The Magician" — matches either the
+        sign="the-magician" or sign="The Magician" — matches either the
         slug or the display name): its canonical name, semiotic system,
         intrinsic properties, and — for a tradition — its interpretants,
         denotation, correspondences, and citations. This is a graph-facts
-        lookup, not a corpus search — use query_symbol instead only if the
+        lookup, not a corpus search — use query_sign instead only if the
         user explicitly asks for supporting passages, textual evidence, or
         convergence from the corpus. If the sign has exactly one tradition it
         is used automatically; if it has several and none is given, this
         returns the choices under needs_tradition instead of facts — ask the
         user which one, and once they answer (even a bare tradition name),
-        call get_symbol again with the same symbol and that tradition;
-        do not switch to query_symbol for that follow-up."""
-        summary = _resolve_sign(stores.graph_store.list_signs(), symbol)
+        call get_sign again with the same sign and that tradition;
+        do not switch to query_sign for that follow-up."""
+        summary = _resolve_sign(stores.graph_store.list_signs(), sign)
         if summary is None:
-            return {"error": f"unknown symbol {symbol!r}"}
+            return {"error": f"unknown sign {sign!r}"}
         if tradition is None:
             if len(summary.tradition_slugs) == 1:
                 tradition = summary.tradition_slugs[0]
             else:
                 return {
                     "needs_tradition": True,
-                    "symbol": summary.canonical_name,
+                    "sign": summary.canonical_name,
                     "traditions": list(summary.tradition_slugs),
                 }
         try:
@@ -185,8 +185,8 @@ def build_tools(stores: Stores, settings: Settings, chat_client: ChatClient) -> 
         return _render_graph_facts(facts)
 
     @tool
-    def query_symbol(
-        symbol: str,
+    def query_sign(
+        sign: str,
         tradition: str,
         top_k: int | None = None,
         min_score: float | None = None,
@@ -197,17 +197,17 @@ def build_tools(stores: Stores, settings: Settings, chat_client: ChatClient) -> 
         supporting evidence, passages, or convergence in the corpus (e.g.
         "what evidence supports X", "where does X converge in the text").
         For a general "tell me about X" / "what does X mean" request, use
-        get_symbol instead — including a reply that just names a tradition
-        after get_symbol asked which one to use. Relay the returned regions
+        get_sign instead — including a reply that just names a tradition
+        after get_sign asked which one to use. Relay the returned regions
         as retrieved — verbatim passage text, scores, and citations — without
         paraphrasing or adding your own interpretation of what a passage
         means; use summarize_passage for that, and only if the user asks."""
-        summary = _resolve_sign(stores.graph_store.list_signs(), symbol)
+        summary = _resolve_sign(stores.graph_store.list_signs(), sign)
         if summary is None:
-            return {"error": f"unknown symbol {symbol!r}"}
+            return {"error": f"unknown sign {sign!r}"}
         try:
             result = query_regions(
-                symbol=summary.slug,
+                sign=summary.slug,
                 tradition=tradition,
                 graph_store=stores.graph_store,
                 vector_store=stores.vector_store,
@@ -257,9 +257,9 @@ def build_tools(stores: Stores, settings: Settings, chat_client: ChatClient) -> 
     return [
         list_semiotic_systems,
         list_traditions,
-        list_symbols,
-        get_symbol,
-        query_symbol,
+        list_signs,
+        get_sign,
+        query_sign,
         fetch_segments,
         summarize_passage,
     ]

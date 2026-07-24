@@ -147,9 +147,9 @@ def test_build_tools_returns_exactly_the_seven_read_only_tools(stores: Stores, s
     assert set(tools) == {
         "list_semiotic_systems",
         "list_traditions",
-        "list_symbols",
-        "get_symbol",
-        "query_symbol",
+        "list_signs",
+        "get_sign",
+        "query_sign",
         "fetch_segments",
         "summarize_passage",
     }
@@ -173,90 +173,90 @@ def test_list_traditions_scoped_by_semiotic_system(stores: Stores, settings: Set
     assert {t["slug"] for t in result} == {"golden-dawn-kabbalah"}
 
 
-def test_list_symbols_scoped_by_semiotic_system(stores: Stores, settings: Settings) -> None:
+def test_list_signs_scoped_by_semiotic_system(stores: Stores, settings: Settings) -> None:
     tools = _tools_by_name(stores, settings, FakeChatClient())
-    result = tools["list_symbols"].invoke({"semiotic_system": "tarot"})
+    result = tools["list_signs"].invoke({"semiotic_system": "tarot"})
     assert {s["slug"] for s in result} == {"the-tower", "the-magician"}
     the_magician = next(s for s in result if s["slug"] == "the-magician")
     assert set(the_magician["traditions"]) == {"rider-waite", "marseille"}
 
 
-def test_list_symbols_unscoped_includes_every_system(stores: Stores, settings: Settings) -> None:
+def test_list_signs_unscoped_includes_every_system(stores: Stores, settings: Settings) -> None:
     tools = _tools_by_name(stores, settings, FakeChatClient())
-    result = tools["list_symbols"].invoke({})
+    result = tools["list_signs"].invoke({})
     assert {s["slug"] for s in result} == {"the-tower", "the-magician", "hebrew-letter-peh"}
 
 
-def test_get_symbol_auto_resolves_single_tradition_sign(stores: Stores, settings: Settings) -> None:
+def test_get_sign_auto_resolves_single_tradition_sign(stores: Stores, settings: Settings) -> None:
     tools = _tools_by_name(stores, settings, FakeChatClient())
-    result = tools["get_symbol"].invoke({"symbol": "the-tower"})
+    result = tools["get_sign"].invoke({"sign": "the-tower"})
     assert result["sign"] == "The Tower"
     assert result["tradition"] == "Rider-Waite-Smith"
     assert result["interpretants"] == [{"type": "element", "value": "Fire"}]
 
 
-def test_get_symbol_needs_tradition_for_multi_tradition_sign(stores: Stores, settings: Settings) -> None:
+def test_get_sign_needs_tradition_for_multi_tradition_sign(stores: Stores, settings: Settings) -> None:
     tools = _tools_by_name(stores, settings, FakeChatClient())
-    result = tools["get_symbol"].invoke({"symbol": "the-magician"})
+    result = tools["get_sign"].invoke({"sign": "the-magician"})
     assert result == {
         "needs_tradition": True,
-        "symbol": "The Magician",
+        "sign": "The Magician",
         "traditions": ["rider-waite", "marseille"],
     }
 
 
-def test_get_symbol_with_tradition_returns_facts_and_citations(stores: Stores, settings: Settings) -> None:
+def test_get_sign_with_tradition_returns_facts_and_citations(stores: Stores, settings: Settings) -> None:
     tools = _tools_by_name(stores, settings, FakeChatClient())
-    result = tools["get_symbol"].invoke({"symbol": "the-magician", "tradition": "rider-waite"})
+    result = tools["get_sign"].invoke({"sign": "the-magician", "tradition": "rider-waite"})
     assert result["display_name"] == "The Magician"
     assert result["citations"] == [{"source": "The Pictorial Key to the Tarot", "locator": "p. 71"}]
 
 
-def test_get_symbol_unknown_slug_returns_error(stores: Stores, settings: Settings) -> None:
+def test_get_sign_unknown_slug_returns_error(stores: Stores, settings: Settings) -> None:
     tools = _tools_by_name(stores, settings, FakeChatClient())
-    result = tools["get_symbol"].invoke({"symbol": "nonexistent"})
+    result = tools["get_sign"].invoke({"sign": "nonexistent"})
     assert "error" in result
 
 
-def test_get_symbol_resolves_by_canonical_name_not_only_slug(stores: Stores, settings: Settings) -> None:
-    """A real failure mode: the model derives `symbol` from the user's own
+def test_get_sign_resolves_by_canonical_name_not_only_slug(stores: Stores, settings: Settings) -> None:
+    """A real failure mode: the model derives `sign` from the user's own
     wording ("The Magician") before any tool has surfaced the slug
-    ("the-magician") — the spec's own `get_symbol` example uses exactly this
+    ("the-magician") — the spec's own `get_sign` example uses exactly this
     display-name phrasing, so slug-only matching must not be the only path."""
     tools = _tools_by_name(stores, settings, FakeChatClient())
-    result = tools["get_symbol"].invoke({"symbol": "The Magician", "tradition": "rider-waite"})
+    result = tools["get_sign"].invoke({"sign": "The Magician", "tradition": "rider-waite"})
     assert result["display_name"] == "The Magician"
     assert "error" not in result
 
 
-def test_get_symbol_name_match_is_case_and_whitespace_insensitive(stores: Stores, settings: Settings) -> None:
+def test_get_sign_name_match_is_case_and_whitespace_insensitive(stores: Stores, settings: Settings) -> None:
     tools = _tools_by_name(stores, settings, FakeChatClient())
-    result = tools["get_symbol"].invoke({"symbol": "  the magician  ", "tradition": "rider-waite"})
+    result = tools["get_sign"].invoke({"sign": "  the magician  ", "tradition": "rider-waite"})
     assert result["display_name"] == "The Magician"
 
 
-def test_get_symbol_unknown_tradition_returns_error(stores: Stores, settings: Settings) -> None:
+def test_get_sign_unknown_tradition_returns_error(stores: Stores, settings: Settings) -> None:
     tools = _tools_by_name(stores, settings, FakeChatClient())
-    result = tools["get_symbol"].invoke({"symbol": "the-tower", "tradition": "nonexistent"})
+    result = tools["get_sign"].invoke({"sign": "the-tower", "tradition": "nonexistent"})
     assert "error" in result
 
 
-def test_query_symbol_returns_regions_dict(stores: Stores, settings: Settings) -> None:
+def test_query_sign_returns_regions_dict(stores: Stores, settings: Settings) -> None:
     tools = _tools_by_name(stores, settings, FakeChatClient())
-    result = tools["query_symbol"].invoke({"symbol": "the-tower", "tradition": "rider-waite"})
+    result = tools["query_sign"].invoke({"sign": "the-tower", "tradition": "rider-waite"})
     assert result == {"regions": []}
 
 
-def test_query_symbol_resolves_by_canonical_name_not_only_slug(stores: Stores, settings: Settings) -> None:
+def test_query_sign_resolves_by_canonical_name_not_only_slug(stores: Stores, settings: Settings) -> None:
     tools = _tools_by_name(stores, settings, FakeChatClient())
-    result = tools["query_symbol"].invoke({"symbol": "The Tower", "tradition": "rider-waite"})
+    result = tools["query_sign"].invoke({"sign": "The Tower", "tradition": "rider-waite"})
     assert result == {"regions": []}
     assert "error" not in result
 
 
-def test_query_symbol_unknown_symbol_returns_error(stores: Stores, settings: Settings) -> None:
+def test_query_sign_unknown_sign_returns_error(stores: Stores, settings: Settings) -> None:
     tools = _tools_by_name(stores, settings, FakeChatClient())
-    result = tools["query_symbol"].invoke({"symbol": "nonexistent", "tradition": "rider-waite"})
+    result = tools["query_sign"].invoke({"sign": "nonexistent", "tradition": "rider-waite"})
     assert "error" in result
 
 

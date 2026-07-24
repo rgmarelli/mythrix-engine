@@ -14,7 +14,7 @@ This installs `mythrix` in editable mode along with all pinned runtime and dev
 dependencies (see `api/pyproject.toml`) — into `uv`'s project virtualenv, not
 system-wide. Commands below that only touch the `api/` workspace (tests,
 ruff) are run from inside `api/` as `uv run ...`; commands that touch the
-repo-root `data/`/`.mythrix/` directories (`load-symbols`, `load-documents`,
+repo-root `data/`/`.mythrix/` directories (`load-signs`, `load-documents`,
 `query`) are run from the repo root as `uv run --project api mythrix ...`,
 so their working directory stays at the root while `uv` still resolves
 dependencies from `api/`. Either way, unless you've activated the
@@ -76,14 +76,14 @@ to their tarot card via `corresponds_to`, and one independent corpus document
 `specs/spec.md`'s "Reference implementation scope"
 for why the corpus document is deliberately a different source.
 
-`load-symbols` walks the whole `data/` tree (`root.rglob("symbols/*.yaml")`,
+`load-signs` walks the whole `data/` tree (`root.rglob("signs/*.yaml")`,
 etc.), so one command loads every domain — tarot, kabbalah, and bible's
 tradition/source metadata — together:
 
 Run from the repo root, so `data` resolves to the root `data/` directory:
 
 ```bash
-uv run --project api mythrix load-symbols data --json
+uv run --project api mythrix load-signs data --json
 
 uv run --project api mythrix load-documents data/bible/documents/douay-rheims-bible.txt \
   --tradition douay-rheims --source-slug douay-rheims-bible --json
@@ -99,13 +99,13 @@ Run from the repo root, so `.mythrix/` resolves to the root-level store:
 
 ```bash
 # human-readable: graph facts, per-concept passages, and pair-convergence groups
-uv run --project api mythrix query --symbol the-tower --tradition rider-waite
+uv run --project api mythrix query --sign the-tower --tradition rider-waite
 
 # structured output — full evidentiary chain (FR-RT-06)
-uv run --project api mythrix query --symbol the-tower --tradition rider-waite --json
+uv run --project api mythrix query --sign the-tower --tradition rider-waite --json
 
 # widen the pool searched for concept-pair convergence (FR-RT-08), independent of --top-k
-uv run --project api mythrix query --symbol the-tower --tradition rider-waite --match-pool 50
+uv run --project api mythrix query --sign the-tower --tradition rider-waite --match-pool 50
 ```
 
 Per FR-RT-10, no generation model is ever invoked on this path — only the

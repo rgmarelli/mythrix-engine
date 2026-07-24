@@ -74,7 +74,7 @@ def _safe_json_loads(content: object) -> object:
 
 def _needs_key(payload: object) -> str | None:
     """The first truthy `needs_*` key in a tool-result payload, if any —
-    `get_symbol`'s `needs_tradition` is the first (and, in v0, only) case,
+    `get_sign`'s `needs_tradition` is the first (and, in v0, only) case,
     but this is not hardcoded to that one key/tool (spec.md's Context object,
     "Clarification, not guessing", generalized from master FR-AG-05/FR-AG-07)."""
     if not isinstance(payload, dict):
@@ -84,7 +84,7 @@ def _needs_key(payload: object) -> str | None:
 
 def route_after_tools(state: AgentState) -> str:
     """Intercepts any tool result carrying a truthy `needs_*` key — e.g.
-    `get_symbol`'s `needs_tradition` — before it ever reaches the model
+    `get_sign`'s `needs_tradition` — before it ever reaches the model
     (master spec.md FR-AG-18). Observed live: a tool result carrying no interpretive content
     at all (just a candidate list) is still, occasionally, followed by the
     model composing fabricated denotations rather than asking —
@@ -103,15 +103,15 @@ def clarify_node(state: AgentState) -> dict:
     """Builds the clarifying-question reply directly from the tool result's
     own `needs_*` payload — no model call, so it cannot state anything beyond
     what the tool actually returned. Reads whichever `needs_*` key is
-    present; `get_symbol`'s `needs_tradition` (candidates under
+    present; `get_sign`'s `needs_tradition` (candidates under
     `traditions`) is the case exercised today."""
     payload = _safe_json_loads(state["messages"][-1].content)
     needs_key = _needs_key(payload)
     field = needs_key.removeprefix("needs_") if needs_key else "value"
     candidates_key = f"{field}s" if not field.endswith("s") else field
     candidates = payload.get(candidates_key, ()) if isinstance(payload, dict) else ()
-    symbol = payload.get("symbol", "this symbol") if isinstance(payload, dict) else "this symbol"
-    text = f"Which {field} would you like to use for {symbol}? Available: {', '.join(candidates)}."
+    sign = payload.get("sign", "this sign") if isinstance(payload, dict) else "this sign"
+    text = f"Which {field} would you like to use for {sign}? Available: {', '.join(candidates)}."
     return {"messages": [AIMessage(content=text)]}
 
 
