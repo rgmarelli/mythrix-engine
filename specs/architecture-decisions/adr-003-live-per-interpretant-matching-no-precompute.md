@@ -1,8 +1,8 @@
-# ADR 0003 — Live, per-interpretant matching; no precomputed match matrix
+# ADR-003 — Live, per-interpretant matching; no precomputed match matrix
 
 - **Status**: Accepted
 - **Date**: 2026-07-21
-- **Realized by**: `specs/symbol-interpretation-core/spec.md` FR34; Non-goals
+- **Realized by**: [retrieval.md](../retrieval/retrieval.md) FR-RT-12; Non-goals
 
 ## Context
 
@@ -21,7 +21,7 @@ immediately.
 
 There is also a scoring reason. Matching must be gated by an **absolute similarity
 floor** and weighted by **live corpus statistics**
-([ADR 0004](0004-absolute-floor-and-lexical-specificity-ranking.md)); baking match
+([ADR-004](adr-004-absolute-floor-and-lexical-specificity-ranking.md)); baking match
 decisions into a precomputed table would freeze those thresholds and statistics at
 ingest time.
 
@@ -51,7 +51,7 @@ way to keep IDF cheap at scale.
   committed ones.
 - Query cost scales with (number of interpretants × corpus search cost). For a
   huge corpus this is the main performance pressure and is what the vector store
-  must absorb ([ADR 0005](0005-vector-store-chroma-and-lexical-store-path.md)).
+  must absorb ([ADR-005](adr-005-vector-store-chroma-and-lexical-store-path.md)).
 - Thresholds and specificity weights are always computed against the *current*
   corpus and *current* interpretant set — no stale-matrix class of bugs.
 - The "no precompute" rule is specifically about **matches**. Confusing it with

@@ -2,7 +2,7 @@
 
 Retrieval methods here are the concrete implementation of the anti-hallucination
 boundary: they only ever run parametrized Cypher built from plain Python control
-flow, never from LLM output or unvalidated free text (FR10). Retrieval composes
+flow, never from LLM output or unvalidated free text (FR-RT-02). Retrieval composes
 several small, focused queries in Python rather than one large aggregate query with
 nested struct collections — simpler to test and reason about, and avoids relying on
 Cypher features not needed anywhere else in this codebase.
@@ -228,7 +228,7 @@ class KuzuGraphStore:
 
         The manifestation's tradition and every cited source must already exist
         (call upsert_tradition/upsert_source first) — this method does not validate
-        referential integrity; that's the structured-data loader's job (FR4, FR5).
+        referential integrity; that's the structured-data loader's job (FR-SD-01, FR-SD-02).
         """
         self.upsert_sign(sign)
 
@@ -362,7 +362,7 @@ class KuzuGraphStore:
         """Idempotent per (from, to, relationship, according_to_id) — re-running
         with the same identity updates description/confidence/etc. in place; a
         *different* according_to_id adds a new, independent claim rather than
-        overwriting the first (FR3; verified in
+        overwriting the first (FR-DM-03; verified in
         tests/unit/test_kuzu_multi_edge_risk.py).
 
         Connects `Sign -> Sign` directly, not through either endpoint's
@@ -397,7 +397,7 @@ class KuzuGraphStore:
 
     def get_manifestation(self, sign_slug: str, tradition_slug: str) -> GraphFacts:
         """Deterministic, parametrized retrieval of one sign's manifestation
-        within one tradition (FR9, FR10) — never generated from LLM output."""
+        within one tradition (FR-RT-01, FR-RT-02) — never generated from LLM output."""
         sign = self._get_sign_by_slug(sign_slug)
         tradition = self._get_tradition_by_slug(tradition_slug)
 
@@ -435,8 +435,8 @@ class KuzuGraphStore:
         return GraphFacts(sign=sign, manifestation=manifestation)
 
     def list_traditions(self) -> tuple[Tradition, ...]:
-        """Every declared `Tradition`, for a web/API picker (FR2 of
-        `specs/query-viewer-web-ui/spec.md`)."""
+        """Every declared `Tradition`, for a web/API picker (`specs/interfaces/web-viewer.md`
+        FR-WEB-01)."""
         result = self._execute(
             "MATCH (t:Tradition) RETURN t.id, t.slug, t.name, t.domain, t.description ORDER BY t.slug", {}
         )
@@ -449,7 +449,7 @@ class KuzuGraphStore:
     def list_semiotic_systems(self) -> tuple[str, ...]:
         """Every distinct `semiotic_system` that has at least one manifested
         sign, ordered — the top-level scope a picker (or the agent's
-        `list_semiotic_systems` tool, `specs/agent-operator`) offers before
+        `list_semiotic_systems` tool, `specs/interfaces/agent.md` FR-AG-03) offers before
         narrowing to traditions/signs. Consistent with `list_signs`: a system
         whose only signs have zero manifestations is never offered, so it can
         never lead to a dead scope."""
@@ -469,9 +469,9 @@ class KuzuGraphStore:
     def list_signs(self) -> tuple[SignSummary, ...]:
         """Every sign with at least one manifestation, one row per
         (sign, tradition) grouped by sign slug — a sign with zero
-        manifestations (FR22) is never returned, so a web/API picker can
+        manifestations (FR-DM-05) is never returned, so a web/API picker can
         only ever offer a sign/tradition pair `get_manifestation` will
-        actually resolve (FR2, FR9 of `specs/query-viewer-web-ui/spec.md`)."""
+        actually resolve (`specs/interfaces/web-viewer.md` FR-WEB-01)."""
         result = self._execute(
             """
             MATCH (s:Sign)-[:HAS_MANIFESTATION]->(:Manifestation)-[:MANIFESTED_IN]->(t:Tradition)
@@ -556,7 +556,7 @@ class KuzuGraphStore:
 
     def get_source(self, source_id: str) -> Source:
         """Public lookup used by the document loader to validate a `Source` is
-        already declared (FR6) and to read its current `content_hash` (FR23)
+        already declared (FR-CO-01) and to read its current `content_hash` (FR-CO-04)
         before deciding whether an ingest is new, unchanged, or a replacement."""
         result = self._execute(
             "MATCH (src:Source {id: $id}) "
@@ -595,7 +595,7 @@ class KuzuGraphStore:
         )
 
     def _get_interpretants(self, manifestation_id: str) -> tuple[Interpretant, ...]:
-        """Tradition-scoped interpretants (concepts, keywords, exact-value facts, ...) — FR2."""
+        """Tradition-scoped interpretants (concepts, keywords, exact-value facts, ...) — FR-DM-02."""
         result = self._execute(
             """
             MATCH (:Manifestation {id: $id})-[:HAS_INTERPRETANT]->(i:Interpretant)
@@ -639,9 +639,9 @@ class KuzuGraphStore:
     def _get_all_manifestation_interpretants(self, sign_id: str) -> tuple[Interpretant, ...]:
         """Every interpretant across *all* of a sign's manifestations, regardless of
         tradition — used only to populate `IntersemioticInterpretant.target_interpretants`
-        (retrieval-query enrichment, FR8), not treated as a fact about one specific
+        (retrieval-query enrichment, FR-CO-03), not treated as a fact about one specific
         tradition's reading. Never fetches properties, at either scope — properties are
-        never used to build retrieval query text (FR8, FR21). Two hops
+        never used to build retrieval query text (FR-CO-03, FR-DM-04). Two hops
         (`Sign -> Manifestation -> Interpretant`), unlike `_fetch_properties`/`_get_interpretants`,
         which only handle a single direct hop."""
         result = self._execute(
@@ -669,12 +669,12 @@ class KuzuGraphStore:
         return tuple(citations)
 
     def _get_sign_intersemiotic_interpretants(self, sign_id: str) -> tuple[IntersemioticInterpretant, ...]:
-        """This sign's correspondences to other signs (FR3, FR19). Targets are
+        """This sign's correspondences to other signs (FR-DM-03, FR-SD-04). Targets are
         fetched shallow via `_get_sign_by_id` (their own `.intersemiotic_interpretants`
         is always `()`, deliberately not recursed further) — but `target_interpretants`
         still pulls in the target's own manifestation-level interpretants across every
         tradition, since that's bounded (a Manifestation has no intersemiotic
-        interpretants of its own) and valuable for retrieval query construction (FR8)."""
+        interpretants of its own) and valuable for retrieval query construction (FR-CO-03)."""
         result = self._execute(
             """
             MATCH (:Sign {id: $id})-[r:INTERSEMIOTIC]->(s2:Sign)

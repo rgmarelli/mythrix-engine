@@ -1,12 +1,12 @@
-"""Citation-marker extraction and validation (FR12) — the code guarantee
-behind FR11's "cite every claim" instruction. A prompt can *ask* a model to
+"""Citation-marker extraction and validation (FR-RT-04) — the code guarantee
+behind FR-RT-03's "cite every claim" instruction. A prompt can *ask* a model to
 only cite real markers; this module is what actually checks it did, by
 comparing every `[G#]`/`[S#]` marker found in generated text against the
 markers that were genuinely available (via `synthesis/prompts.py`'s
 `graph_fact_ids`/`passage_ids` — the same enumerations used to render
 context, so validation can't drift from what was shown).
 
-The `query` path itself produces no generated text to validate (FR29) — this
+The `query` path itself produces no generated text to validate (FR-RT-10) — this
 module is retained for the planned conversational agent loop, which will
 need exactly this check against its own output. It was originally two
 validators matching concept-scoped synthesis's two stages (FR25/FR26);

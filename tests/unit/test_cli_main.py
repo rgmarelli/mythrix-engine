@@ -19,9 +19,9 @@ def test_root_help_lists_all_three_commands() -> None:
 
 
 def test_query_help_lists_expected_options() -> None:
-    """--facts-only and --strict are gone (FR29 — every query is now
+    """--facts-only and --strict are gone (FR-RT-10 — every query is now
     facts-only in shape, and there's no generated citation to be strict
-    about); --match-pool is new (FR27)."""
+    about); --match-pool is new (FR-RT-08)."""
     result = runner.invoke(app, ["query", "--help"])
 
     assert result.exit_code == 0
@@ -41,7 +41,7 @@ def test_load_symbols_help_lists_expected_options() -> None:
 
 def test_load_documents_help_lists_expected_options() -> None:
     """--tradition/--source-slug are gone — a corpus source's id/domain are
-    authored in its own colocated YAML, discovered automatically (FR6)."""
+    authored in its own colocated YAML, discovered automatically (FR-CO-01)."""
     result = runner.invoke(app, ["load-documents", "--help"])
 
     assert result.exit_code == 0

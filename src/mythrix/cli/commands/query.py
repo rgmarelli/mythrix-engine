@@ -1,4 +1,4 @@
-"""`mythrix query`: the CLI surface for FR9/FR13/FR16/FR24/FR27-FR29.
+"""`mythrix query`: the CLI surface for FR-RT-01/FR-RT-05/FR-RT-06/FR-RT-07/FR-RT-08–FR-RT-10.
 
 `run_query` calls `core/query_service.py::execute_query` for the retrieval
 logic itself, then handles CLI-specific concerns — catching `MythrixError`
@@ -9,7 +9,7 @@ via `core/bootstrap.py::build_stores` and delegates. This split is what lets
 `tests/unit/test_cli_query.py` call `run_query` directly with fakes, with no
 Typer/subprocess machinery and no running Kùzu/Chroma needed for most cases.
 
-Per FR29, no generation model is ever constructed on this path — retrieval
+Per FR-RT-10, no generation model is ever constructed on this path — retrieval
 needs only the embedding model, so a query returns the complete result
 whether or not a local generation model is installed.
 """
@@ -46,7 +46,7 @@ def run_query(
     """Runs one query end-to-end and prints the result; returns the process
     exit code (0 = success). Needs a reachable embedding model (retrieval
     embeds the query text for the Chroma similarity search) but never a
-    generation model (FR29)."""
+    generation model (FR-RT-10)."""
     try:
         context = execute_query(
             symbol=symbol,
@@ -76,7 +76,7 @@ def query(
         typer.Option("--match-pool", help="Override retrieval_match_pool_size — depth searched for pair convergence"),
     ] = None,
     min_score: Annotated[float | None, typer.Option("--min-score", help="Override retrieval_min_score")] = None,
-    as_json: Annotated[bool, typer.Option("--json", help="Structured JSON output (FR16)")] = False,
+    as_json: Annotated[bool, typer.Option("--json", help="Structured JSON output (FR-RT-06)")] = False,
 ) -> None:
     settings = Settings()
     stores = build_stores(settings)

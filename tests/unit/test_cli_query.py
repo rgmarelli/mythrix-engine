@@ -1,6 +1,6 @@
 """Unit tests for `run_query` (T20, reduced by T38): called directly with
 fakes/fixtures, no Typer/subprocess machinery and no running Ollama needed.
-Every query is now facts-only in shape (FR29 — no generation model is ever
+Every query is now facts-only in shape (FR-RT-10 — no generation model is ever
 constructed on this path), so there is no `synthesizer_factory`/`strict`
 surface left to test here; `test_formatting.py` covers the pair-groups
 rendering these tests exercise end-to-end."""
@@ -73,7 +73,7 @@ def _run(**overrides) -> int:  # noqa: ANN003
 def test_query_succeeds_and_never_constructs_a_generation_model(
     graph_store: KuzuGraphStore, vector_store: ChromaVectorStore, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """FR29: the query path invokes no generation model at all — there is no
+    """FR-RT-10: the query path invokes no generation model at all — there is no
     `synthesizer_factory` parameter left for a test to fail-fast on, which is
     itself the structural proof."""
     exit_code = _run(
@@ -133,7 +133,7 @@ def test_unknown_symbol_returns_nonzero_exit(
 def test_json_output_includes_pair_candidates_key(
     graph_store: KuzuGraphStore, vector_store: ChromaVectorStore, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """FR16, FR27: `--json` output carries the pair-convergence evidence
+    """FR-RT-06, FR-RT-08: `--json` output carries the pair-convergence evidence
     alongside per-concept candidates, even when empty."""
     exit_code = _run(
         symbol="the-tower",
@@ -155,7 +155,7 @@ def test_query_surfaces_a_concept_pair_convergence(
 ) -> None:
     """End-to-end through the real Chroma store: a passage retrieved for
     both an interpretant's concept and a keyword concept converges into a
-    pair group in the rendered output (FR27)."""
+    pair group in the rendered output (FR-RT-08)."""
     the_tower = graph_store.get_manifestation("the-tower", "rider-waite").sign
     updated_manifestation = graph_store.get_manifestation("the-tower", "rider-waite").manifestation.model_copy(
         update={

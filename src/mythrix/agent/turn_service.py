@@ -94,7 +94,7 @@ def _safe_json_loads(content: object) -> object:
 
 def _new_messages(previous_history: list, new_history: list) -> list:
     """`run_turn` returns `previous_history` unchanged (same list object) on
-    hitting the recursion bound (FR13) — no new messages in that case."""
+    hitting the recursion bound (FR-RT-05) — no new messages in that case."""
     if new_history is previous_history or len(new_history) <= len(previous_history):
         return []
     return new_history[len(previous_history) :]

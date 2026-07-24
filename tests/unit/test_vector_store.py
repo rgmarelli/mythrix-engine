@@ -24,7 +24,7 @@ def _metadata(*, source_id: str, domain: str = "tarot") -> ChunkMetadata:
 
 
 def test_add_and_similarity_search_across_the_full_corpus(store: ChromaVectorStore) -> None:
-    """FR7: retrieval always searches every ingested document, regardless of
+    """FR-CO-02: retrieval always searches every ingested document, regardless of
     which source it came from — there is no tradition to scope by, and no
     filter parameter for one."""
     tower_chunk = Chunk(index=0, text="The Tower depicts sudden upheaval.", char_start=0, char_end=35)
@@ -80,7 +80,7 @@ def test_add_chunks_is_upsert_idempotent(store: ChromaVectorStore) -> None:
 
 
 def test_add_chunks_batches_upserts_above_the_clients_max_batch_size(store: ChromaVectorStore) -> None:
-    """Fine-grained structural segmentation (FR1) can turn one document into
+    """Fine-grained structural segmentation (FR-CO-05) can turn one document into
     tens of thousands of segments — far more than Chroma's own max batch size
     per `upsert()` call. Patched to a small limit here so the test stays fast
     while still exercising the real batching path."""
@@ -148,7 +148,7 @@ def test_document_contains_filters_to_chunks_with_that_literal_text(store: Chrom
 
 
 def test_document_contains_is_word_bounded_not_substring(store: ChromaVectorStore) -> None:
-    """FR7: a token must not match inside a larger word or number —
+    """FR-RT-15: a token must not match inside a larger word or number —
     `50` inside a chunk mentioning only `150` is a false positive a plain
     substring `$contains` would wrongly return."""
     matching = Chunk(index=0, text="he lived for 50 years", char_start=0, char_end=22)

@@ -1,6 +1,6 @@
-"""Ollama chat client (FR10) retained for a future conversational agent loop
+"""Ollama chat client (FR-RT-02) retained for a future conversational agent loop
 (spec.md's non-goal on conversational request parsing) — the `query` path
-itself invokes no generation model at all (FR29). `OllamaChatClient` only
+itself invokes no generation model at all (FR-RT-10). `OllamaChatClient` only
 ever sends rendered prompt text and reads back plain text; it has no
 tool-calling access to the graph or vector store, by construction. Whatever
 context an agent loop assembles for it should use `synthesis/prompts.py`'s
@@ -14,7 +14,7 @@ because `validate_model_on_init` raises inconsistent exception types across
 unreachable" alike — established empirically (plan.md's "LangChain + Ollama
 synthesis"), not something to rediscover later. Removed: the per-concept and
 general-summary orchestration (`synthesize()`/`_synthesize_concept()`) — the
-query path no longer produces synthesized text at all (FR29).
+query path no longer produces synthesized text at all (FR-RT-10).
 """
 
 from __future__ import annotations

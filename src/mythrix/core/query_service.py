@@ -51,7 +51,7 @@ def query_regions(
     region_window_size: int,
     region_min_interpretants: int,
 ) -> RegionQueryResult:
-    """Region-centric retrieval (`convergence-rollup-retrieval`) — the query
+    """Region-centric retrieval (see `specs/retrieval/ranking.md`) — the query
     path `/api/query` runs."""
     graph_facts = graph_store.get_manifestation(symbol, tradition)
     pipeline = RetrievalPipeline(

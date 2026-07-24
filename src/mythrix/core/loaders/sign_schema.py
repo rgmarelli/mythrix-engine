@@ -1,7 +1,7 @@
 """Pydantic models mirroring the human-authored YAML structured-data format
 (spec.md "Structured-data authoring format", plan.md "Authoring YAML format").
 
-These models validate *shape* only (FR4's schema-validation half). Referential
+These models validate *shape* only (FR-SD-01's schema-validation half). Referential
 integrity (does a named tradition/source/sign actually exist) is `sign_loader.py`'s
 job, since it requires cross-file context these per-file models don't have.
 """
@@ -57,8 +57,7 @@ class TraditionFile(LoaderModel):
 
 
 class StructureBlock(LoaderModel):
-    """A corpus source's `structure:` block (`convergence-rollup-retrieval`
-    FR1): names the structural segmenter (`mythrix.core.vector.segmentation`)
+    """A corpus source's `structure:` block (FR-CO-05): names the structural segmenter (`mythrix.core.vector.segmentation`)
     that turns this source's raw text into segments along its own declared
     structure, rather than a fixed word-count chunk."""
 
@@ -72,11 +71,11 @@ class SourceBlock(LoaderModel):
     (`en_drb`). `domain` names the broad subject area this source belongs to
     (the same free-text vocabulary `Tradition.domain` uses, e.g. "tarot",
     "scripture") — required, since it is what a corpus chunk is tagged with
-    in place of a tradition (FR7). `citation_label` is only meaningful for a
+    in place of a tradition (FR-CO-02). `citation_label` is only meaningful for a
     source that gets ingested into the document corpus; left empty for one
     that's only ever cited via a `Citation`. `structure` is optional — a
     source that doesn't declare one falls back to fixed word-count chunking
-    (`convergence-rollup-retrieval` FR1)."""
+    (FR-CO-05)."""
 
     id: str
     domain: str
@@ -103,7 +102,7 @@ class SourceFile(LoaderModel):
 class PropertyEntry(LoaderModel):
     """One `properties:` list entry, at either sign or manifestation scope.
 
-    A property is never used to build retrieval query text (FR8, FR21) —
+    A property is never used to build retrieval query text (FR-CO-03, FR-DM-04) —
     unlike an `InterpretantEntry`, there is no opt-out flag here, since
     eligibility is decided by which list (`properties:` vs `interpretants:`)
     an entry appears in, not by a per-entry setting.
@@ -119,7 +118,7 @@ class PropertyEntry(LoaderModel):
 
 
 class QueryDirectiveEntry(LoaderModel):
-    """An interpretant's `query:` annotation (FR8, FR28, FR30). `directive` is
+    """An interpretant's `query:` annotation (FR-CO-03, FR-RT-09, FR-RT-11). `directive` is
     free text; v1 code interprets `"filter"` (requires `as_token`) and `"skip"`
     (excludes the interpretant from retrieval entirely; `as_token` unused)."""
 
@@ -128,10 +127,10 @@ class QueryDirectiveEntry(LoaderModel):
 
 
 class InterpretantEntry(LoaderModel):
-    """One `interpretants:` list entry (FR20). `type` is a free-text,
+    """One `interpretants:` list entry (FR-SD-05). `type` is a free-text,
     descriptive-only label (e.g. "concept", "foundation", "numeric_value") —
     it does not gate retrieval eligibility or participate in concept-pair
-    grouping (FR27)."""
+    grouping (FR-RT-08)."""
 
     type: str = "concept"
     value: str
@@ -144,9 +143,9 @@ class InterpretantEntry(LoaderModel):
 
 
 class IntersemioticInterpretantEntry(LoaderModel):
-    """One inline intersemiotic interpretant (FR19) — `target_sign`/`according_to`
+    """One inline intersemiotic interpretant (FR-SD-04) — `target_sign`/`according_to`
     are human-readable names resolved against already-parsed signs/traditions by
-    the loader (FR18). `target_system` scopes `target_sign` resolution to signs
+    the loader (FR-SD-03). `target_system` scopes `target_sign` resolution to signs
     declared under that `semiotic_system`."""
 
     target_system: str
@@ -159,8 +158,8 @@ class IntersemioticInterpretantEntry(LoaderModel):
 
 
 class ManifestationEntry(LoaderModel):
-    """One `manifestations:` list entry (FR2). `tradition` names a `Tradition` by
-    slug or name (FR18); `cites` is a free-text citation resolved against loaded
+    """One `manifestations:` list entry (FR-DM-02). `tradition` names a `Tradition` by
+    slug or name (FR-SD-03); `cites` is a free-text citation resolved against loaded
     sources (see `sign_loader._resolve_citation`)."""
 
     tradition: str
@@ -185,7 +184,7 @@ class SignBlock(LoaderModel):
     verbatim does not fail shape validation — it is never read by the loader.
     A sign's real id/slug is always its file's stem (see `sign_loader.py`).
 
-    `manifestations` is entirely optional (FR22) — a sign may exist purely as a
+    `manifestations` is entirely optional (FR-DM-05) — a sign may exist purely as a
     correspondence target/anchor."""
 
     id: str | None = None

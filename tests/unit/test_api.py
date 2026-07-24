@@ -155,8 +155,8 @@ def test_query_returns_a_region_converging_on_every_matching_interpretant(
     graph_store: KuzuGraphStore, vector_store: ChromaVectorStore
 ) -> None:
     """A region matched by two interpretants appears once, with both
-    recorded in `matches`, each anchored to the segment it hit (FR17) —
-    the concrete case `convergence-rollup-retrieval` exists for. Both of
+    recorded in `matches`, each anchored to the segment it hit (FR-RK-09) —
+    the concrete case region rollup exists for. Both of
     the-sun's interpretants embed identically here (`FakeEmbedder` returns a
     fixed vector for any text), and the corpus has exactly one chunk, so that
     chunk is the top hit for both."""

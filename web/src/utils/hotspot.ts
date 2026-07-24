@@ -8,7 +8,7 @@ export function convergenceLabel(count: number): string {
   return `${count} interpretant${count === 1 ? '' : 's'}`;
 }
 
-/** The specific segment a match anchors to (FR17) — lets a consumer navigate
+/** The specific segment a match anchors to (FR-RK-09) — lets a consumer navigate
  * straight to where an interpretant hit, rather than re-scanning every
  * segment in the hotspot. */
 export function segmentForMatch(hotspot: Hotspot, match: HotspotMatch): HotspotSegment | undefined {

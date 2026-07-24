@@ -158,7 +158,7 @@ def test_intersemiotic_target_interpretants_gather_its_own_manifestation_interpr
 ) -> None:
     """`target_interpretants` pulls in the target sign's own manifestation
     interpretants (across whichever tradition it's manifested under) — not
-    just its bare `properties` — so retrieval query construction (FR8) can
+    just its bare `properties` — so retrieval query construction (FR-CO-03) can
     draw on what the target itself *means* (e.g. a Hebrew letter's Sepher
     Yetzirah foundation), not only intrinsic facts like its numeric value.
     Properties never appear here, at any scope — this is the concrete fix for

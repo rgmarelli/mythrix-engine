@@ -6,11 +6,11 @@ under one type — then per intersemiotic interpretant one per atomic concept
 about the target's own `target_interpretants`, but not the target's bare
 name, disabled for now), never grouping concepts into a combined query, see
 pipeline.py's docstring for why — plus corpus-wide retrieval with no
-tradition to scope by (FR7), grouped and merged per concept (FR24) via
+tradition to scope by (FR-CO-02), grouped and merged per concept (FR-RT-07) via
 Reciprocal Rank Fusion *within* that concept's own queries only, never
 across a different concept's queries (see pipeline.py's docstring for the
 real crowding-out case that motivated this), and hydration of raw vector
-hits into full RetrievedPassages from an independent corpus source (FR7:
+hits into full RetrievedPassages from an independent corpus source (FR-CO-02:
 e.g. Genesis, discoverable when querying a tarot sign, carrying no
 interpretive tradition of its own). Uses a fake vector store/embedder — no
 Ollama needed."""
@@ -87,8 +87,8 @@ class FakeVectorStore:
 class DocumentFrequencyVectorStore(FakeVectorStore):
     """`FakeVectorStore` plus `count()`/`document_frequency()`, for tests of
     the specificity-weight helper and region rollup, which need a corpus size
-    and per-term literal document frequency (`convergence-rollup-retrieval`
-    FR12/FR14) that plain `FakeVectorStore` has no use for."""
+    and per-term literal document frequency (FR-RK-04/FR-RK-06)
+    that plain `FakeVectorStore` has no use for."""
 
     def __init__(self, hits: list[VectorHit], *, corpus_size: int, document_frequencies: dict[str, int]) -> None:
         super().__init__(hits)
@@ -308,7 +308,7 @@ def test_query_texts_add_a_gematria_filtered_variant_without_dropping_the_plain_
         "hundred",
         "hundred",
     ]
-    # Every filtered variant carries the number's authored value too (FR28),
+    # Every filtered variant carries the number's authored value too (FR-RT-09),
     # not just its search token — this is what lets "100" surface as a pair
     # member later, rather than being discarded once the search text is derived.
     filtered_queries = [q for q in query_texts if q.filter_token is not None]
@@ -320,7 +320,7 @@ def test_query_texts_add_a_gematria_filtered_variant_without_dropping_the_plain_
 
 
 def test_query_texts_skip_directive_produces_no_query_at_all() -> None:
-    """FR30: an interpretant carrying `query.directive: "skip"` contributes no
+    """FR-RT-11: an interpretant carrying `query.directive: "skip"` contributes no
     query of any kind — neither a plain concept query nor a filter token —
     unlike `"filter"`, which still contributes the filtered variant."""
     manifestation_with_skip = THE_TOWER_MANIFESTATION.model_copy(
@@ -345,11 +345,11 @@ def test_query_texts_skip_directive_produces_no_query_at_all() -> None:
 
 
 def test_retrieve_searches_the_full_corpus_with_no_scoping_filter(graph_store: KuzuGraphStore) -> None:
-    """FR7: retrieval is never scoped by tradition — there is no tradition
+    """FR-CO-02: retrieval is never scoped by tradition — there is no tradition
     parameter left on `similarity_search` to pass one through."""
     embedder = FakeEmbedder()
     vector_store = FakeVectorStore(hits=[])
-    # match_pool_size, not top_k, is what reaches `similarity_search` (FR27 —
+    # match_pool_size, not top_k, is what reaches `similarity_search` (FR-RT-08 —
     # pair convergence is detected against a pool deeper than what's displayed).
     pipeline = RetrievalPipeline(
         graph_store=graph_store, vector_store=vector_store, embedder=embedder, top_k=3, match_pool_size=3
@@ -366,9 +366,9 @@ def test_retrieve_searches_the_full_corpus_with_no_scoping_filter(graph_store: K
 
 
 def test_retrieve_hydrates_a_hit_from_an_independent_corpus_source(graph_store: KuzuGraphStore) -> None:
-    """The concrete scenario FR7 exists for: a query about a tarot sign
+    """The concrete scenario FR-CO-02 exists for: a query about a tarot sign
     surfacing a passage from an independent corpus document, which carries no
-    tradition of its own at all (FR7)."""
+    tradition of its own at all (FR-CO-02)."""
     graph_store.upsert_source(
         Source(
             id="douay-rheims-bible",
@@ -493,7 +493,7 @@ def _gematria_intersemiotic_graph_facts() -> GraphFacts:
     with a single query, while the target's "Fish" meaning is a *second*,
     separate concept with two queries (plain + "hundred"-filtered). Used to
     test Reciprocal Rank Fusion and top_k truncation *within* one concept,
-    and isolation *between* concepts (FR24)."""
+    and isolation *between* concepts (FR-RT-07)."""
     qoph = Sign(
         id="qoph", slug="qoph", canonical_name="Qoph", sign_type="hebrew-letter", semiotic_system="hebrew_alef_bet"
     )
@@ -542,7 +542,7 @@ def _make_hit(chunk_id: str, distance: float) -> VectorHit:
 def test_retrieve_never_fuses_across_different_concepts(graph_store: KuzuGraphStore) -> None:
     """Two concepts ("Fire", the sign's own interpretant; "Fish", the
     intersemiotic target's meaning) must never be merged into one shared pool
-    (FR24) — each comes back as its own separate `ConceptCandidates`, even
+    (FR-RT-07) — each comes back as its own separate `ConceptCandidates`, even
     though the old flat-merge design would have combined them into a single
     ranked list."""
     graph_facts = _intersemiotic_graph_facts()
@@ -611,7 +611,7 @@ def test_retrieve_deduplicates_a_chunk_matched_by_multiple_queries_of_the_same_c
 
 
 def test_retrieve_truncates_each_concepts_own_hits_to_top_k(graph_store: KuzuGraphStore) -> None:
-    """`top_k` caps each concept's *own* candidates independently (FR24) — not
+    """`top_k` caps each concept's *own* candidates independently (FR-RT-07) — not
     one shared budget split across every concept in the query. Chunk 2
     appears in both of "Fish"'s queries (rank 2 in the first, rank 1 in the
     second), giving it the highest fused score within that concept; chunk 0
@@ -703,11 +703,11 @@ def test_retrieve_passes_the_gematria_filter_through_to_the_vector_store(graph_s
     assert vector_store.document_contains_per_call == [None, "hundred", None, "hundred"]
 
 
-# --- Concept-pair convergence (FR27, FR28) ---
+# --- Concept-pair convergence (FR-RT-08, FR-RT-09) ---
 
 
 def test_pair_candidates_emitted_for_a_chunk_shared_by_two_concepts(graph_store: KuzuGraphStore) -> None:
-    """FR27: a passage retrieved by two different concepts is surfaced as an
+    """FR-RT-08: a passage retrieved by two different concepts is surfaced as an
     additional `ConceptPairCandidates` group, *alongside* — never instead of
     — each concept's own group. Additive, not a restructuring: a strong
     single-concept match never has to compete with a convergent one."""
@@ -772,7 +772,7 @@ def test_no_pair_candidates_when_no_chunk_is_shared(graph_store: KuzuGraphStore)
 
 def test_pair_candidates_found_even_when_below_one_concepts_displayed_top_k(graph_store: KuzuGraphStore) -> None:
     """The motivating case for searching a deeper pool than what's displayed
-    (FR27): a passage ranked #1 for one concept but only #9 for another is a
+    (FR-RT-08): a passage ranked #1 for one concept but only #9 for another is a
     real convergence, yet it never enters the second concept's *displayed*
     top-6 list. Pairs must be detected against `match_pool_size`, not
     `top_k`, or this case is invisible."""
@@ -794,7 +794,7 @@ def test_pair_candidates_found_even_when_below_one_concepts_displayed_top_k(grap
 
 
 def test_exact_value_pairs_with_the_concept_sharing_its_chunk(graph_store: KuzuGraphStore) -> None:
-    """FR28: a recognized exact value (Qoph's gematria, "100"/"hundred") pairs
+    """FR-RT-09: a recognized exact value (Qoph's gematria, "100"/"hundred") pairs
     with whichever concept shares a chunk with it, scored by that concept's
     own similarity alone — the value itself carries no score, only a
     guarantee of containment, since it arrived via `document_contains` (a
@@ -813,7 +813,7 @@ def test_exact_value_pairs_with_the_concept_sharing_its_chunk(graph_store: KuzuG
     pair = context.pair_candidates[0]
     assert set(pair.concepts) == {"Fish", "100"}
     candidate = pair.candidates[0]
-    assert candidate.combined_score == pytest.approx(0.7)  # Fish's own score alone, per FR28
+    assert candidate.combined_score == pytest.approx(0.7)  # Fish's own score alone, per FR-RT-09
     matches_by_concept = {m.concept: m for m in candidate.matches}
     assert matches_by_concept["100"].exact_value is True
     assert matches_by_concept["100"].score == 0.0
@@ -842,7 +842,7 @@ def test_combined_score_clamps_negative_components_instead_of_raising() -> None:
     assert _combined_score((-0.4, -0.6)) == pytest.approx(0.0)
 
 
-# --- Specificity weighting (convergence-rollup-retrieval FR12-FR14) ---
+# --- Specificity weighting (FR-RK-04–FR-RK-06) ---
 
 
 def test_specificity_weight_is_strictly_higher_for_a_rarer_surface_form(graph_store: KuzuGraphStore) -> None:
@@ -868,7 +868,7 @@ def test_specificity_weight_handles_a_surface_form_absent_from_the_corpus(graph_
     assert weight == pytest.approx(math.log(200))
 
 
-# --- Region-centric retrieval (convergence-rollup-retrieval) ---
+# --- Region-centric retrieval (FR-RK-01–FR-RK-10) ---
 
 
 def _make_segment_hit(
@@ -891,7 +891,7 @@ def _make_segment_hit(
 
 
 def test_retrieve_regions_rolls_up_adjacent_ordinals_into_one_region(graph_store: KuzuGraphStore) -> None:
-    """FR9/FR10: interpretant matches on adjacent segments of one source roll
+    """FR-RK-01/FR-RK-02: interpretant matches on adjacent segments of one source roll
     up into a single region, with the right `convergence_count`."""
     graph_facts = _intersemiotic_graph_facts()
     hit_fire = _make_segment_hit("waite-pictorial-key::100", ordinal=100, locator="Genesis 21:5", distance=0.3)
@@ -911,7 +911,7 @@ def test_retrieve_regions_rolls_up_adjacent_ordinals_into_one_region(graph_store
 
 
 def test_retrieve_regions_each_match_anchors_to_its_own_segment(graph_store: KuzuGraphStore) -> None:
-    """FR17: a match's `segment_ordinal` points at the specific segment it
+    """FR-RK-09: a match's `segment_ordinal` points at the specific segment it
     hit, not just the region as a whole."""
     graph_facts = _intersemiotic_graph_facts()
     hit_fire = _make_segment_hit("waite-pictorial-key::517", ordinal=517, locator="Genesis 21:5", distance=0.3)
@@ -944,12 +944,12 @@ def test_retrieve_regions_deduplicates_a_segment_shared_by_two_interpretants(gra
 def test_retrieve_regions_same_interpretant_matching_two_segments_keeps_only_its_best(
     graph_store: KuzuGraphStore,
 ) -> None:
-    """FR9/FR13: within one region, an interpretant that matched more than
+    """FR-RK-01/FR-RK-05: within one region, an interpretant that matched more than
     one of its own segments keeps only its single best match — summing every
     per-segment occurrence would let a passage repeating one concept across
     many adjacent segments (e.g. a genealogy chapter repeating a number)
     inflate its score by simple repetition, the list-like-passage failure
-    mode ADR 0004 already rejected."""
+    mode ADR-004 already rejected."""
     graph_facts = _intersemiotic_graph_facts()
     weaker_hit = _make_segment_hit("waite-pictorial-key::100", ordinal=100, locator="Genesis 21:5", distance=0.3)
     stronger_hit = _make_segment_hit("waite-pictorial-key::101", ordinal=101, locator="Genesis 21:6", distance=0.1)
@@ -981,7 +981,7 @@ def test_retrieve_regions_non_contiguous_ordinals_do_not_merge(graph_store: Kuzu
 
 
 def test_retrieve_regions_isolated_single_interpretant_region_survives(graph_store: KuzuGraphStore) -> None:
-    """FR11: with the default `region_min_interpretants=1`, a region matched
+    """FR-RK-03: with the default `region_min_interpretants=1`, a region matched
     by exactly one interpretant is eligible and rankable (the corrected
     model — isolated matches are first-class, not filtered out)."""
     graph_facts = _intersemiotic_graph_facts()
@@ -1024,7 +1024,7 @@ def test_retrieve_regions_below_floor_is_excluded(graph_store: KuzuGraphStore) -
 def test_retrieve_regions_rare_interpretant_outweighs_a_ubiquitous_one_of_equal_strength(
     graph_store: KuzuGraphStore,
 ) -> None:
-    """FR12-FR14: a rare surface form's higher specificity weight lets a
+    """FR-RK-04–FR-RK-06: a rare surface form's higher specificity weight lets a
     two-real-interpretant region outrank a comparable single, and a rare
     interpretant outweighs a ubiquitous one at equal raw similarity."""
     graph_facts = _intersemiotic_graph_facts()
@@ -1042,7 +1042,7 @@ def test_retrieve_regions_rare_interpretant_outweighs_a_ubiquitous_one_of_equal_
 
 
 def test_retrieve_regions_exact_match_scores_by_fixed_presence_strength(graph_store: KuzuGraphStore) -> None:
-    """FR13: an exact-token match contributes a fixed presence strength to
+    """FR-RK-05: an exact-token match contributes a fixed presence strength to
     the region score, not a computed similarity — and does not count toward
     `convergence_count`."""
     graph_facts = _gematria_intersemiotic_graph_facts()

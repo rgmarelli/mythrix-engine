@@ -1,8 +1,8 @@
 """Unit tests for CLI output rendering (T19, reduced by T38): graph facts,
-per-concept candidates (FR24), and concept-pair convergence (FR27). The
+per-concept candidates (FR-RT-07), and concept-pair convergence (FR-RT-08). The
 result renderers this file used to test (`render_result_human`/`_json`) are
 retired along with concept-scoped synthesis — every query is now facts-only
-in shape (FR29)."""
+in shape (FR-RT-10)."""
 
 import json
 from datetime import UTC, datetime
@@ -139,7 +139,7 @@ def _context_with_a_pair() -> RetrievalContext:
 
 
 def test_render_facts_human_includes_a_pair_group_with_combined_and_component_scores() -> None:
-    """FR27: a pair group is headed by its members and shows the combined
+    """FR-RT-08: a pair group is headed by its members and shows the combined
     score alongside each concept's own component — the verdict and its
     inputs together (see cli/formatting.py)."""
     output = render_facts_human(_context_with_a_pair())
@@ -156,7 +156,7 @@ def test_render_facts_human_includes_a_pair_group_with_combined_and_component_sc
 def test_render_facts_human_attributes_a_passage_by_its_sources_citation_label() -> None:
     """A source with a `citation_label` (every corpus document) is attributed
     by that label, not by `title`/`author` — the label is what's meant to be
-    shown for a retrieved passage (FR13)."""
+    shown for a retrieved passage (FR-RT-05)."""
     output = render_facts_human(_context_with_a_pair())
 
     assert "(Douay-Rheims, Genesis 21:5):" in output
@@ -173,7 +173,7 @@ def test_render_facts_human_falls_back_to_title_author_without_a_citation_label(
 
 
 def test_render_facts_human_shows_an_exact_value_match_without_a_score() -> None:
-    """FR28: an exact-value member (e.g. "100") carries no similarity score —
+    """FR-RT-09: an exact-value member (e.g. "100") carries no similarity score —
     it's shown by name alone, not as "100 0.00", which would misrepresent a
     guarantee of containment as a similarity judgment."""
     merged_candidate = MergedCandidate(

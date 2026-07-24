@@ -92,14 +92,14 @@ on CPU-only local Ollama embedding.
 # human-readable: graph facts, per-concept passages, and pair-convergence groups
 uv run mythrix query --symbol the-tower --tradition rider-waite
 
-# structured output — full evidentiary chain (FR16)
+# structured output — full evidentiary chain (FR-RT-06)
 uv run mythrix query --symbol the-tower --tradition rider-waite --json
 
-# widen the pool searched for concept-pair convergence (FR27), independent of --top-k
+# widen the pool searched for concept-pair convergence (FR-RT-08), independent of --top-k
 uv run mythrix query --symbol the-tower --tradition rider-waite --match-pool 50
 ```
 
-Per FR29, no generation model is ever invoked on this path — only the
+Per FR-RT-10, no generation model is ever invoked on this path — only the
 embedding model is needed, so this works with just `nomic-embed-text`
 pulled. Expect the `GRAPH FACTS` block (`[G#]`), one `PASSAGES` block per
 concept (most likely including a Bible passage from Genesis 11, the Tower

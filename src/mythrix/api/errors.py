@@ -1,5 +1,5 @@
-"""`MythrixError`-family to HTTP status mapping (FR9, FR10 of
-`specs/query-viewer-web-ui/spec.md`). Covers every route directly, including
+"""`MythrixError`-family to HTTP status mapping (`specs/interfaces/api.md`).
+Covers every route directly, including
 `/api/query`, which returns its whole response in one JSON payload — no
 separate mid-request error path to handle."""
 

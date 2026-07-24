@@ -1,6 +1,6 @@
 """T8 — blocking risk check (see tasks.md, plan.md Risks).
 
-The alternative/competing-claims design for INTERSEMIOTIC (FR3) — e.g. two attribution
+The alternative/competing-claims design for INTERSEMIOTIC (FR-DM-03) — e.g. two attribution
 systems assigning a tarot card to different Hebrew letters — depends on Kùzu allowing
 multiple edges of the same rel table between the *same* node pair, not just between
 different pairs. This test pins that assumption against the exact pinned kuzu version:

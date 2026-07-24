@@ -10,7 +10,7 @@ mirrors the `Embedder` abstraction plan.md's Risks section calls for.
 Single `mythrix_sources` collection, not per-domain, so a future
 cross-domain query doesn't need to fan out across collections — `domain` is
 a metadata filter instead. Chunks carry no tradition: every ingested document
-is an independent corpus document (FR7), which has no interpretive tradition
+is an independent corpus document (FR-CO-02), which has no interpretive tradition
 of its own.
 
 The collection is configured for cosine distance explicitly (rather than
@@ -76,8 +76,8 @@ def _chunk_id(source_id: str, chunk_index: int) -> str:
 
 def _word_bounded_filter(term: str) -> dict[str, str]:
     """A Chroma `where_document` constraint matching `term` on whole-word
-    boundaries — `$regex`, not `$contains` substring matching (ADR 0002,
-    FR7): `\\b` prevents `50` from matching inside `150`."""
+    boundaries — `$regex`, not `$contains` substring matching (ADR-002,
+    FR-RT-15): `\\b` prevents `50` from matching inside `150`."""
     return {"$regex": r"\b" + re.escape(term) + r"\b"}
 
 
@@ -97,7 +97,7 @@ class ChromaVectorStore:
 
         Upserts in batches of at most the client's own `get_max_batch_size()`
         (Chroma rejects a single call larger than that outright) — this only
-        bites once fine-grained structural segmentation (FR1) turns one large
+        bites once fine-grained structural segmentation (FR-CO-05) turns one large
         document into tens of thousands of segments, far more than the
         word-count chunker ever produced in one call.
         """
@@ -138,14 +138,14 @@ class ChromaVectorStore:
         document_contains: str | None = None,
     ) -> list[VectorHit]:
         """Retrieves the `top_k` chunks nearest `query_embedding` from the full
-        corpus (FR7) — there is no tradition to scope by; every ingested
+        corpus (FR-CO-02) — there is no tradition to scope by; every ingested
         document is independent.
 
         `document_contains`, if given, restricts results to chunks whose raw
         text contains that token on whole-word boundaries (Chroma's
         `where_document` `$regex`, not `$contains` substring matching — a
         token must not match inside a larger word or number, e.g. `50` must
-        not match inside `150`; see `convergence-rollup-retrieval` FR7),
+        not match inside `150`; see FR-RT-15),
         combined with the embedding ranking rather than replacing it — for a
         fact that's an exact value rather than a fuzzy meaning (e.g. a Hebrew
         letter's gematria value), semantic similarity alone can't tell "this
@@ -231,7 +231,7 @@ class ChromaVectorStore:
 
     def delete_by_source(self, source_id: str) -> None:
         """Removes every chunk previously ingested for `source_id` — the
-        "replace" half of FR23's changed-file path."""
+        "replace" half of FR-CO-04's changed-file path."""
         self._collection.delete(where={"source_id": source_id})
 
     def count(self) -> int:
@@ -240,10 +240,10 @@ class ChromaVectorStore:
     def document_frequency(self, term: str) -> int:
         """Count of chunks whose text contains `term` on whole-word
         boundaries — the literal, lexical document frequency
-        `convergence-rollup-retrieval` FR12/FR14 specificity weighting is
+        FR-RK-04/FR-RK-06 specificity weighting is
         built from (never a count derived from dense embedding scores). A
         per-query `$regex` scan, kept behind this narrow method so an
-        ingest-time df table (ADR 0003, ADR 0005) can replace it later
+        ingest-time df table (ADR-003, ADR-005) can replace it later
         without changing any caller."""
         result = self._collection.get(where_document=_word_bounded_filter(term), include=[])
         return len(result["ids"])

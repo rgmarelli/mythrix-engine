@@ -1,4 +1,4 @@
-"""Structured cards for the chat thread (master spec.md FR99), built directly from the
+"""Structured cards for the chat thread (master spec.md FR-AG-19), built directly from the
 tool results that grounded a turn — never parsed or inferred from the
 model's free-text reply. Mirrors `AgentCard` (`api/routes.py`): every card
 returned here is one of the two `type`s that shape defines, `"citation"` or

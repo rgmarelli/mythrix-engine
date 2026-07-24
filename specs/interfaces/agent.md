@@ -1,0 +1,56 @@
+# Conversational Agent
+
+The in-app, tool-calling chat agent served by the [Backend API](api.md) and docked in the [Web Viewer](web-viewer.md), grounding every claim in a read-only tool result over the existing [Retrieval](../retrieval/retrieval.md)/[Ranking](../retrieval/ranking.md) pipeline.
+
+## Vocabulary
+
+- **agent**: A tool-calling loop, driven by a local chat model, that turns a natural-language request into calls against Mythrix's existing operations and reports the results conversationally.
+- **tool**: A single, typed, read-only operation the agent may invoke, wrapping an existing Mythrix service function (e.g. run a query, fetch a segment range).
+- **turn**: One user message plus the agent's full response to it, including any tool calls made while producing that response.
+- **session**: An ordered series of turns sharing conversation history.
+- **tool trace**: The ordered record of which tools the agent called during a turn, surfaced to the user so the evidence path is visible.
+- **thread**: The portion of an agent chat session's history scoped to one active hotspot. Selecting a different hotspot starts a new thread; a thread never merges with or extends a prior one.
+
+## Functional requirements
+
+### Agent loop and tools
+
+- FR-AG-01: The system provides an in-app conversational agent, served by the backend API and surfaced as a chat panel in the web viewer, that runs an interactive, multi-turn conversational session and answers successive user requests until the user ends the session.
+- FR-AG-02: The agent answers each request by invoking one or more read-only tools and composing their results into a natural-language reply. It maintains conversation history across turns within a session.
+- FR-AG-03: The agent has access to exactly these tools, each wrapping an existing service function and returning structured data (not prose):
+  - **list semiotic systems** — the available semiotic systems.
+  - **list traditions** — the available traditions, optionally scoped to one semiotic system.
+  - **list symbols** — the available signs, optionally scoped to one semiotic system.
+  - **get symbol** — retrieve one named sign's facts: its canonical name, semiotic system, intrinsic properties, and, for a given tradition, its manifestation's interpretants, denotation, correspondences, and citations. This is a graph-facts lookup, not a corpus retrieval — it runs no similarity search.
+  - **query symbol** — run a region (hotspot) query for a given sign and tradition, returning ranked regions with their matched interpretants, verbatim segment text, and citations (the same operation as `GET /api/query`).
+  - **fetch segments** — retrieve a contiguous ordinal range of one source's segments verbatim, by structural coordinate, running no similarity search (the same operation as `GET /api/segments`, [context-expansion.md](../retrieval/context-expansion.md) FR-CE-11).
+  - **summarize passage** — produce a single-turn summary of supplied passage text scoped to supplied interpretants, using the generation model (the same operation as `POST /api/summarize`).
+- FR-AG-04: The registered tool set contains no operation that writes to, mutates, or reloads either store. Read-only is a structural property of the tool set, not a runtime check.
+- FR-AG-05: When a request to list traditions or symbols, or to get or query a symbol, does not determine which semiotic system to use and the choice is ambiguous (more than one semiotic system exists and the request names none), the agent asks the user which semiotic system to use before listing or retrieving, rather than guessing or silently listing across all systems. Once a semiotic system is established in the conversation, the agent may reuse it for subsequent turns without re-asking.
+- FR-AG-06: The agent must not state any symbol, interpretant, tradition, source, or passage as fact unless it appears in a tool result from the current session, and it must carry through the citation/locator the tool returned. It must not fabricate or infer symbols or interpretations absent from tool results.
+- FR-AG-07: When the get-symbol tool returns `needs_tradition` (no interpretive content, only the sign's available traditions), the system presents the tradition choices to the user deterministically, without generation-model involvement. This guarantees FR-AG-06 cannot be violated in this specific case regardless of model behavior, since a tradition list is the entirety of what the tool returned and needs no model composition.
+- FR-AG-08: The agent's generation model is a local Ollama model. When no generation model is configured or the model cannot be reached, the command reports a distinct, actionable error rather than proceeding.
+- FR-AG-09: The retrieval a tool triggers invokes no generation model and is unchanged from the existing query path ([retrieval.md](../retrieval/retrieval.md) FR-RT-10): the generation model is used only for the agent's own conversation/tool-selection and for the explicit summarize tool.
+- FR-AG-10: Each turn surfaces a tool trace — which tools the agent called, in order — so the user can see the evidence path behind the answer.
+- FR-AG-11: A tool that fails (e.g. an unknown sign or tradition, an unreachable model for summarization) returns a distinct error to the agent that the agent relays to the user, without terminating the session; the user can continue with further turns.
+- FR-AG-12: The agent loop is bounded: a single turn cannot invoke tools indefinitely. On reaching the bound, the turn ends with a clear message rather than looping.
+- FR-AG-13: The agent is additive and self-contained. It adds no command to the `mythrix` CLI; the existing `query`, `load-symbols`, and `load-documents` commands and all other `/api/*` routes are unchanged in behavior and output.
+
+### Chat panel
+
+Refines FR-AG-01–FR-AG-13 for the panel's web-UI-specific behavior; the underlying agent loop, tool set, and orchestration boundary ([ADR-006](../architecture-decisions/adr-006-conversational-agent-orchestration-boundary.md)) are unchanged.
+
+- FR-AG-14: The chat panel is docked, floating, and has exactly two states — open and collapsed. Collapsing preserves the active thread; re-opening restores it unchanged. It never reflows the hotspot list, facets, or control panel.
+- FR-AG-15: The panel is grounded in the currently active hotspot; a context strip displays that hotspot's structural reference and its matched interpretants at all times.
+- FR-AG-16: Selecting a different hotspot starts a new thread (see Vocabulary): the prior thread's messages are replaced by a reset divider naming the new hotspot; threads are never merged or extended across hotspots. Changing a session-scoped context field via chat (a new sign or tradition) triggers the same reset. The backend, not the browser, detects the reset condition — by comparing the incoming turn's selection against the context it stored from the previous turn — and clears its per-thread working notes and message history before invoking the agent loop.
+- FR-AG-17: Each user turn is sent with a context object: session-scoped fields (semiotic system, sign, tradition, facet/min-score selection) that persist across hotspot changes until explicitly changed, and thread-scoped fields (the active hotspot's structural reference and human-readable locator, FR-AG-21) that reset with the thread. The browser always sends its current selection as-is, never pre-clearing or diffing it; the backend returns an updated or confirmed-unchanged context alongside its reply. Fields fill in independently from either side — the UI's selection sets any of them directly, and the agent sets one when it resolves an entity from a chat message alone. The context object never carries passage or segment text; any verbatim text the agent needs is retrieved through its own tool calls.
+- FR-AG-18: Whenever an attempted tool call needs a field that is still unset, the agent distinguishes ambiguous (more than one value is plausible — the tool call names its own candidates, and the clarifying question is composed directly from that result, with no generation-model call) from not yet determined (nothing has been selected or searched yet — the agent says so plainly, with no candidates to offer). This generalizes FR-AG-05/FR-AG-07's semiotic-system-specific and tradition-specific bypasses to any field capable of the same ambiguity; neither case ends with the agent guessing a value.
+- FR-AG-19: Every structured element shown in the thread (a verse citation, a set of scored interpretant chips) is populated by the backend directly from the tool result(s) that grounded that turn — never parsed or inferred from the model's free-text reply.
+- FR-AG-20: Thread and session history and context are retained only for the life of the browser session; none of it is persisted across a backend process restart.
+- FR-AG-21: The context object's thread-scoped fields include the active hotspot's human-readable locator (e.g. "Ecclesiasticus 43:1-4") alongside its structural reference, giving the agent a ready citation to quote without a separate tool call purely to resolve it.
+- FR-AG-22: The composer recognizes a `/clear` command: it is never sent to the agent or shown as a user message, and instead wipes the active thread and starts a new agent session, so the next turn carries no prior history or working notes.
+
+## Non-goals
+
+- Any mutating/administrative tool in the conversational agent's tool set (ingesting symbols/documents, reloading stores), a cloud/hosted generation model, or persisting agent sessions across process restarts; the agent is an orchestration and presentation layer that introduces no new retrieval, ranking, or convergence behavior and does not parse free text into retrieval query text.
+- The agent returning an instruction that mutates application state on its own — changing a facet or min-score, navigating to a different hotspot, or opening/closing a tab from chat. The agent only ever answers conversationally and updates its own context object (FR-AG-17); this is deferred, not precluded by the context-object design.

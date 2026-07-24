@@ -6,7 +6,7 @@ path, fast and offline.
 
 The orchestration this module used to test (`synthesize()`, concept/general
 prompt assembly, two-level citation validation) is retired — the `query`
-path invokes no generation model at all (FR29). What remains is a minimal
+path invokes no generation model at all (FR-RT-10). What remains is a minimal
 chat client retained for a future conversational agent loop; see
 `synthesis/chain.py`'s module docstring.
 """

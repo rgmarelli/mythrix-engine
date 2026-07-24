@@ -1,16 +1,16 @@
-# ADR 0006 — Conversational agent orchestrates; retrieval stays deterministic and cited
+# ADR-006 — Conversational agent orchestrates; retrieval stays deterministic and cited
 
 - **Status**: Accepted
 - **Date**: 2026-07-21
-- **Realized by**: `specs/agent-operator/spec.md` FR1–FR11; `specs/spec.md` FR11, FR12, FR29 and the "conversational agent layer" Non-goal
+- **Realized by**: [agent.md](../interfaces/agent.md) FR-AG-01–FR-AG-11; [retrieval.md](../retrieval/retrieval.md) FR-RT-03, FR-RT-04, FR-RT-10 and the "conversational agent layer" Non-goal
 
 ## Context
 
 Mythrix's core promise is an **auditable evidence chain**: a query returns ranked,
 cited graph facts and source passages, and no model decides what a result *is*
-(master FR11). The query path invokes no generation model at all (FR29); the only
+([retrieval.md](../retrieval/retrieval.md) FR-RT-03). The query path invokes no generation model at all (FR-RT-10); the only
 generated text in the system is the single-turn, on-demand passage summary
-(FR54), and even that carries citation markers validated in code (FR12). The
+(FR54, retired), and even that carries citation markers validated in code (FR-RT-04). The
 master spec explicitly anticipates a future "conversational agent layer (a
 console/chat interface driving an agent loop)" and requires that v1's design not
 preclude it — while insisting the same code-driven-retrieval and
@@ -38,14 +38,14 @@ interpret**. Concretely:
   query), fetch segments (coordinate lookup), and summarize passage (the existing
   single-turn summary). No tool writes to, mutates, or reloads a store — read-only
   is a structural property of the tool set, not a runtime guard.
-- The retrieval a tool triggers is **unchanged and embedding-only** (FR29): the
+- The retrieval a tool triggers is **unchanged and embedding-only** (FR-RT-10): the
   agent changes *who calls* the query path and *how results are presented*, not
   what the query path does. Ranking, convergence, floors, and facets are
   untouched.
 - The only generative steps remain the two that already existed: the agent's own
   conversational text, and the explicit summarize tool (which reuses
   `synthesis/prompts.py` and stays subject to `synthesis/citations.py`
-  validation, per FR12). The agent must ground every factual claim in a tool
+  validation, per FR-RT-04). The agent must ground every factual claim in a tool
   result and carry through the citation the tool returned; it invents no symbols
   or interpretations.
 - The agent runs on a **local Ollama model only**. No hosted/cloud model — the
@@ -71,7 +71,7 @@ chat panel are deferred, but the same boundary governs them when they ship.
   agent's *convenience*, not the engine's retrieval correctness, and is bounded
   by the system prompt, structured tool returns, and a configurable stronger
   local model. A per-turn tool-call bound prevents runaway loops.
-- Prompting alone is not sufficient to guarantee FR6 (no fabrication) against a
+- Prompting alone is not sufficient to guarantee FR-AG-06 (no fabrication) against a
   small local model — observed directly: after `get_symbol` returned only a
   tradition list (`needs_tradition`, no interpretive content), a model
   sometimes composed a plausible-sounding but entirely invented denotation
@@ -79,7 +79,7 @@ chat panel are deferred, but the same boundary governs them when they ship.
   Where a tool's result is fully self-describing and composing a reply is pure
   formatting rather than synthesis, the decision this ADR establishes is
   applied at the code level, not left to the prompt: the generation model is
-  bypassed entirely for that turn (`specs/agent-operator/spec.md` FR7,
+  bypassed entirely for that turn ([agent.md](../interfaces/agent.md) FR-AG-07,
   `graph.py`'s `clarify_tradition_node`). This is deliberately narrow — most
   tool results still require the model to compose a reply — but establishes
   the pattern for any future case where a tool result is complete enough that
@@ -90,8 +90,8 @@ chat panel are deferred, but the same boundary governs them when they ship.
 ## Alternatives considered
 
 - **Free-form RAG chat: let the LLM read the corpus and narrate.** Rejected —
-  it discards the code-driven-retrieval and validated-citation guarantees (FR11,
-  FR12) that are the reason the project exists; the LLM would become the arbiter
+  it discards the code-driven-retrieval and validated-citation guarantees (FR-RT-03,
+  FR-RT-04) that are the reason the project exists; the LLM would become the arbiter
   of evidence.
 - **Give the agent mutating tools (ingest / reload) too.** Rejected for v1 —
   writes belong to deliberate human-invoked ingestion; an agent that reloads the

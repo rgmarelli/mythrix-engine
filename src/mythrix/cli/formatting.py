@@ -1,14 +1,14 @@
-"""Human-readable and JSON renderers for CLI output (FR13, FR16, FR24, FR27).
+"""Human-readable and JSON renderers for CLI output (FR-RT-05, FR-RT-06, FR-RT-07, FR-RT-08).
 
 Reuses `synthesis/prompts.py`'s `render_graph_facts_block`/`render_passages_block`
 verbatim for the per-concept sections — the same rendering a future
 conversational agent would be shown, so what a researcher reads today matches
 what would be cited later.
 
-Per FR29 the query path produces no synthesized narrative — output is
-retrieved evidence only: graph facts, one section per concept (FR24), and one
-section per concept-pair convergence (FR27), each carrying full verbatim
-passage text and attribution (FR13).
+Per FR-RT-10 the query path produces no synthesized narrative — output is
+retrieved evidence only: graph facts, one section per concept (FR-RT-07), and one
+section per concept-pair convergence (FR-RT-08), each carrying full verbatim
+passage text and attribution (FR-RT-05).
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ _HUMAN_PASSAGE_PREVIEW_CHARS = 500
 
 def _render_candidates_block(concept: str, passages: tuple[RetrievedPassage, ...], *, max_chars: int | None) -> str:
     """Like `render_passages_block`, but headed by the concept these
-    passages were retrieved for (FR24) instead of a generic `PASSAGES` label
+    passages were retrieved for (FR-RT-07) instead of a generic `PASSAGES` label
     — `render_passages_block`'s own `[S#]` numbering/body is reused verbatim,
     only its header line is swapped."""
     _, _, body = render_passages_block(passages, max_chars=max_chars).partition("\n")
@@ -32,14 +32,14 @@ def _render_candidates_block(concept: str, passages: tuple[RetrievedPassage, ...
 
 
 def _render_match_component(match: ConceptMatchScore) -> str:
-    """An exact-value match (FR28) carries no meaningful score — it's a
+    """An exact-value match (FR-RT-09) carries no meaningful score — it's a
     guarantee of containment, not a similarity judgment — so it's shown by
     name alone; a semantic match shows its own similarity score."""
     return match.concept if match.exact_value else f"{match.concept} {match.score:.2f}"
 
 
 def _render_pair_block(pair: ConceptPairCandidates, *, max_chars: int | None) -> str:
-    """Concept-pair convergence (FR27, FR28): headed like `_render_candidates_block`
+    """Concept-pair convergence (FR-RT-08, FR-RT-09): headed like `_render_candidates_block`
     but by the pair's members, and each candidate shows its combined score
     *alongside* the per-concept components it was derived from — the verdict
     and its inputs together, since the combined score alone can't distinguish
@@ -67,9 +67,9 @@ def _render_pair_block(pair: ConceptPairCandidates, *, max_chars: int | None) ->
 
 def render_facts_human(context: RetrievalContext) -> str:
     """Human-readable query output: retrieved graph facts, per-concept
-    candidate passages (FR24), and concept-pair convergences (FR27) — no
+    candidate passages (FR-RT-07), and concept-pair convergences (FR-RT-08) — no
     synthesized narrative, since the query path invokes no generation model
-    (FR29)."""
+    (FR-RT-10)."""
     sections = [render_graph_facts_block(context.graph_facts)]
     if context.concept_candidates:
         sections += [
@@ -83,6 +83,6 @@ def render_facts_human(context: RetrievalContext) -> str:
 
 
 def render_facts_json(context: RetrievalContext) -> str:
-    """`--json` output (FR16) — `facts_json_payload` (`core/serialization.py`)
+    """`--json` output (FR-RT-06) — `facts_json_payload` (`core/serialization.py`)
     builds the payload; this just serializes it."""
     return json.dumps(facts_json_payload(context), indent=2, ensure_ascii=False)

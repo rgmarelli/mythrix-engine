@@ -1,8 +1,8 @@
-# ADR 0004 — Absolute match floor + lexical specificity ranking; isolated matches first-class
+# ADR-004 — Absolute match floor + lexical specificity ranking; isolated matches first-class
 
 - **Status**: Accepted
 - **Date**: 2026-07-21
-- **Realized by**: `specs/symbol-interpretation-core/spec.md` FR36, FR41–FR44
+- **Realized by**: [retrieval.md](../retrieval/retrieval.md) FR-RT-14; [ranking.md](../retrieval/ranking.md) FR-RK-03–FR-RK-06
 
 ## Context
 
@@ -68,7 +68,7 @@ the whole experiment. An isolated but strong match is a valid, valuable result.
   embedding-model-specific and must be revisited if the embedder changes.
 - Requires cheap document-frequency counts at scale — a lexical/statistics
   capability the storage layer must provide
-  ([ADR 0005](0005-vector-store-chroma-and-lexical-store-path.md)).
+  ([ADR-005](adr-005-vector-store-chroma-and-lexical-store-path.md)).
 
 ## Alternatives considered
 

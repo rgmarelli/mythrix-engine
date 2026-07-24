@@ -1,4 +1,4 @@
-"""`mythrix load-symbols`: wraps `sign_loader` (FR4, FR5).
+"""`mythrix load-symbols`: wraps `sign_loader` (FR-SD-01, FR-SD-02).
 
 `--dry-run` calls `build_plan()` only — the same validation pass `load_directory`
 runs internally, just without the write phase — so "nothing is written" is

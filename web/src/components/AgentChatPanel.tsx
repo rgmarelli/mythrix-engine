@@ -71,12 +71,12 @@ function AgentCards({ cards }: { cards: AgentCard[] }) {
 }
 
 /** Docked, floating chat panel grounded in the active hotspot
- * (master spec.md FR94-FR102), now a controlled view onto whichever tab is
- * active (FR88): `items`/`isSending` and the
+ * (master spec.md FR-AG-14–FR-AG-22), now a controlled view onto whichever tab is
+ * active (FR-WEB-10): `items`/`isSending` and the
  * `onSend` network call are owned by `useTabs`, scoped per tab, so switching
  * tabs simply re-renders this same instance against different data. Only the
  * composer's live text and the dock's collapsed/expanded chrome stay local —
- * neither is tab-scoped (FR88).
+ * neither is tab-scoped (FR-WEB-10).
  *
  * Collapse/expand is a single persistent element with a `collapsed` class
  * toggle (matching the reference mockup), not a branch into a different

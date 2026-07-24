@@ -2,7 +2,7 @@
 enumeration and block renderers `cli/formatting.py` depends on today, and
 that a future conversational agent loop would reuse. The concept/general
 prompt-assembly functions this file used to test are retired along with
-concept-scoped synthesis (FR25, FR29) — see `synthesis/prompts.py`'s module
+concept-scoped synthesis (FR25, FR-RT-10) — see `synthesis/prompts.py`'s module
 docstring.
 """
 

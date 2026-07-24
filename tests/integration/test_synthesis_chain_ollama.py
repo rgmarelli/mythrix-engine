@@ -4,7 +4,7 @@ as part of the default `pytest tests/unit` suite; run explicitly with
 `pytest tests/integration -m requires_ollama` after `ollama pull llama3.2`
 (or point `--generation-model` at whatever's installed locally).
 
-The `query` path itself invokes no generation model (FR29) — this test
+The `query` path itself invokes no generation model (FR-RT-10) — this test
 exists only to confirm `OllamaChatClient` still works against a real daemon,
 for the planned conversational agent loop that will use it.
 """

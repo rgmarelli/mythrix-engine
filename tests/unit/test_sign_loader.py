@@ -43,7 +43,7 @@ def test_loads_the_worked_example_fixture_end_to_end(store: KuzuGraphStore) -> N
     targets = {i.target_sign.slug for i in samekh.sign.intersemiotic_interpretants}
     assert targets == {"path-tiphareth-yesod", "tiphareth", "yesod"}
 
-    # Bare correspondence targets (FR22) exist in the graph despite zero manifestations.
+    # Bare correspondence targets (FR-DM-05) exist in the graph despite zero manifestations.
     with pytest.raises(ManifestationNotFoundError):
         store.get_manifestation("tiphareth", "golden-dawn-kabbalah")
 

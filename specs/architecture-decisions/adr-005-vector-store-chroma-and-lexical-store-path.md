@@ -1,8 +1,8 @@
-# ADR 0005 — Keep local Chroma; identify sqlite-vec+FTS5 as the lexical/scale path
+# ADR-005 — Keep local Chroma; identify sqlite-vec+FTS5 as the lexical/scale path
 
 - **Status**: Accepted
 - **Date**: 2026-07-21
-- **Realized by**: `specs/symbol-interpretation-core/spec.md` Non-goals (local store)
+- **Realized by**: [retrieval.md](../retrieval/retrieval.md) Non-goals (local store)
 
 ## Context
 
@@ -24,14 +24,14 @@ The retrieval model needs three things from storage:
 1. **Dense ANN search** per interpretant — Chroma `query()` does this natively.
 2. **Word-bounded token containment** — Chroma local supports `where_document`
    with `$contains` and `$regex`; `$regex \bfifty\b` gives the whole-word match
-   [ADR 0002](0002-dense-plus-exact-token-no-bm25.md) requires. The store today
+   [ADR-002](adr-002-dense-plus-exact-token-no-bm25.md) requires. The store today
    uses `$contains` (substring) and must move to `$regex`.
 3. **Document-frequency counts** for specificity IDF
-   [ADR 0004](0004-absolute-floor-and-lexical-specificity-ranking.md) — Chroma has
+   [ADR-004](adr-004-absolute-floor-and-lexical-specificity-ranking.md) — Chroma has
    **no term statistics**; counting "how many units contain `hundred`" means a
    `$regex` scan per token, cheap at 200 sections, painful at millions.
 
-BM25 is a non-goal [ADR 0002](0002-dense-plus-exact-token-no-bm25.md), so Chroma's
+BM25 is a non-goal [ADR-002](adr-002-dense-plus-exact-token-no-bm25.md), so Chroma's
 "BM25/`search()` is cloud-only" limitation does **not** block us — this is what
 keeps Chroma viable.
 
@@ -48,7 +48,7 @@ of them structurally.
   vectors; HNSW recall/latency degrade past the low millions)?
 - How do we get **document-frequency counts cheaply** without a per-query full
   regex scan (e.g. a df table built at ingest — allowed under
-  [ADR 0003](0003-live-per-interpretant-matching-no-precompute.md), which bans
+  [ADR-003](adr-003-live-per-interpretant-matching-no-precompute.md), which bans
   match precompute, not corpus statistics)?
 
 **Identify the migration target *now* so the decision is deliberate if the spike

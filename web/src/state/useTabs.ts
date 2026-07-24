@@ -20,7 +20,7 @@ export function itemId(): string {
   return `item-${nextItemId}`;
 }
 
-// One independent unit of workspace state (master spec.md FR84): a query
+// One independent unit of workspace state (master spec.md FR-WEB-06): a query
 // selection, its facets/result/selected hotspot, and its own agent
 // session/thread. Tabs never share or merge state with one another.
 export interface Tab {
@@ -74,9 +74,9 @@ function tieBreakScore(hotspot: Hotspot, activeInterpretant: string | null): num
 type TabPatch = Partial<Tab> | ((tab: Tab) => Partial<Tab>);
 
 /** Owns the tab array and every piece of state/derived data that used to be
- * flat on `App.tsx` (master spec.md FR84) — one query selection,
+ * flat on `App.tsx` (master spec.md FR-WEB-06) — one query selection,
  * its facets/result/selected hotspot, and its own agent session/thread,
- * fully isolated per tab (FR84). Existing presentational components
+ * fully isolated per tab (FR-WEB-06). Existing presentational components
  * (`SignTraditionPicker`, `FacetRow`, `HotspotList`, `HotspotDetailPanel`)
  * need no prop changes: this hook's setters match their existing callback
  * shapes exactly, just scoped to whichever tab is active. */
@@ -105,7 +105,7 @@ export function useTabs() {
   }
 
   // Closing the only remaining tab replaces it with a fresh empty one — the
-  // viewer always has at least one tab (FR85).
+  // viewer always has at least one tab (FR-WEB-07).
   function closeTab(id: string) {
     setTabs((prev) => {
       if (prev.length === 1) {
@@ -187,7 +187,7 @@ export function useTabs() {
     return { options: [...byId.values()], allCount: scoped.length };
   }, [activeTab.queryResult, activeTab.selectedInterpretant]);
 
-  // The interpretant-search filter (FR91) only narrows which options are
+  // The interpretant-search filter (FR-WEB-13) only narrows which options are
   // listed; it never changes a count or the underlying selection.
   const interpretantFacetOptions = useMemo(() => {
     if (!activeTab.queryResult) return { options: [], allCount: 0 };
@@ -218,7 +218,7 @@ export function useTabs() {
   const selectedIndex = selectedHotspot ? rankedHotspots.indexOf(selectedHotspot) : -1;
 
   // Captures the sending tab's id and UI-selection snapshot at send time
-  // (FR89): a reply is appended to the tab it was sent from, even if the
+  // (FR-WEB-11): a reply is appended to the tab it was sent from, even if the
   // user has since switched to a different tab.
   async function sendAgentMessage(message: string) {
     const trimmed = message.trim();
@@ -270,7 +270,7 @@ export function useTabs() {
   // in-memory `SessionStore` (agent/sessions.py) treats the next turn as a
   // session it has never seen — no stale history or `agent_notes` carries
   // over. The old session is simply abandoned, the same way closing a tab
-  // already abandons its session (FR90) — not explicitly torn down server-side.
+  // already abandons its session (FR-WEB-12) — not explicitly torn down server-side.
   function clearAgentThread() {
     updateTab(activeTabId, () => ({ agentItems: [], agentSessionId: crypto.randomUUID() }));
   }

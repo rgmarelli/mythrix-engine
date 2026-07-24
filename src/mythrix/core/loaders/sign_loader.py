@@ -1,12 +1,12 @@
 """Loads a directory of human-authored structured-data YAML (see
 `sign_schema.py`) into a `KuzuGraphStore`, resolving name-based references
-(FR18), validating referential integrity *before* writing anything (FR4, FR5),
+(FR-SD-03), validating referential integrity *before* writing anything (FR-SD-01, FR-SD-02),
 and upserting idempotently.
 
 Two-pass design: pass 1 parses every file and resolves every reference (`tradition:`,
 `cites:`, `intersemiotic_interpretants.target_sign`/`.according_to`) purely in memory;
 pass 2 writes, and only runs if pass 1 raised nothing. This is what makes "nothing is
-written until every reference in the file resolves" (FR5) true even for a reference in
+written until every reference in the file resolves" (FR-SD-02) true even for a reference in
 the *last* file of a large directory.
 """
 
@@ -46,7 +46,7 @@ class _Candidate:
 
 
 def _resolve(query: str, candidates: Sequence[_Candidate], *, kind: str, context: str) -> _T:
-    """Tiered name resolution (FR18): exact slug, then exact case-insensitive name,
+    """Tiered name resolution (FR-SD-03): exact slug, then exact case-insensitive name,
     then a forgiving word-subset match (every significant word in `query` must
     appear in the candidate's searchable text) — this last tier is what lets an
     informal reference like `according_to: "Golden Dawn"` resolve against a
@@ -203,7 +203,7 @@ def _source_candidates(sources: Sequence[Source]) -> list[_Candidate]:
 def _sign_candidates(signs: Sequence[Sign], *, semiotic_system: str) -> list[_Candidate]:
     """Signs declared under one named `semiotic_system` only — an
     intersemiotic interpretant's target is resolved against this narrowed
-    pool rather than every parsed sign (FR18), so two systems each having a
+    pool rather than every parsed sign (FR-SD-03), so two systems each having a
     sign of the same or similar name can never be ambiguous with each other."""
     return [
         _Candidate(value=s, slug=s.slug, primary_name=s.canonical_name, search_text=s.canonical_name)
@@ -215,8 +215,8 @@ def _sign_candidates(signs: Sequence[Sign], *, semiotic_system: str) -> list[_Ca
 def load_directory(root: Path, store: KuzuGraphStore) -> LoadPlan:
     """Loads every tradition/source/sign YAML file found anywhere under `root`
     (searched recursively, so `root` may be a single domain directory or a parent
-    of several), in dependency order, validating all name-based references (FR18)
-    and referential integrity (FR4, FR5) before writing anything to `store`.
+    of several), in dependency order, validating all name-based references (FR-SD-03)
+    and referential integrity (FR-SD-01, FR-SD-02) before writing anything to `store`.
 
     Raises `IngestValidationError` — with nothing written to `store` — on any
     schema error, unresolvable/ambiguous name reference, duplicate slug, or

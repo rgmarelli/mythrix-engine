@@ -1,4 +1,4 @@
-"""Domain-agnosticism guardrail (FR17, T23): `src/mythrix/core` and
+"""Domain-agnosticism guardrail (CON-SYS-01, T23): `src/mythrix/core` and
 `src/mythrix/cli` must never contain a domain-specific literal in actual code —
 domain content belongs only in `data/` and `tests/fixtures/`.
 

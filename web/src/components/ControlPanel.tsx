@@ -38,7 +38,7 @@ interface Props {
   open: boolean;
 }
 
-/** The left sidebar (master spec.md FR92) composing the query
+/** The left sidebar (master spec.md FR-WEB-14) composing the query
  * form and both facet rows in one column — a pure layout composition, no new
  * logic: `SignTraditionPicker` and `FacetRow` are unchanged/lightly-extended
  * components, just placed together here instead of split across the old

@@ -1,11 +1,11 @@
 """`RetrievalPipeline`: turns deterministic graph facts into grounding document
-passages (plan.md "Retrieval pipeline", FR7/FR8/FR13).
+passages (plan.md "Retrieval pipeline", FR-CO-02/FR-CO-03/FR-RT-05).
 
 Similarity-search query text is built entirely from already-retrieved
-`GraphFacts` (interpretant values) — never from raw user input (FR8) — as *many*
+`GraphFacts` (interpretant values) — never from raw user input (FR-CO-03) — as *many*
 separate queries, one per individual atomic concept, never grouped into a
 combined string: one query per atomic concept in each of the manifestation's own
-`interpretants`, and for every `intersemiotic_interpretants` entry (FR3, FR19),
+`interpretants`, and for every `intersemiotic_interpretants` entry (FR-DM-03, FR-SD-04),
 one per atomic concept about the target's own `target_interpretants`. A value that
 lists several distinct concepts separated by commas (e.g. a Hebrew letter's
 `meaning`, "Monkey, eye of the needle") is split further still, one query per
@@ -23,7 +23,7 @@ non-interpretive facts) never inject a stray token into a similarity search
 regardless of whether they belong to the queried sign or to an
 intersemiotic-interpretant target.
 
-An interpretant carrying a `query.directive: "filter"` annotation (FR28) is a
+An interpretant carrying a `query.directive: "filter"` annotation (FR-RT-09) is a
 special case, handled differently from every other concept: semantic similarity
 can't distinguish "this passage happens to mention some number" from "this
 passage mentions exactly this number" — a real case found `numeric_value: "100"`
@@ -44,9 +44,9 @@ filtered variant is purely additive, a second independent ranking that rewards
 one that only matches the concept. See `_fact_queries`. Because that filter is a
 *hard* Chroma `where_document` constraint, every hit it returns provably contains
 the token — which is what lets it appear as a first-class member of a concept
-pair (FR28, see "Concept-pair convergence" below).
+pair (FR-RT-09, see "Concept-pair convergence" below).
 
-An interpretant carrying `query.directive: "skip"` (FR30) is the simpler,
+An interpretant carrying `query.directive: "skip"` (FR-RT-11) is the simpler,
 harder case: no query, plain or filtered, is ever built for it — it takes no
 part in retrieval at all, present only as an ordinary fact elsewhere in the
 Sign Graph. Distinct from `"filter"`: a filter interpretant becomes an
@@ -99,7 +99,7 @@ discuss these names constantly and meaningfully. Revisit as a corpus-aware or
 per-relationship-type decision, not a blanket on/off switch, once there's a
 concrete case that needs it.
 
-Retrieval searches the full document corpus by default (FR7) — every ingested
+Retrieval searches the full document corpus by default (FR-CO-02) — every ingested
 document is an independent corpus document (e.g. a scriptural text) meant to
 be read *through* the graph's established symbolism, with no interpretive
 tradition of its own to scope by; see plan.md's Risks for what this
@@ -108,9 +108,9 @@ should a second interpretive tradition's own commentary ever be ingested).
 Each hit is hydrated into a `RetrievedPassage` carrying the full verbatim
 chunk text plus its `Source` (whose `citation_label` attributes it), so the
 CLI can render a References section without re-reading the original document
-file (FR13).
+file (FR-RT-05).
 
-**Concept-scoped retrieval (FR24).** Results are grouped by concept — every
+**Concept-scoped retrieval (FR-RT-07).** Results are grouped by concept — every
 `_Query` derived from the same atomic value (its plain form plus, if present,
 its exact-value-filtered variant; see `_fact_queries`) shares that value as
 its `text`, which doubles as the concept's grouping key. Each concept's hits
@@ -147,7 +147,7 @@ as an additional filtered variant to *every* concept's plain query, regardless o
 which group originated the token — still additive, never replacing the plain
 query, per the boost-not-hard-filter principle above.
 
-**Concept-pair convergence (FR27, FR28).** Per-concept grouping above discards
+**Concept-pair convergence (FR-RT-08, FR-RT-09).** Per-concept grouping above discards
 the single most useful thing retrieval knows: when two independently-derived
 concepts retrieve the *same* passage, that convergence is itself the finding.
 Under concept-scoping alone, Genesis 21:5 — a child born to a hundred-year-old
@@ -171,7 +171,7 @@ despite only the first genuinely sitting at the intersection. That distinction
 is *created* by the deep pool: at display depth alone, anything appearing in
 two lists was decent at both, so lopsided pairs were rare and the formula
 wouldn't have mattered. An interpretant carrying `query.directive == "filter"`
-contributes membership but no score (FR28) — it arrives via a hard text filter,
+contributes membership but no score (FR-RT-09) — it arrives via a hard text filter,
 so its match is a guarantee rather than a magnitude, and scoring it as 1.0 would
 let every filter-bearing pair dominate the output.
 
@@ -218,9 +218,9 @@ from mythrix.core.vector.store import ChromaVectorStore, VectorHit
 # how that query's raw score distribution compares to another's.
 _RRF_K = 60
 
-# An exact-token match (FR7) is a literal containment guarantee, not a
+# An exact-token match (FR-RT-15) is a literal containment guarantee, not a
 # similarity judgment — it carries no comparable magnitude of its own, so it
-# enters region scoring (FR13) at a fixed strength rather than a computed one.
+# enters region scoring (FR-RK-05) at a fixed strength rather than a computed one.
 # 1.0 matches the ceiling of `_similarity_score`'s `[-1, 1]` range: a
 # guaranteed containment is treated as at least as strong as a perfect
 # semantic match.
@@ -230,7 +230,7 @@ _EXACT_MATCH_STRENGTH = 1.0
 class _FilterToken(NamedTuple):
     """A recognized exact-value filter in two forms: `value` as the curator
     authored it ("100"), which is what a researcher recognizes and what appears
-    as a pair member (FR28), and `as_token` as it must be searched ("hundred"),
+    as a pair member (FR-RT-09), and `as_token` as it must be searched ("hundred"),
     since the corpus spells numbers out and the curator authors this mapping
     directly via `query.as_token` rather than the code inferring it. Kept
     together because the search form alone is not presentable and the authored
@@ -246,7 +246,7 @@ class _Query(NamedTuple):
     docstring on when a query gets one.
 
     `filter_token` carries the whole `_FilterToken` rather than just the search
-    text so a hit can be attributed back to the authored value (FR28). Every hit
+    text so a hit can be attributed back to the authored value (FR-RT-09). Every hit
     from a query bearing one provably contains that token: `document_contains`
     is a hard `where_document` constraint, not a boost."""
 
@@ -283,7 +283,7 @@ class RetrievalPipeline:
         self._region_min_interpretants = region_min_interpretants
 
     def retrieve(self, graph_facts: GraphFacts) -> RetrievalContext:
-        """Deterministic Kùzu-then-Chroma retrieval (FR9): `graph_facts` must
+        """Deterministic Kùzu-then-Chroma retrieval (FR-RT-01): `graph_facts` must
         already be the result of `KuzuGraphStore.get_manifestation`. Thin
         consumer of `iter_candidates` — collects every `ConceptCandidates`/
         `ConceptPairCandidates` it yields into one `RetrievalContext`, same
@@ -310,7 +310,7 @@ class RetrievalPipeline:
 
         Runs one similarity search per query from `build_query_texts` (one
         per individual atomic concept, some carrying an exact-value text
-        filter — see this module's docstring), grouped by concept (FR24)
+        filter — see this module's docstring), grouped by concept (FR-RT-07)
         rather than merged into one shared pool: within a concept, hits are
         combined by Reciprocal Rank Fusion (each chunk's fused score is the
         sum of `1 / (_RRF_K + rank)`, 1-based rank within that specific
@@ -320,14 +320,14 @@ class RetrievalPipeline:
         the crowding-out this grouping exists to prevent).
 
         Each concept's fused ranking is searched to `match_pool_size` depth
-        but only its top `top_k` is *displayed* (FR24 unchanged) — the extra
-        depth exists purely to detect concept-pair convergence (FR27) below
+        but only its top `top_k` is *displayed* (FR-RT-07 unchanged) — the extra
+        depth exists purely to detect concept-pair convergence (FR-RT-08) below
         the displayed cutoff, e.g. a passage ranked #1 for one concept and #9
         for another. A chunk's displayed score is its best (lowest-distance)
         individual match, for `min_score` filtering and for what a researcher
         actually sees.
 
-        Concept pairs (FR27, FR28) are then built from every concept's full
+        Concept pairs (FR-RT-08, FR-RT-09) are then built from every concept's full
         deep pool: two semantic concepts sharing a chunk, or a semantic
         concept sharing a chunk with a recognized exact-value filter token
         (proven via that token's `document_contains` filter, not similarity).
@@ -406,28 +406,28 @@ class RetrievalPipeline:
         return deep_hits_by_concept, filter_token_chunk_ids, all_hits_by_chunk_id
 
     def retrieve_regions(self, graph_facts: GraphFacts) -> RegionQueryResult:
-        """Region-centric retrieval (`convergence-rollup-retrieval` FR9-FR18):
+        """Region-centric retrieval (FR-RK-01–FR-RK-10):
         rolls up floor-clearing interpretant matches over contiguous windows
         of one source's segments, ranked by a specificity-weighted score.
 
         Uses the same underlying search as `iter_candidates`
         (`_search_deep_pools`); only what's aggregated and returned differs:
-        a match is kept only if it clears `min_score` (FR6) — no ranking cutoff
+        a match is kept only if it clears `min_score` (FR-RT-14) — no ranking cutoff
         substitutes for it — then matches are grouped into regions by
-        contiguous ordinal within `region_window_size` (FR10). Within a
+        contiguous ordinal within `region_window_size` (FR-RK-02). Within a
         region, an interpretant that matched more than one of its segments
-        keeps only its single best match (FR9, FR13) — summing every
+        keeps only its single best match (FR-RK-01, FR-RK-05) — summing every
         per-segment occurrence would let a passage repeating one token across
         many adjacent segments (e.g. a genealogy chapter repeating "hundred")
         inflate its score by simple repetition, exactly the list-like-passage
-        failure mode ADR 0004 already rejected at the ranking-formula level.
+        failure mode ADR-004 already rejected at the ranking-formula level.
         That single best match still anchors to the specific segment it
-        occurred at (FR17). A region is eligible when its count of distinct
+        occurred at (FR-RK-09). A region is eligible when its count of distinct
         *concept* interpretants — an exact-token match is a literal-containment
         guarantee, not a semantic signal, and is excluded from this count so a
         common filter token can't make an otherwise-unmatched region eligible —
         reaches `region_min_interpretants`; the default of 1 makes an isolated
-        strong match a valid, rankable region on its own (FR11)."""
+        strong match a valid, rankable region on its own (FR-RK-03)."""
         deep_hits_by_concept, filter_token_chunk_ids, hit_by_chunk_id = self._search_deep_pools(graph_facts)
         surface_form_by_token_value = _filter_token_surface_forms(graph_facts)
 
@@ -515,10 +515,10 @@ class RetrievalPipeline:
         deep_hits_by_concept: dict[str, dict[str, VectorHit]],
         filter_token_chunk_ids: dict[str, set[str]],
     ) -> tuple[ConceptPairCandidates, ...]:
-        """One `ConceptPairCandidates` per co-occurring pair (FR27): every
+        """One `ConceptPairCandidates` per co-occurring pair (FR-RT-08): every
         unordered pair of semantic concepts sharing a chunk in their deep
         pools, plus every semantic concept paired with every recognized
-        exact-value filter token it shares a chunk with (FR28). A pair of two
+        exact-value filter token it shares a chunk with (FR-RT-09). A pair of two
         filter tokens is never emitted — a filter token carries no score of
         its own (it's a guarantee of containment, not a similarity judgment),
         so there is nothing to rank such a pair by. Groups are sorted
@@ -581,11 +581,11 @@ class RetrievalPipeline:
 
     def _specificity_weight(self, surface_form: str) -> float:
         """A rarer literal surface form yields a strictly higher weight
-        (`convergence-rollup-retrieval` FR12/FR14): `log(N / df(surface_form))`,
+        (FR-RK-04/FR-RK-06): `log(N / df(surface_form))`,
         `N` the total number of ingested segments and `df` the count of
         segments literally containing `surface_form` on whole-word boundaries
         (`ChromaVectorStore.document_frequency`, never a count derived from
-        dense embedding scores — ADR 0004 found that diffuse and misleading).
+        dense embedding scores — ADR-004 found that diffuse and misleading).
         `df` is floored at 1 (a surface form absent from the corpus is treated
         as at least as rare as one appearing exactly once, not infinitely
         rare) so this never divides by zero or takes `log(0)`."""
@@ -634,7 +634,7 @@ def _atomic_values(value: str) -> list[str]:
 def _filter_token_for(interpretant: Interpretant) -> _FilterToken | None:
     """The `_FilterToken` for an interpretant carrying a `query.directive ==
     "filter"` annotation, or `None` for any other interpretant. The search
-    text (`as_token`) is authored directly by the curator (FR8, FR28) — there
+    text (`as_token`) is authored directly by the curator (FR-CO-03, FR-RT-09) — there
     is no code-side value-to-word inference here."""
     if interpretant.query is not None and interpretant.query.directive == "filter":
         return _FilterToken(value=interpretant.value, as_token=interpretant.query.as_token)
@@ -643,7 +643,7 @@ def _filter_token_for(interpretant: Interpretant) -> _FilterToken | None:
 
 def _is_skipped(interpretant: Interpretant) -> bool:
     """True for an interpretant carrying a `query.directive == "skip"`
-    annotation (FR30) — excluded from retrieval entirely, unlike a `"filter"`
+    annotation (FR-RT-11) — excluded from retrieval entirely, unlike a `"filter"`
     interpretant, which still contributes a literal-text filter query."""
     return interpretant.query is not None and interpretant.query.directive == "skip"
 
@@ -653,7 +653,7 @@ def _extract_concepts(interpretants: tuple[Interpretant, ...]) -> list[str]:
     (`_atomic_values`) — an interpretant carrying a `query.directive: "filter"`
     annotation is excluded here, since it's handled separately as a global
     filter (`_collect_filter_tokens`), not as a concept of its own; one
-    carrying `"skip"` (FR30) is excluded outright, contributing no query of any
+    carrying `"skip"` (FR-RT-11) is excluded outright, contributing no query of any
     kind. Properties (`Sign.properties`/`Manifestation.properties`) are never
     passed to this function at all — only `Manifestation.interpretants` and
     `IntersemioticInterpretant.target_interpretants` ever reach it."""
@@ -677,7 +677,7 @@ def _collect_filter_tokens(interpretant_groups: list[tuple[Interpretant, ...]]) 
     (`_fact_queries`) applies to *every* concept, not just the ones that
     happen to share a group with the token. The authored form (e.g. "100") is
     kept alongside the search form ("hundred") so it can surface as a pair
-    member in its own right (FR28) rather than being discarded once the
+    member in its own right (FR-RT-09) rather than being discarded once the
     search text is derived."""
     tokens: list[_FilterToken] = []
     seen_as_tokens: set[str] = set()
@@ -726,7 +726,7 @@ def _intersemiotic_query_texts(
     `KuzuGraphStore._get_sign_intersemiotic_interpretants`, so this needs no
     extra graph fetch here. Never includes the target sign's or its
     manifestations' `properties` — properties are never used to build
-    retrieval query text (FR8, FR21), at any scope, reached any way.
+    retrieval query text (FR-CO-03, FR-DM-04), at any scope, reached any way.
 
     Deliberately does *not* query the target's bare name (e.g. "Qoph") on its
     own — see this module's docstring TODO on why that's disabled for now."""
@@ -735,8 +735,8 @@ def _intersemiotic_query_texts(
 
 def build_query_texts(graph_facts: GraphFacts) -> list[_Query]:
     """One query per individual atomic concept reachable from the queried
-    sign (FR8): one per atomic concept in each interpretant of the sign's own
-    manifestation, then for each intersemiotic interpretant (FR3, FR19), one
+    sign (FR-CO-03): one per atomic concept in each interpretant of the sign's own
+    manifestation, then for each intersemiotic interpretant (FR-DM-03, FR-SD-04), one
     per individual atomic concept about the target — see this module's
     docstring for why keeping every concept this isolated matters, for why
     there's no combined descriptive-identity query (a sign's canonical name, a
@@ -762,7 +762,7 @@ def build_query_texts(graph_facts: GraphFacts) -> list[_Query]:
         # with nothing to filter isn't useful, but the token itself may still
         # be meaningful search text). Not tagged with `filter_token=`: there's
         # no concept for it to pair against, so it can't participate in
-        # FR27/FR28 convergence anyway.
+        # FR-RT-08/FR-RT-09 convergence anyway.
         queries += [_Query(text=token.as_token) for token in filter_tokens]
 
     return [query for query in queries if query.text]
@@ -785,9 +785,9 @@ def _cluster_ordinals(ordinals: set[int], window_size: int) -> list[list[int]]:
     """Chains eligible ordinals (already known to be from the same source)
     into contiguous regions: sorted ascending, an ordinal joins the region in
     progress when it is within `window_size` of that region's most recent
-    ordinal, else it starts a new region (FR10) — so a region can span more
+    ordinal, else it starts a new region (FR-RK-02) — so a region can span more
     than `window_size` end-to-end when matches occur in a close-packed chain,
-    the same way `symbol-interpretation-core`'s Genesis 20:18-21:6 finding
+    the same way the region rollup's Genesis 20:18-21:6 finding
     crosses more than one fixed-size window."""
     ordered = sorted(ordinals)
     clusters: list[list[int]] = []
@@ -850,7 +850,7 @@ def _similarity_score(hit: VectorHit) -> float:
 
 def _combined_score(scores: tuple[float, ...]) -> float:
     """Geometric mean of a concept pair's semantic component scores, clamped
-    at zero per component before multiplying (FR27). `_similarity_score` is
+    at zero per component before multiplying (FR-RT-08). `_similarity_score` is
     `1 - cosine_distance`, which spans `[-1, 1]`, not `[0, 1]` — a negative
     component would otherwise make the root complex, and a passage
     anti-correlated with one member of a pair has no conjunctive strength to

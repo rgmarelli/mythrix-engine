@@ -1,7 +1,7 @@
 """Unit tests for T22's `run_load_documents`, called directly (no Typer
 machinery, no Ollama needed — dry-run needs no embedder at all, and the real
 ingest path is given a fake one). Auto-discovers corpus sources under a
-directory; no `--tradition`/`--source-slug` (FR6)."""
+directory; no `--tradition`/`--source-slug` (FR-CO-01)."""
 
 import json
 from pathlib import Path

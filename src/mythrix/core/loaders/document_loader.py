@@ -1,7 +1,7 @@
 """Ingests primary-source documents into the vector store, each keyed to a
-`Source` declared in the Sign Graph (FR6).
+`Source` declared in the Sign Graph (FR-CO-01).
 
-Idempotent/updatable via a content hash recorded on the `Source` node (FR23):
+Idempotent/updatable via a content hash recorded on the `Source` node (FR-CO-04):
 unseen hash -> chunk/embed/add; unchanged hash -> no-op; changed hash -> delete
 the source's old chunks before adding the new ones. See plan.md's "Idempotent/
 updatable ingestion via content hash" section.
@@ -63,12 +63,11 @@ def load_document(
     `Source.domain`, not a caller-supplied argument — a chunk's domain is a
     fact about its source, not a fact about the call site.
 
-    When the source declares a `structure_scheme` (`convergence-rollup-retrieval`
-    FR1), ingestion routes through that structural segmenter instead of the
+    When the source declares a `structure_scheme` (FR-CO-05), ingestion routes through that structural segmenter instead of the
     fixed word-count `chunk_text`; `chunk_size`/`chunk_overlap` are then unused.
 
     Raises `SourceNotFoundError` if `source_id` hasn't been declared yet
-    (FR6) — a document is never ingested for a source nobody registered.
+    (FR-CO-01) — a document is never ingested for a source nobody registered.
     """
     source = graph_store.get_source(source_id)
     content = path.read_text(encoding="utf-8")
@@ -137,11 +136,11 @@ def load_corpus_directory(
     dry_run: bool = False,
 ) -> list[dict]:
     """Auto-discovers every corpus source under `root`: each `<name>.yaml`
-    colocated with a `<name>.txt` of the same stem is one source (FR6) —
+    colocated with a `<name>.txt` of the same stem is one source (FR-CO-01) —
     no `--tradition`/`--domain`/`--source-slug` flags needed, since a corpus
     source's own YAML already carries its `id`/`domain` directly. Unlike a
     sign's own citation sources, a corpus document is never assigned a
-    tradition — FR7's independent-corpus reading has no interpretive lens of
+    tradition — FR-CO-02's independent-corpus reading has no interpretive lens of
     its own.
 
     Every pair is parsed before anything is written, so a duplicate `id`

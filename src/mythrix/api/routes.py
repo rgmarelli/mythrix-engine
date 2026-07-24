@@ -1,7 +1,7 @@
 """`GET /api/traditions`, `GET /api/symbols`, `GET /api/query`,
-`POST /api/reload-symbols` — see `specs/convergence-rollup-retrieval/plan.md`
+`POST /api/reload-symbols` — see `specs/retrieval/ranking.md`
 for `/api/query`'s `RegionQueryResult` contract, and
-`specs/query-viewer-web-ui/plan.md`'s "API package" section for the other
+`specs/interfaces/api.md` for the other
 GET routes."""
 
 from __future__ import annotations
@@ -47,7 +47,7 @@ def query(
     stores: Stores = Depends(get_stores),
 ) -> RegionQueryResult:
     """Returns one query's facets and ranked region list
-    (`convergence-rollup-retrieval`).
+    (see `specs/retrieval/ranking.md`).
 
     `min_score` overrides `Settings.retrieval_min_score` (default `0.6`) for
     this request only — checked with `is None`, not truthiness, since `0.0`
@@ -117,7 +117,7 @@ def reload_symbols(path: str | None = None, stores: Stores = Depends(get_stores)
     already holds open for the process's full lifetime (`app.py`'s
     `lifespan`) — no second Kùzu connection is opened, so, unlike
     `mythrix load-symbols` against the same `.mythrix/` directory, this works
-    with the API server running (see `specs/query-viewer-web-ui/plan.md`'s
+    with the API server running (see `specs/interfaces/api.md` Non-goals'
     Kùzu single-writer note).
 
     Writes land as each `store.upsert_*` call runs, not in one transaction —
@@ -126,7 +126,7 @@ def reload_symbols(path: str | None = None, stores: Stores = Depends(get_stores)
     dev tool; not a guarantee to build on for a multi-user deployment.
 
     `IngestValidationError` (bad YAML, an unresolvable reference, a duplicate
-    slug) leaves the graph untouched (FR5) and is handled by the registered
+    slug) leaves the graph untouched (FR-SD-02) and is handled by the registered
     `MythrixError` exception handler (422), same mechanism as every other
     route's errors.
     """
@@ -151,7 +151,7 @@ def summarize_passage(
 ) -> SummarizeResponse:
     """One ad-hoc generation call for a single already-retrieved passage,
     triggered by the web UI's AI Summary button — distinct from `/api/query`,
-    which invokes no generation model (FR29). `ModelUnavailableError`/
+    which invokes no generation model (FR-RT-10). `ModelUnavailableError`/
     `ModelRequestError` raised by `get_chat_client`/`chat_client.invoke` are
     handled by the same registered `MythrixError` exception handler as every
     other route (502)."""
@@ -171,7 +171,7 @@ def agent_turn(
     sessions: SessionStore = Depends(get_agent_sessions),
     graph: CompiledStateGraph = Depends(get_agent_graph),
 ) -> AgentTurnResponse:
-    """One turn of the in-app chat panel (master spec.md FR94-FR102):
+    """One turn of the in-app chat panel (`specs/interfaces/agent.md` FR-AG-14–FR-AG-22):
     the browser sends its message plus its current UI selection, as-is, each
     turn; the backend detects a thread reset, runs the agent loop, and
     returns the three-part response (updated context, grounded reply text,

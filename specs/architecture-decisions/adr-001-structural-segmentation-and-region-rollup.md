@@ -1,8 +1,8 @@
-# ADR 0001 — Structural segmentation with region rollup
+# ADR-001 — Structural segmentation with region rollup
 
 - **Status**: Accepted
 - **Date**: 2026-07-21
-- **Realized by**: `specs/symbol-interpretation-core/spec.md` FR31–FR33, FR39–FR41
+- **Realized by**: [corpus.md](../retrieval/corpus.md) FR-CO-05–FR-CO-07; [ranking.md](../retrieval/ranking.md) FR-RK-01–FR-RK-03
 
 ## Context
 
@@ -57,7 +57,7 @@ converge*. Region granularity is a per-query parameter.
   therefore *more* capable than the coarse chunks, not less.
 - Cost: verse granularity produces far more vectors (thousands vs. ~1,600 for the
   DRB; the earlier 150-word experiment already hit 7,663). This pushes scale onto
-  the vector store — see [ADR 0005](0005-vector-store-chroma-and-lexical-store-path.md).
+  the vector store — see [ADR-005](adr-005-vector-store-chroma-and-lexical-store-path.md).
 - The window size must be wide enough to span the interpretant scatter; too narrow
   (one segment) reintroduces the "kills correlation" problem. Hence it is a knob.
 

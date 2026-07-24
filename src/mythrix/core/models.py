@@ -38,13 +38,13 @@ class Tradition(MythrixModel):
 
 class Source(MythrixModel):
     """A primary-source document citable by a manifestation or an intersemiotic
-    interpretant, or ingested as an independent corpus document (FR6).
+    interpretant, or ingested as an independent corpus document (FR-CO-01).
 
     `id` is always authored explicitly in the source's own YAML — unlike a
     `Sign`, a source is never referenced by curators repeating its slug across
     other files (a manifestation's `cites:` resolves by fuzzy title/author
     match, not by id), so an authored id carries none of the repetition risk
-    FR18 exists to avoid for signs.
+    FR-SD-03 exists to avoid for signs.
 
     `domain` names the broad subject area this source belongs to (e.g.
     "tarot", "scripture") — the same free-text vocabulary `Tradition.domain`
@@ -52,7 +52,7 @@ class Source(MythrixModel):
     semiotic system of its own to belong to.
 
     `citation_label` is the short human-readable label used to attribute a
-    retrieved passage in output (FR13) — e.g. "Douay-Rheims" — in place of
+    retrieved passage in output (FR-RT-05) — e.g. "Douay-Rheims" — in place of
     `title`/`author`, which stay as full bibliographic metadata. Left empty
     for a source that is only ever cited via a `Citation` (never ingested
     into the vector store), since those render their own attribution from
@@ -62,10 +62,10 @@ class Source(MythrixModel):
     in a `Source` YAML file — they record what file (by content) is currently
     ingested for this source, so re-ingesting an unchanged file is a no-op and
     re-ingesting a changed one replaces its chunks rather than accumulating
-    stale ones alongside the new content (FR23).
+    stale ones alongside the new content (FR-CO-04).
 
     `structure_scheme`, when non-empty, names a segmenter in
-    `mythrix.core.vector.segmentation` (`convergence-rollup-retrieval` FR1) that
+    `mythrix.core.vector.segmentation` (FR-CO-05) that
     the document loader routes ingestion through instead of fixed word-count
     chunking. Empty for a source with no declared structure.
     """
@@ -85,8 +85,8 @@ class Source(MythrixModel):
 
 
 class Property(MythrixModel):
-    """A static, structural fact — never used to build retrieval query text (FR8,
-    FR21), regardless of whether it is attached to a `Sign` (tradition-independent)
+    """A static, structural fact — never used to build retrieval query text (FR-CO-03,
+    FR-DM-04), regardless of whether it is attached to a `Sign` (tradition-independent)
     or a `Manifestation` (tradition-specific).
     """
 
@@ -97,7 +97,7 @@ class Property(MythrixModel):
 
 
 class QueryDirective(MythrixModel):
-    """A curator-authored retrieval instruction on one `Interpretant` (FR8, FR28, FR30).
+    """A curator-authored retrieval instruction on one `Interpretant` (FR-CO-03, FR-RT-09, FR-RT-11).
 
     `directive` is a free-text hint, not an enforced enum — v1 code interprets
     `"filter"`, which marks this interpretant as an exact value: it is excluded from
@@ -114,13 +114,13 @@ class QueryDirective(MythrixModel):
 
 class Interpretant(MythrixModel):
     """A conceptual token, value, or meaning evoked by a sign within one
-    manifestation (FR20) — eligible for retrieval query construction (FR8, FR24)
+    manifestation (FR-SD-05) — eligible for retrieval query construction (FR-CO-03, FR-RT-07)
     unless it carries a `query` directive, in which case it is handled as described
     on `QueryDirective`.
 
     `type` is a free-text hint for display/organization (e.g. "concept",
     "foundation", "numeric_value") — descriptive metadata only, not part of
-    concept-pair grouping identity (FR27), which is keyed by `value` alone.
+    concept-pair grouping identity (FR-RT-08), which is keyed by `value` alone.
     """
 
     id: str
@@ -139,7 +139,7 @@ class Citation(MythrixModel):
 
 
 class IntersemioticInterpretant(MythrixModel):
-    """A typed, attributable correspondence from one sign to another (FR3, FR19).
+    """A typed, attributable correspondence from one sign to another (FR-DM-03, FR-SD-04).
 
     `according_to` records which tradition/attribution-system asserts this
     specific claim — deliberately the *only* attribution on the edge, since the
@@ -156,7 +156,7 @@ class IntersemioticInterpretant(MythrixModel):
     `target_interpretants` is *not* part of the correspondence claim itself —
     it's the target sign's own manifestation-level interpretants, gathered
     across every tradition it is manifested under, purely so retrieval query
-    construction (FR8) can draw on what the target itself means. It never
+    construction (FR-CO-03) can draw on what the target itself means. It never
     includes `target_sign.properties` or any manifestation's `properties` —
     properties are never used to build query text, at any scope, reached any way.
     """
@@ -175,12 +175,12 @@ class Sign(MythrixModel):
     """A domain-agnostic sign anchor.
 
     `canonical_name` is an internal/fallback label only — the tradition-specific
-    display name actually shown to users lives on `Manifestation.display_name` (FR2).
+    display name actually shown to users lives on `Manifestation.display_name` (FR-DM-02).
 
     `semiotic_system` names the overarching domain/system this sign belongs to
     (e.g. "tarot_cards", "hebrew_alef_bet") — always present, even for a sign
     with zero manifestations, so an intersemiotic interpretant's target can be
-    resolved by name scoped to a named system (FR18).
+    resolved by name scoped to a named system (FR-SD-03).
 
     `properties` holds intrinsic, tradition-independent facts about the sign
     itself (e.g. a Hebrew letter's alphabet position or numeric value) — true
@@ -189,7 +189,7 @@ class Sign(MythrixModel):
     tradition.
 
     `intersemiotic_interpretants` holds this sign's correspondences to other
-    signs (FR3, FR19). These live on `Sign`, not `Manifestation`, because a
+    signs (FR-DM-03, FR-SD-04). These live on `Sign`, not `Manifestation`, because a
     correspondence claim is about the sign itself, attributed to whichever
     tradition/system asserts it — not about one specific tradition's rendering
     of it — and because a sign with no manifestation at all must still be able
@@ -233,13 +233,13 @@ class Manifestation(MythrixModel):
 
 class SignSummary(MythrixModel):
     """A lightweight listing of one sign, for a picker to choose a
-    sign/tradition pair guaranteed to have a manifestation (FR9 of
-    `specs/query-viewer-web-ui/spec.md`) — not a full `Sign` (no
+    sign/tradition pair guaranteed to have a manifestation (`specs/interfaces/web-viewer.md`
+    FR-WEB-01) — not a full `Sign` (no
     `properties`/`intersemiotic_interpretants`), since a picker has no use for
     either.
 
     `semiotic_system` lets a picker offer a semiotic-system selector that
-    scopes which signs it lists (FR20 of `specs/query-viewer-web-ui/spec.md`)."""
+    scopes which signs it lists (FR-WEB-01)."""
 
     slug: str
     canonical_name: str
@@ -250,7 +250,7 @@ class SignSummary(MythrixModel):
 
 class GraphFacts(MythrixModel):
     """Deterministic result of a single graph query: one sign, resolved for one
-    tradition (v1 query scope, FR9)."""
+    tradition (v1 query scope, FR-RT-01)."""
 
     sign: Sign
     manifestation: Manifestation
@@ -258,8 +258,8 @@ class GraphFacts(MythrixModel):
 
 class RetrievedPassage(MythrixModel):
     """A single retrieved document chunk, carrying full verbatim text for
-    display (FR13). Carries no `Tradition` — a retrieved passage always comes
-    from an independent corpus document (FR7), which has no interpretive
+    display (FR-RT-05). Carries no `Tradition` — a retrieved passage always comes
+    from an independent corpus document (FR-CO-02), which has no interpretive
     tradition of its own; `source.citation_label` is what attributes it."""
 
     chunk_id: str
@@ -274,7 +274,7 @@ class RetrievedPassage(MythrixModel):
 
 
 class ConceptCandidates(MythrixModel):
-    """Retrieved passages for one individually-queried concept (FR24) — an
+    """Retrieved passages for one individually-queried concept (FR-RT-07) — an
     interpretant value, exactly as decomposed by `retrieval.pipeline.build_query_texts`.
     Kept separate from every other concept's candidates rather than merged into
     one shared pool, so a well-supported concept (e.g. a precise exact-value
@@ -282,7 +282,7 @@ class ConceptCandidates(MythrixModel):
     simply generated more queries — the empirical failure this restructuring
     exists to fix (see plan.md's "Concept-scoped retrieval and synthesis").
     Where two concepts both retrieve the same passage, that convergence is
-    surfaced separately as `ConceptPairCandidates` (FR27).
+    surfaced separately as `ConceptPairCandidates` (FR-RT-08).
 
     `concept` doubles as both the grouping key and the human-readable label shown in
     output — it's the atomic query text itself (e.g. "white horse", "laughter"),
@@ -294,10 +294,10 @@ class ConceptCandidates(MythrixModel):
 
 
 class ConceptMatchScore(MythrixModel):
-    """One concept's own claim on a passage, within a pair match (FR27, FR28).
+    """One concept's own claim on a passage, within a pair match (FR-RT-08, FR-RT-09).
 
     `score` is that concept's best similarity for this passage. `exact_value` marks
-    the FR28 case: an interpretant carrying a `query.directive: "filter"`
+    the FR-RT-09 case: an interpretant carrying a `query.directive: "filter"`
     annotation reaches a passage through a literal-text filter, not through
     embedding similarity, so its membership is a *guarantee* that the passage
     contains its `as_token` text rather than a similarity judgment. Such a match
@@ -313,7 +313,7 @@ class ConceptMatchScore(MythrixModel):
 
 class MergedCandidate(MythrixModel):
     """A passage two concepts both retrieved, with the components of its combined
-    score kept alongside the verdict (FR27) — a researcher sees not just that a
+    score kept alongside the verdict (FR-RT-08) — a researcher sees not just that a
     passage converged but how strongly it did on each side, which is what
     distinguishes a genuine intersection from a strong match on one concept that
     merely grazed the other."""
@@ -324,11 +324,11 @@ class MergedCandidate(MythrixModel):
 
 
 class ConceptPairCandidates(MythrixModel):
-    """Passages retrieved by *both* of two concepts (FR27) — emitted alongside, never
+    """Passages retrieved by *both* of two concepts (FR-RT-08) — emitted alongside, never
     instead of, each concept's own `ConceptCandidates`. Convergence is the signal
     per-concept grouping alone discards: a passage matching two independently-derived
     concepts at once is a stronger finding than either concept's own top hit, but
-    under FR24 it is merely duplicated into two groups with nothing recording that
+    under FR-RT-07 it is merely duplicated into two groups with nothing recording that
     it was the same passage.
 
     Because groups are additive, a strong single-concept match never loses to a
@@ -343,7 +343,7 @@ class ConceptPairCandidates(MythrixModel):
     matching pool. Clamped because `1 - cosine_distance` spans [-1, 1], so a
     negative component would otherwise make the square root complex; a passage
     anti-correlated with one member has no conjunctive strength anyway. An
-    `exact_value` member (FR28) contributes membership but no score, so a
+    `exact_value` member (FR-RT-09) contributes membership but no score, so a
     concept-plus-filter-token pair is scored by its semantic concept alone.
 
     Scores are only comparable *within* a group, where every candidate is scored by
@@ -357,8 +357,8 @@ class ConceptPairCandidates(MythrixModel):
 
 class RetrievalContext(MythrixModel):
     """Everything retrieved for a query: graph facts, grounding document passages
-    grouped per concept (FR24), and the concept pairs those passages converge on
-    (FR27). No synthesized text — the query path invokes no generation model (FR29)."""
+    grouped per concept (FR-RT-07), and the concept pairs those passages converge on
+    (FR-RT-08). No synthesized text — the query path invokes no generation model (FR-RT-10)."""
 
     graph_facts: GraphFacts
     concept_candidates: tuple[ConceptCandidates, ...] = ()
@@ -370,7 +370,7 @@ class RetrievalContext(MythrixModel):
         only need a corpus-wide view (e.g. counting total passages retrieved), not
         the per-concept grouping itself. Deliberately excludes `pair_candidates`,
         which are *mostly* but not entirely a subset of these: pair membership is
-        detected against a matching pool deeper than the one displayed here (FR27),
+        detected against a matching pool deeper than the one displayed here (FR-RT-08),
         so a passage can converge on two concepts while ranking below both of their
         displayed cutoffs. Callers needing every passage the query touched must read
         `pair_candidates` too."""
@@ -403,7 +403,7 @@ class Facets(MythrixModel):
 
 class Segment(MythrixModel):
     """One structurally-bounded constituent unit of a `Region` — a verse or a
-    numbered section, verbatim (`convergence-rollup-retrieval` FR16). A
+    numbered section, verbatim (FR-RK-08). A
     region's `segments` carries each match-carrying segment once, deduped by
     `ordinal`, regardless of how many interpretants matched it.
 
@@ -424,7 +424,7 @@ class Match(MythrixModel):
     """One interpretant's match within a `Region`, anchored to the specific
     constituent `Segment` it hit (`segment_ordinal`) so a consumer can
     navigate directly to where the match occurred rather than re-scanning the
-    region (FR17). `kind` distinguishes a `"concept"` match (dense similarity,
+    region (FR-RK-09). `kind` distinguishes a `"concept"` match (dense similarity,
     carries a meaningful `score`) from an `"exact"` match (literal
     whole-word-bounded containment, `exact_value=True`, `score` not
     meaningful)."""
@@ -438,12 +438,12 @@ class Match(MythrixModel):
 
 class Region(MythrixModel):
     """A contiguous span of one source's segments over which interpretant
-    matches converge (`convergence-rollup-retrieval` FR9–FR11) — the ranked,
+    matches converge (FR-RK-01–FR-RK-03) — the ranked,
     scored unit the query path returns. `score` is the specificity-weighted
-    convergence score (FR13);
+    convergence score (FR-RK-05);
     `convergence_count` is the number of distinct interpretants matching
     within the region — a region matched by exactly one interpretant (an
-    isolated match) is a valid, rankable region (FR11), not a filtered-out
+    isolated match) is a valid, rankable region (FR-RK-03), not a filtered-out
     case."""
 
     region_id: str
@@ -457,7 +457,7 @@ class Region(MythrixModel):
 
 class RegionQueryResult(MythrixModel):
     """Whole-response shape for the region-centric query endpoint
-    (`convergence-rollup-retrieval`) — facets plus a ranked region list."""
+    (see `ranking.md`) — facets plus a ranked region list."""
 
     facets: Facets
     regions: tuple[Region, ...] = ()

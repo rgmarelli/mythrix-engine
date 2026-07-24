@@ -1,8 +1,8 @@
-# ADR 0002 — Two matching channels: dense + exact-token, no BM25
+# ADR-002 — Two matching channels: dense + exact-token, no BM25
 
 - **Status**: Accepted
 - **Date**: 2026-07-21
-- **Realized by**: `specs/symbol-interpretation-core/spec.md` FR35–FR37; Non-goals
+- **Realized by**: [retrieval.md](../retrieval/retrieval.md) FR-RT-13–FR-RT-15; Non-goals
 
 ## Context
 
@@ -27,7 +27,7 @@ recipe. Two findings settled it:
    local `PersistentClient.search()` raises `NotImplementedError: Search is not
    implemented for Local Chroma`. The local client offers only `query()`/`get()`
    with `where_document` (`$contains`/`$regex`). Building on cloud-only BM25 would
-   contradict the local-store constraint ([ADR 0005](0005-vector-store-chroma-and-lexical-store-path.md)).
+   contradict the local-store constraint ([ADR-005](adr-005-vector-store-chroma-and-lexical-store-path.md)).
 
 A separate but related point: `$contains` is **substring**, not word-bounded. It
 false-matched the numeric token `50` inside section labels `50.`/`150.` in the
@@ -45,7 +45,7 @@ Exactly two matching channels, no BM25 and no rank-fusion:
 
 The lexical layer is used **only** for (a) this exact-token containment and (b) the
 document-frequency counts behind specificity weighting
-([ADR 0004](0004-absolute-floor-and-lexical-specificity-ranking.md)) — never to
+([ADR-004](adr-004-absolute-floor-and-lexical-specificity-ranking.md)) — never to
 *rank* regions.
 
 ## Consequences

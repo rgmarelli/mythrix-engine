@@ -18,10 +18,11 @@ interface Props {
 }
 
 /** Restricted to symbol/tradition combinations that have a manifestation
- * (FR2): the tradition dropdown only ever lists the selected sign's own
- * `tradition_slugs`, from `/api/symbols` — a `/api/query` FR9 error is
+ * (FR-WEB-01): the tradition dropdown only ever lists the selected sign's own
+ * `tradition_slugs`, from `/api/symbols` — a `/api/query` error for an
+ * unknown sign/tradition/manifestation-less pair is
  * unreachable through normal use of this form. The semiotic-system
- * dropdown (FR20) scopes which signs the symbol dropdown offers — its
+ * dropdown (FR-WEB-01) scopes which signs the symbol dropdown offers — its
  * options are the distinct `semiotic_system` values already present in
  * `signs`, no separate endpoint needed. */
 export function SignTraditionPicker({

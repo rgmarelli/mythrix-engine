@@ -1,4 +1,4 @@
-"""Structural segmenters (plan.md area A, `convergence-rollup-retrieval` FR1-FR2).
+"""Structural segmenters (plan.md area A, FR-CO-05–FR-CO-06).
 
 Each scheme below turns a source's raw text into one `Chunk` (segment) per
 smallest structural unit the source itself declares (a scripture verse, a
@@ -7,7 +7,7 @@ spans a paragraph break, so it never spans the structural boundary that break
 represents, and no segment overlaps another. The structural-label prefix
 (e.g. a leading verse or section number) is excluded from the segment's own
 `text` so it neither influences embedding nor produces spurious token
-containment (FR2).
+containment (FR-CO-06).
 """
 
 from __future__ import annotations
@@ -64,7 +64,7 @@ def _segment_scripture_verse(text: str) -> list[Chunk]:
     enclosing chapter's heading (e.g. `"Genesis Chapter 20"`, already reduced
     to `"Genesis 20"` by `_chapter_headings`) supplies the book name; `section`
     carries that chapter locator so a consumer can group segments by chapter
-    without re-deriving it, though contiguity itself is ordinal-based (FR2),
+    without re-deriving it, though contiguity itself is ordinal-based (FR-CO-06),
     not section-based. A paragraph with no leading `chapter:verse.` marker
     (chapter summaries, the book preface) is not a verse and is skipped."""
     headings = _chapter_headings(text)

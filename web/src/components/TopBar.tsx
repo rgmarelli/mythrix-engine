@@ -12,7 +12,7 @@ interface Props {
   onToggleFilters: () => void;
 }
 
-/** The app's top bar (master spec.md FR92) — brand mark plus
+/** The app's top bar (master spec.md FR-WEB-14) — brand mark plus
  * the tab strip. Replaces the plain `<header>` the single-query viewer used
  * before tabs existed. */
 export function TopBar({ tabs, activeTabId, signs, onSelectTab, onCloseTab, onAddTab, onToggleFilters }: Props) {

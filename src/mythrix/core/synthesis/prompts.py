@@ -1,7 +1,7 @@
 """Domain-agnostic rendering of already-retrieved graph facts and passages
-into markered text blocks (FR13, FR16). Originally this module also assembled
+into markered text blocks (FR-RT-05, FR-RT-06). Originally this module also assembled
 LLM prompts for concept-scoped synthesis; that orchestration is retired
-(FR25, FR29 — see `synthesis/chain.py`) and this module now serves two
+(FR25, FR-RT-10 — see `synthesis/chain.py`) and this module now serves two
 survivors of that design: `cli/formatting.py`'s human-readable output (which
 reuses `render_graph_facts_block`/`render_passages_block` verbatim, so what a
 researcher reads matches exactly what a future agent loop would be shown),
@@ -74,7 +74,7 @@ def render_passage_summary_prompt(text: str, concepts: tuple[str, ...]) -> str:
     AI Summary action (`api/routes.py::summarize_passage`). Distinct from
     `SYSTEM_PROMPT`/the retired per-concept synthesis: no markers, no
     GRAPH FACTS/PASSAGES framing, one passage at a time, on demand rather
-    than on every query (FR29 still governs the `query` path itself)."""
+    than on every query (FR-RT-10 still governs the `query` path itself)."""
     concept_list = ", ".join(concepts)
     return f'Summarize the following passage, focusing on the concepts: {concept_list}.\n\nPassage:\n"{text}"'
 

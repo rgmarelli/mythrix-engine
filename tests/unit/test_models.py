@@ -124,7 +124,7 @@ def test_manifestation_round_trip(
 
 
 def test_interpretant_query_directive_round_trip() -> None:
-    """FR28: an interpretant carrying a `query.directive: filter` annotation
+    """FR-RT-09: an interpretant carrying a `query.directive: filter` annotation
     round-trips its `as_token` alongside — this is the curator-authored
     replacement for the old code-side numeric-value detection."""
     interpretant = Interpretant(
@@ -143,7 +143,7 @@ def test_interpretant_query_directive_round_trip() -> None:
 
 
 def test_interpretant_skip_directive_defaults_as_token_to_empty_string() -> None:
-    """FR30: a `"skip"` directive has no use for `as_token` — it's optional,
+    """FR-RT-11: a `"skip"` directive has no use for `as_token` — it's optional,
     not required like `"filter"`'s."""
     interpretant = Interpretant(
         id="interp-meaning", type="meaning", value="eye of the needle", query=QueryDirective(directive="skip")
@@ -170,7 +170,7 @@ def test_sign_intersemiotic_interpretants_round_trip(
     """Intersemiotic interpretants live on Sign.intersemiotic_interpretants, not
     Manifestation — a claim is about the signs themselves, attributed to
     whichever tradition asserts it, not tied to one specific manifestation of
-    either endpoint (FR3, FR19)."""
+    either endpoint (FR-DM-03, FR-SD-04)."""
     citation = Citation(source=waite_source, locator="p. 143")
     interpretant = IntersemioticInterpretant(
         relationship="corresponds_to_letter",
@@ -194,7 +194,7 @@ def test_concept_candidates_round_trip_and_flatten_via_all_passages(
     waite_source: Source,
     the_tower_sign: Sign,
 ) -> None:
-    """`ConceptCandidates` groups passages by concept (FR24) rather than one
+    """`ConceptCandidates` groups passages by concept (FR-RT-07) rather than one
     flat list — `RetrievalContext.all_passages` flattens across every concept
     for callers that only need a corpus-wide view."""
     manifestation = Manifestation(
@@ -243,9 +243,9 @@ def test_concept_pair_candidates_round_trip(
     waite_source: Source,
     the_tower_sign: Sign,
 ) -> None:
-    """FR27/FR28: a `ConceptPairCandidates` group carries the two concepts it
+    """FR-RT-08/FR-RT-09: a `ConceptPairCandidates` group carries the two concepts it
     converges on, and each candidate carries its per-concept match scores —
-    including an exact-value match (FR28), which carries no score of its
+    including an exact-value match (FR-RT-09), which carries no score of its
     own, only a `document_contains`-guaranteed membership."""
     manifestation = Manifestation(
         id="the-tower::rider-waite",
@@ -290,7 +290,7 @@ def test_concept_pair_candidates_round_trip(
 
 
 def test_region_round_trip_anchors_matches_to_their_segments(waite_source: Source) -> None:
-    """T8: the settled `Region`/`Segment`/`Match` shape (FR16-FR18) — a
+    """T8: the settled `Region`/`Segment`/`Match` shape (FR-RK-08–FR-RK-10) — a
     region's `segments` carry each match-carrying verse's text once, and
     every match (concept or exact) carries the `segment_ordinal` of the
     specific verse it hit, matching plan.md's worked Genesis 21:5/21:6

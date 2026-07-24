@@ -16,17 +16,17 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """Local-only runtime configuration: storage locations and Ollama model selection.
 
-    `retrieval_top_k` is how many candidates each concept *displays* (FR24 — a
+    `retrieval_top_k` is how many candidates each concept *displays* (FR-RT-07 — a
     per-concept budget, not a shared one).
 
     `retrieval_match_pool_size` is how deep each concept's pool goes when detecting
-    which passages two concepts both retrieved (FR27), independent of what's
+    which passages two concepts both retrieved (FR-RT-08), independent of what's
     displayed. Deliberately much larger than `retrieval_top_k`: intersecting only
     the displayed candidates would miss the case the feature exists for — a passage
     ranking #1 for one concept and #9 for another is a real convergence, and it
     never appears in the second concept's displayed list. The cost is extra Chroma
     searches only; query embeddings are computed once regardless and no generation
-    model is involved (FR29). It also directly controls how many low-value lopsided
+    model is involved (FR-RT-10). It also directly controls how many low-value lopsided
     pairs get produced, so it is the knob to reach for if output grows unwieldy —
     see plan.md's Risks on pair-group count.
 
@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     analogue of `retrieval_top_k`.
 
     `generation_model`/`generation_num_ctx` are retained for the planned
-    conversational agent layer; nothing on the query path reads them (FR29).
+    conversational agent layer; nothing on the query path reads them (FR-RT-10).
     `generation_model` has no hardcoded default since installed Ollama models vary
     by machine — code that needs it must fail with an actionable
     `ModelUnavailableError` rather than silently falling back to a guess.
@@ -79,28 +79,28 @@ class Settings(BaseSettings):
     request omits a path — the same directory the local dev workflow already
     passes to `mythrix load-symbols` by hand.
 
-    `region_window_size` (`convergence-rollup-retrieval` FR10) is how many
+    `region_window_size` (FR-RK-02) is how many
     consecutive segment ordinals of one source a region rollup can chain
     together — a region can still span further end-to-end when matches occur
     in a close-packed chain (see `retrieval.pipeline._cluster_ordinals`).
 
-    `region_min_interpretants` (FR11) is the minimum count of distinct
+    `region_min_interpretants` (FR-RK-03) is the minimum count of distinct
     *concept* interpretants a region must carry to be eligible. Defaults to
     `1` — an isolated strong match is a valid, rankable region on its own
-    (ADR 0004); convergence raises rank, it is never required to appear at
+    (ADR-004); convergence raises rank, it is never required to appear at
     all.
 
     `retrieval_min_score` doubles as the absolute match floor a concept
-    interpretant's raw similarity must clear to enter a region at all (FR6)
+    interpretant's raw similarity must clear to enter a region at all (FR-RT-14)
     — evaluated on the raw score, never normalized within a query's results,
     so a corpus lacking an interpretant yields no match for it rather than a
-    best-of-noise one (ADR 0004).
+    best-of-noise one (ADR-004).
 
     `agent_model`/`agent_max_tool_iterations` are read only by the in-app
-    agent chat panel (`specs/agent-operator`, `mythrix.api`), never by the
+    agent chat panel (`specs/interfaces/agent.md`, `mythrix.api`), never by the
     `query` path. `agent_model` falls back to `generation_model` when unset;
     `agent_max_tool_iterations` bounds how many tool calls one conversational
-    turn may make before it ends rather than looping (spec FR11).
+    turn may make before it ends rather than looping (FR-AG-12).
     """
 
     model_config = SettingsConfigDict(env_prefix="MYTHRIX_", env_file=".env", extra="ignore")

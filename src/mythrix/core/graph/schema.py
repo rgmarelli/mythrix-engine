@@ -8,19 +8,19 @@ domain-specific column or table belongs here — see tests/unit/test_domain_agno
 Tradition." Tradition-specific *meaning* (display name, denotation, properties,
 interpretants, citations) hangs off `Manifestation`, never off the bare `Sign` —
 this is what keeps distinct traditions from ever collapsing into one merged
-meaning (FR2).
+meaning (FR-DM-02).
 
 `INTERSEMIOTIC` (correspondences between signs, e.g. a tarot card to a Hebrew
 letter) connects `Sign -> Sign` directly, not `Manifestation -> Manifestation`.
 A correspondence claim's attribution lives entirely in its `according_to_id`
 property — tying the edge to one *specific* manifestation of each endpoint as
 well would be redundant scoping, and would block a sign with zero manifestations
-from ever participating in a correspondence (FR3, and the "manifestations are
+from ever participating in a correspondence (FR-DM-03, and the "manifestations are
 optional" requirement it must support).
 
 `Property` and `Interpretant` are separate node tables: a property is never used
-to build retrieval query text regardless of scope (FR8, FR21), while an
-interpretant always is unless it carries a `query_directive` (FR28) — the two
+to build retrieval query text regardless of scope (FR-CO-03, FR-DM-04), while an
+interpretant always is unless it carries a `query_directive` (FR-RT-09) — the two
 roles have different columns and no shared upsert path, unlike the earlier
 single `Attribute` table this schema replaces.
 
@@ -87,7 +87,7 @@ NODE_TABLE_DDL: tuple[str, ...] = (
     # `content_hash`/`ingested_at` are written by the document loader, not authored
     # in a Source YAML file — they record what's currently ingested for this
     # source so re-running the loader can no-op on an unchanged file or replace
-    # chunks on a changed one, rather than accumulating duplicates (FR23).
+    # chunks on a changed one, rather than accumulating duplicates (FR-CO-04).
     """
     CREATE NODE TABLE Source(
         id STRING,

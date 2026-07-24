@@ -30,7 +30,7 @@ function sortByOrdinal(segments: HotspotSegment[]): HotspotSegment[] {
 }
 
 /** A hotspot's constituent segments rendered individually (never one merged blob), each
- * interpretant chip linking to the specific segment it anchors to (FR17) —
+ * interpretant chip linking to the specific segment it anchors to (FR-RK-09) —
  * clicking a chip scrolls to and highlights that segment — plus an on-demand
  * AI summary over the full loaded context (matched segments plus any
  * gap-filled/expanded via Add Context, `hotspot-context-expansion`) and

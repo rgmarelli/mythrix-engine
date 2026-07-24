@@ -1,15 +1,15 @@
 """`mythrix load-documents`: wraps `document_loader.load_corpus_directory`
-(FR6, FR23).
+(FR-CO-01, FR-CO-04).
 
 Auto-discovers every corpus source under `path` — each `<name>.yaml`
 colocated with a `<name>.txt` of the same stem — registering the `Source`
 from its own YAML (`id`/`domain`/`citation_label`) and ingesting its text.
 No `--tradition`/`--domain`/`--source-slug` flags: a corpus document is never
-assigned a tradition (FR7), and its id/domain are authored directly in its
+assigned a tradition (FR-CO-02), and its id/domain are authored directly in its
 own file, not repeated on the command line.
 
 `--dry-run` only hashes each `.txt` and compares it to its `Source`'s
-recorded `content_hash` (FR23) — it never constructs an embedder or vector
+recorded `content_hash` (FR-CO-04) — it never constructs an embedder or vector
 store, so it works even without a reachable Ollama daemon.
 """
 

@@ -5,7 +5,7 @@
 // view-model names for `Region`/`Segment`/`Match` (existing component
 // vocabulary — `HotspotCard`/`HotspotList`); `client.ts` is the single seam
 // that maps the wire shape onto them. See
-// specs/convergence-rollup-retrieval/plan.md.
+// specs/retrieval/ranking.md.
 
 export interface Tradition {
   id: string;
@@ -117,7 +117,7 @@ export interface HotspotQueryResult {
   hotspots: Hotspot[];
 }
 
-// --- Agent chat (master spec.md FR94-FR102) ---
+// --- Agent chat (master spec.md FR-AG-14–FR-AG-22) ---
 // Wire shapes mirror `api/routes.py`'s `AgentUiSelection`/`AgentTurnRequest`/
 // `AgentContext`/`AgentCard`/`AgentTurnResponse` — snake_case, as
 // `.model_dump(mode="json")` sends them. `client.ts` is the single seam

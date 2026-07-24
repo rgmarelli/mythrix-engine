@@ -129,7 +129,7 @@ def test_property_value_as_a_bare_yaml_boolean_is_rejected() -> None:
 
 
 def test_bare_sign_with_no_manifestations_is_valid() -> None:
-    """FR22: a sign file may omit `manifestations` entirely."""
+    """FR-DM-05: a sign file may omit `manifestations` entirely."""
     parsed = SignFile.model_validate(yaml.safe_load(BARE_SIGN_YAML))
 
     assert parsed.sign.name == "Tiphareth"

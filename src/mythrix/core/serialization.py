@@ -1,8 +1,8 @@
-"""`--json` output payload shape for `RetrievalContext` (FR16) — shared by
+"""`--json` output payload shape for `RetrievalContext` (FR-RT-06) — shared by
 `cli/formatting.py::render_facts_json`; nothing else in `core/` or `api/`
 uses this (the API's `/api/query` payload is `RegionQueryResult`, built by
 `query_service.py::query_regions`, see
-`specs/convergence-rollup-retrieval/plan.md`)."""
+`specs/retrieval/ranking.md`)."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ def _collect_sources_and_traditions(context: RetrievalContext) -> tuple[dict, di
     sources; see `retrieval/pipeline.py`'s `_source_for` docstring).
     Traditions come only from the sign side (a manifestation's own tradition,
     and every intersemiotic interpretant's `according_to`) — a retrieved
-    passage carries no tradition of its own (FR7)."""
+    passage carries no tradition of its own (FR-CO-02)."""
     sources: dict[str, Source] = {}
     traditions: dict[str, Tradition] = {}
 
@@ -106,10 +106,10 @@ def _pair_candidates_payload(pairs: tuple[ConceptPairCandidates, ...]) -> list[d
 
 
 def facts_json_payload(context: RetrievalContext) -> dict:
-    """The full evidentiary chain (FR16): graph facts, candidate passages
-    grouped by concept (FR24), and concept-pair convergences (FR27), matching
+    """The full evidentiary chain (FR-RT-06): graph facts, candidate passages
+    grouped by concept (FR-RT-07), and concept-pair convergences (FR-RT-08), matching
     what retrieval actually produced. No synthesized summary or
-    generation-model identifier, since none were used (FR29). Every `Source`
+    generation-model identifier, since none were used (FR-RT-10). Every `Source`
     a passage cites, and every `Tradition` the sign side references, is
     listed once under `sources`/`traditions` and referenced elsewhere by id
     (`source_id`/`tradition_id`), rather than embedded in full on every

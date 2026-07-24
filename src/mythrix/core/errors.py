@@ -49,8 +49,8 @@ class ManifestationNotFoundError(MythrixError):
 
 class IngestValidationError(MythrixError):
     """Raised when structured data fails schema or referential-integrity validation
-    during loading, including an unresolvable target semiotic system (FR18).
-    Nothing is written to the graph when this is raised (FR5)."""
+    during loading, including an unresolvable target semiotic system (FR-SD-03).
+    Nothing is written to the graph when this is raised (FR-SD-02)."""
 
     def __init__(self, message: str, *, source_path: str | None = None) -> None:
         self.source_path = source_path
@@ -60,8 +60,8 @@ class IngestValidationError(MythrixError):
 
 class CitationValidationError(MythrixError):
     """Raised when generated text contains a citation marker that doesn't refer
-    to material present in the retrieved context (FR12). Not raised by the
-    `query` path, which invokes no generation model (FR29) — retained for the
+    to material present in the retrieved context (FR-RT-04). Not raised by the
+    `query` path, which invokes no generation model (FR-RT-10) — retained for the
     planned conversational agent loop, which will need the same guarantee
     over its own output."""
 
