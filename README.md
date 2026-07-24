@@ -1,23 +1,46 @@
 # Mythrix Engine
 
-**An explainable symbolic-interpretation engine — every conclusion traces back to a cited primary source, never a generated guess.**
+**An explainable symbolic-interpretation engine where every retrieved result is grounded in cited primary sources — never presented as an unsupported model guess.**
 
-Most "AI symbol interpreter" tools fall into one of two camps: opaque divinatory black boxes with no reasoning trail, or LLM wrappers that hallucinate plausible-sounding meanings. Mythrix takes a third path — a domain-agnostic knowledge graph of signs, cross-referenced against a real document corpus through a deterministic, code-driven retrieval pipeline. The LLM never decides what a result *is*; it only orchestrates tool calls and composes cited evidence into conversation. Everything runs **locally** — no hosted API dependency, no data leaving your machine.
+Symbol-interpretation systems typically face a trade-off between explainability and flexibility. Traditional systems can provide explicit sources but are often limited to predefined interpretations, while LLM-based systems can produce fluent explanations without a verifiable reasoning trail.
 
-Built end-to-end as a solo project: data model, retrieval engine, ranking algorithm, HTTP API, React frontend, and a tool-calling conversational agent.
+Mythrix takes a different approach. It combines a domain-agnostic Sign Graph with an independent document corpus and a deterministic retrieval and ranking pipeline. The symbolic system defines the concepts associated with a sign; those concepts are then used to retrieve evidence from a separate corpus, and passages where multiple concepts converge are ranked as candidate interpretive hotspots. The LLM does not decide what a result is or generate the underlying evidence. It only orchestrates read-only tools and composes retrieved, cited evidence into a conversational response.
+
+Everything runs locally — no hosted API dependency and no data leaving your machine.
+
+## The core idea
+
+Mythrix separates symbolic knowledge from textual evidence.
+
+A symbolic system defines a sign and its interpretants. Those interpretants are then used as retrieval queries against an independent document corpus. The system does not search for a pre-written interpretation of the sign. Instead, it looks for passages where multiple independent concepts associated with the sign converge, and ranks those passages according to the specificity and strength of their matches.
+
+This separation makes the retrieval pipeline reusable across symbolic domains and document corpora. The same engine can operate on a different symbolic system or a different collection of source documents without changing the underlying retrieval and ranking architecture.
 
 ## What it does
 
-Query a sign — say, the Tower card in Rider-Waite tarot — and get back **ranked, cited evidence**, not a paragraph of invented meaning:
+Query a symbol — for example, the Tower card in the Rider-Waite tradition — and Mythrix returns ranked, cited evidence rather than a generated paragraph of symbolic meaning. The system combines structured symbolic knowledge with independent textual sources and exposes the retrieval process all the way from the original sign to the passages that support the resulting convergence.
 
-- **Graph facts** — the sign's properties, interpretants, and cross-domain correspondences (e.g. the Tower's Hebrew-letter correspondence via a Golden Dawn attribution), pulled from a structured knowledge graph.
-- **Concept & concept-pair retrieval** — each of the sign's interpretants (`"fire"`, `"falling figures"`, `"lightning"`...) independently retrieves matching passages from an unrelated reference corpus (the Douay-Rheims Bible, Sefer HaBahir), and passages hit by *multiple* interpretants surface as their own ranked convergence groups.
-- **Ranked hotspots** — contiguous passages scored by a specificity-weighted convergence formula (rarer surface forms weigh more), so a passage matched by three distinct concepts outranks one matched by a single common word — with full verbatim text and exact citation, never just a locator.
-- **A grounded chat agent** — a docked panel where a local model answers questions *about* a result by calling the same read-only tools the API exposes (sign lookup, region query, segment fetch, summarize) — never asserting a fact absent from a tool result, with the tool trace shown for every turn.
+- **Graph facts** — the sign's properties, interpretants, and cross-domain correspondences, such as the Tower's Hebrew-letter correspondence through a Golden Dawn attribution, retrieved from the structured Sign Graph.
 
-The reference dataset proves this is genuinely domain-agnostic: all 22 tarot Major Arcana, all 22 Hebrew letters (Sepher Yetzirah correspondences), cross-linked to each other, both read *through* an entirely unrelated corpus (Biblical and Kabbalistic texts) to demonstrate that retrieval works on any curated document set, not just tarot-specific writing.
+- **Concept and concept-pair retrieval** — each of the sign's interpretants (`"fire"`, `"falling figures"`, `"lightning"`, ...) independently retrieves matching passages from an unrelated reference corpus such as the Douay-Rheims Bible or Sefer HaBahir. Passages matched by multiple interpretants are grouped as convergence hotspots.
+
+- **Ranked convergence hotspots** — contiguous passages are scored using a specificity-weighted convergence formula. Rarer surface forms contribute more weight than common terms, so a passage matched by several distinct concepts can outrank one matched by a single common word. Every result includes the verbatim source text and an exact citation rather than only a document locator.
+
+- **A grounded chat agent** — a docked conversational panel allows a local model to answer questions about retrieved results by calling the same read-only tools exposed by the API: symbol lookup, region query, segment fetch, and summarization. The agent is constrained to the evidence returned by those tools.
+
+The reference dataset demonstrates the domain-agnostic design: it includes all 22 Tarot Major Arcana, all 22 Hebrew letters with Sepher Yetzirah correspondences, and cross-links between the two symbolic systems. Both are retrieved against an independent corpus of Biblical and Kabbalistic texts, demonstrating that the retrieval pipeline operates on the structure of the symbolic system and the declared document corpus rather than on tarot-specific logic.
+
+## See it in action
+
+![Mythrix Engine](docs/images/mythrix.png)
+
+A query against a symbol produces ranked convergence hotspots with verbatim source passages and exact citations. The conversational agent can then inspect the same result through read-only tools, with its tool trace visible for every turn.
 
 ## Architecture
+
+Mythrix is structured around a deterministic core library that is shared by the CLI, HTTP API, and web application. The conversational agent sits at the boundary of this system and interacts with the same core capabilities through a fixed set of read-only tools.
+
+The resulting architecture keeps the retrieval and ranking path deterministic while allowing an LLM to provide a flexible conversational interface over the resulting evidence.
 
 ```
 ┌──────────-───┐     ┌──────────────────────────┐     ┌────────────────────┐
@@ -46,11 +69,11 @@ The reference dataset proves this is genuinely domain-agnostic: all 22 tarot Maj
               └────────────────────────────┘
 ```
 
-- **Sign Graph** ([Kuzu](https://kuzudb.com)) — signs, traditions, tradition-scoped manifestations, interpretants, and typed, attributable cross-domain correspondences. No domain-specific field is baked into the schema — enforced by an automated lint check, not convention.
+- **Sign Graph** ([Kuzu](https://kuzudb.com)) — a domain-agnostic knowledge graph representing signs, traditions, tradition-scoped manifestations, interpretants, and typed, attributable cross-domain correspondences. The schema contains no fields specific to tarot, religion, or any other symbolic domain; this constraint is enforced by an automated lint check rather than by convention.
 - **Document corpus** ([Chroma](https://www.trychroma.com)) — source documents segmented along their *own* declared structure (verse, numbered section) rather than fixed-size windows, so a citation always resolves to a real structural unit.
-- **Retrieval** — two matching channels (dense embedding similarity + exact-token containment), matched live per interpretant at query time — no precomputed match matrix, so editing the graph changes results on the very next query.
-- **Ranking** — regions scored by summed, specificity-weighted match strength (a from-scratch lexical-IDF scheme, deliberately not BM25 — see [ADR-002](specs/architecture-decisions/adr-002-dense-plus-exact-token-no-bm25.md) and [ADR-004](specs/architecture-decisions/adr-004-absolute-floor-and-lexical-specificity-ranking.md) for why).
-- **Agent** — a bounded tool-calling loop over a fixed, read-only tool set; retrieval stays deterministic even when a model is in the orchestration loop ([ADR-006](specs/architecture-decisions/adr-006-conversational-agent-orchestration-boundary.md)).
+- **Retrieval** — two complementary matching channels, dense embedding similarity and exact-token containment, are evaluated live for each interpretant at query time. There is no precomputed match matrix: changing the Sign Graph immediately changes the retrieval results on the next query.
+- **Ranking** — candidate regions are scored using a from-scratch lexical-IDF scheme that combines convergence across multiple concepts with lexical specificity. The algorithm deliberately does not use BM25; the rationale is documented in [ADR-002](specs/architecture-decisions/adr-002-dense-plus-exact-token-no-bm25.md) and [ADR-004](specs/architecture-decisions/adr-004-absolute-floor-and-lexical-specificity-ranking.md).
+- **Agent** — a bounded tool-calling loop over a fixed, read-only tool set. The agent can inspect and summarize retrieved evidence, but it cannot modify the Sign Graph or document corpus, bypass the retrieval pipeline, or introduce unsupported facts into the result. This keeps deterministic retrieval separate from probabilistic language generation ([ADR-006](specs/architecture-decisions/adr-006-conversational-agent-orchestration-boundary.md)).
 
 Full rationale for every non-obvious call — why no BM25, why live matching over precomputation, why Chroma over a hosted vector DB — is written up in [`specs/architecture-decisions/`](specs/architecture-decisions/).
 
