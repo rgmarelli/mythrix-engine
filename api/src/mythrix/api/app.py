@@ -20,7 +20,7 @@ from mythrix.api.errors import register_exception_handlers
 from mythrix.core.bootstrap import build_stores
 from mythrix.core.config import Settings
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
+_REPO_ROOT = Path(__file__).resolve().parents[4]
 _WEB_DIST = _REPO_ROOT / "web" / "dist"
 
 

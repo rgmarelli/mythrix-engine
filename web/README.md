@@ -1,6 +1,6 @@
 # Mythrix Query Viewer (web/)
 
-React + TypeScript + Vite frontend for the query viewer. Independent toolchain from the Python package — see `specs/interfaces/web-viewer.md` and `specs/interfaces/api.md` for the full contract with `src/mythrix/api/`.
+React + TypeScript + Vite frontend for the query viewer. Independent toolchain from the Python package — see `specs/interfaces/web-viewer.md` and `specs/interfaces/api.md` for the full contract with `api/src/mythrix/api/`.
 
 ## Dev
 
@@ -9,7 +9,7 @@ npm install
 npm run dev        # http://localhost:5173, expects the API at VITE_API_BASE_URL (.env.development)
 ```
 
-Requires `uv run uvicorn mythrix.api.app:app --reload` running separately (default `http://localhost:8000`).
+Requires `uv run --project api uvicorn mythrix.api.app:app --reload` (run from the repo root) running separately (default `http://localhost:8000`).
 
 The AI Summary button (`PassageDetailPanel`) calls `POST /api/summarize`, which requires `MYTHRIX_GENERATION_MODEL` to be set (`.env`, or the environment) to a model pulled in Ollama — unlike the rest of the query viewer, which only needs the embedding model. Without it, the button surfaces a client-visible error (FR-SD-04) rather than failing the rest of the page.
 

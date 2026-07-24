@@ -7,14 +7,19 @@ installation for the embedding/generation steps.
 ## 1. Install dependencies
 
 ```bash
-uv sync
+cd api && uv sync
 ```
 
 This installs `mythrix` in editable mode along with all pinned runtime and dev
-dependencies (see `pyproject.toml`) — into `uv`'s project virtualenv, not
-system-wide. Every `mythrix` command below must be run as `uv run mythrix ...`
-(not bare `mythrix ...`), unless you've activated that virtualenv yourself
-(`source .venv/bin/activate`).
+dependencies (see `api/pyproject.toml`) — into `uv`'s project virtualenv, not
+system-wide. Commands below that only touch the `api/` workspace (tests,
+ruff) are run from inside `api/` as `uv run ...`; commands that touch the
+repo-root `data/`/`.mythrix/` directories (`load-symbols`, `load-documents`,
+`query`) are run from the repo root as `uv run --project api mythrix ...`,
+so their working directory stays at the root while `uv` still resolves
+dependencies from `api/`. Either way, unless you've activated the
+virtualenv yourself (`source api/.venv/bin/activate`), always go through
+`uv run`, never bare `mythrix ...`.
 
 ## 2. Install Ollama and pull models
 
@@ -75,10 +80,12 @@ for why the corpus document is deliberately a different source.
 etc.), so one command loads every domain — tarot, kabbalah, and bible's
 tradition/source metadata — together:
 
-```bash
-uv run mythrix load-symbols data --json
+Run from the repo root, so `data` resolves to the root `data/` directory:
 
-uv run mythrix load-documents data/bible/documents/douay-rheims-bible.txt \
+```bash
+uv run --project api mythrix load-symbols data --json
+
+uv run --project api mythrix load-documents data/bible/documents/douay-rheims-bible.txt \
   --tradition douay-rheims --source-slug douay-rheims-bible --json
 ```
 
@@ -88,15 +95,17 @@ on CPU-only local Ollama embedding.
 
 ## 5. Query
 
+Run from the repo root, so `.mythrix/` resolves to the root-level store:
+
 ```bash
 # human-readable: graph facts, per-concept passages, and pair-convergence groups
-uv run mythrix query --symbol the-tower --tradition rider-waite
+uv run --project api mythrix query --symbol the-tower --tradition rider-waite
 
 # structured output — full evidentiary chain (FR-RT-06)
-uv run mythrix query --symbol the-tower --tradition rider-waite --json
+uv run --project api mythrix query --symbol the-tower --tradition rider-waite --json
 
 # widen the pool searched for concept-pair convergence (FR-RT-08), independent of --top-k
-uv run mythrix query --symbol the-tower --tradition rider-waite --match-pool 50
+uv run --project api mythrix query --symbol the-tower --tradition rider-waite --match-pool 50
 ```
 
 Per FR-RT-10, no generation model is ever invoked on this path — only the
@@ -110,6 +119,8 @@ There is no synthesized narrative and no `--facts-only`/`--strict` flags —
 every query already returns this complete evidentiary result.
 
 ## Running tests
+
+Run from `api/`:
 
 ```bash
 uv run pytest tests/unit -q        # fast, no Ollama needed

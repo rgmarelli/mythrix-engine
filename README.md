@@ -70,14 +70,15 @@ Full rationale for every non-obvious call — why no BM25, why live matching ove
 ## Try it
 
 ```bash
-uv sync
+cd api && uv sync
 # install Ollama, pull nomic-embed-text — see docs/SETUP.md for the full walkthrough
+cd ..
 
-uv run mythrix load-symbols data --json
-uv run mythrix load-documents data/corpus/scripture/en_drb/douay-rheims-bible.txt \
+uv run --project api mythrix load-symbols data --json
+uv run --project api mythrix load-documents data/corpus/scripture/en_drb/douay-rheims-bible.txt \
   --tradition douay-rheims --source-slug douay-rheims-bible --json
 
-uv run mythrix query --symbol the-tower --tradition rider-waite
+uv run --project api mythrix query --symbol the-tower --tradition rider-waite
 ```
 
 Full setup — Ollama models, configuration, and running the API + web viewer together — is in [`docs/SETUP.md`](docs/SETUP.md).

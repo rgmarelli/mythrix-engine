@@ -2,7 +2,7 @@
 name = "mythrix"
 version = "0.1.0"
 description = "Explainable symbolic interpretation engine grounded in structured data and cited primary sources."
-readme = "README.md"
+readme = "../README.md"
 license = { text = "AGPL-3.0-or-later" }
 requires-python = ">=3.12"
 dependencies = [
