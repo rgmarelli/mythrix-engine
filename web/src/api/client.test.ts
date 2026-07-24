@@ -1,0 +1,188 @@
+import { fetchQuery, fetchSegments, fetchSymbols, fetchTraditions, postAgentTurn } from './client';
+import type { AgentTurnResponseWire, RegionQueryResult } from './types';
+import { makeRegion, makeSignSummary, makeTradition } from '../test/fixtures';
+
+function jsonResponse(body: unknown, ok = true, status = 200): Response {
+  return {
+    ok,
+    status,
+    json: () => Promise.resolve(body),
+  } as Response;
+}
+
+beforeEach(() => {
+  vi.stubGlobal('fetch', vi.fn());
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+describe('fetchTraditions', () => {
+  it('GETs /api/traditions and returns the parsed list', async () => {
+    const traditions = [makeTradition()];
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(traditions));
+    const result = await fetchTraditions();
+    expect(fetch).toHaveBeenCalledWith('/api/traditions');
+    expect(result).toEqual(traditions);
+  });
+});
+
+describe('fetchSymbols', () => {
+  it('GETs /api/symbols and returns the parsed list', async () => {
+    const signs = [makeSignSummary()];
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(signs));
+    const result = await fetchSymbols();
+    expect(fetch).toHaveBeenCalledWith('/api/symbols');
+    expect(result).toEqual(signs);
+  });
+});
+
+describe('fetchQuery', () => {
+  it('encodes symbol/tradition/opts as query params', async () => {
+    const wire: RegionQueryResult = { facets: { sources: [], interpretants: [] }, regions: [] };
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(wire));
+    await fetchQuery('the-sun', 'rider-waite', { topK: 10, matchPool: 50, minScore: 0.5 });
+    const calledUrl = vi.mocked(fetch).mock.calls[0][0] as string;
+    expect(calledUrl).toContain('/api/query?');
+    expect(calledUrl).toContain('symbol=the-sun');
+    expect(calledUrl).toContain('tradition=rider-waite');
+    expect(calledUrl).toContain('top_k=10');
+    expect(calledUrl).toContain('match_pool=50');
+    expect(calledUrl).toContain('min_score=0.5');
+  });
+
+  it('omits optional params when not supplied', async () => {
+    const wire: RegionQueryResult = { facets: { sources: [], interpretants: [] }, regions: [] };
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(wire));
+    await fetchQuery('the-sun', 'rider-waite');
+    const calledUrl = vi.mocked(fetch).mock.calls[0][0] as string;
+    expect(calledUrl).not.toContain('top_k');
+    expect(calledUrl).not.toContain('match_pool');
+    expect(calledUrl).not.toContain('min_score');
+  });
+
+  it('translates wire regions to camelCase hotspots', async () => {
+    const region = makeRegion();
+    const wire: RegionQueryResult = { facets: { sources: [], interpretants: [] }, regions: [region] };
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(wire));
+    const result = await fetchQuery('the-sun', 'rider-waite');
+    expect(result.hotspots).toHaveLength(1);
+    const hotspot = result.hotspots[0];
+    expect(hotspot.regionId).toBe(region.region_id);
+    expect(hotspot.convergenceCount).toBe(region.convergence_count);
+    expect(hotspot.matches[0]).toEqual({
+      interpretant: 'sun',
+      kind: 'concept',
+      score: 0.82,
+      exactValue: false,
+      segmentOrdinal: 1,
+    });
+  });
+
+  it('throws the response detail message on a non-ok response', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ detail: 'sign not found' }, false, 404));
+    await expect(fetchQuery('missing', 'rider-waite')).rejects.toThrow('sign not found');
+  });
+
+  it('falls back to a generic message when the error body has no detail', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(null, false, 500));
+    await expect(fetchQuery('the-sun', 'rider-waite')).rejects.toThrow('Query failed (500)');
+  });
+});
+
+describe('fetchSegments', () => {
+  it('encodes source/ordinal range as query params', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse([]));
+    await fetchSegments('source-1', 3, 7);
+    const calledUrl = vi.mocked(fetch).mock.calls[0][0] as string;
+    expect(calledUrl).toContain('/api/segments?');
+    expect(calledUrl).toContain('source_id=source-1');
+    expect(calledUrl).toContain('start_ordinal=3');
+    expect(calledUrl).toContain('end_ordinal=7');
+  });
+
+  it('throws the response detail message on a non-ok response', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ detail: 'bad range' }, false, 400));
+    await expect(fetchSegments('source-1', 3, 7)).rejects.toThrow('bad range');
+  });
+});
+
+describe('postAgentTurn', () => {
+  const uiSelection = {
+    semioticSystem: 'tarot',
+    sign: 'the-sun',
+    tradition: 'rider-waite',
+    sourceId: null,
+    interpretant: null,
+    minScore: null,
+    regionId: 'region-1',
+    locator: 'Ecclesiasticus 43:1',
+  };
+
+  it('POSTs a snake_case request body', async () => {
+    const wire: AgentTurnResponseWire = {
+      context: { ...uiSelection, semiotic_system: 'tarot', source_id: null, min_score: null, region_id: 'region-1' } as never,
+      reply_text: 'hello',
+      cards: [],
+      instructions: [],
+      thread_reset: false,
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(wire));
+    await postAgentTurn('session-1', 'hi', uiSelection);
+    const [url, init] = vi.mocked(fetch).mock.calls[0];
+    expect(url).toBe('/api/agent');
+    expect(init?.method).toBe('POST');
+    const body = JSON.parse(init?.body as string);
+    expect(body).toEqual({
+      session_id: 'session-1',
+      message: 'hi',
+      ui_selection: {
+        semiotic_system: 'tarot',
+        sign: 'the-sun',
+        tradition: 'rider-waite',
+        source_id: null,
+        interpretant: null,
+        min_score: null,
+        region_id: 'region-1',
+        locator: 'Ecclesiasticus 43:1',
+      },
+    });
+  });
+
+  it('translates citation and interpretant_chips cards', async () => {
+    const wire: AgentTurnResponseWire = {
+      context: {
+        semiotic_system: 'tarot',
+        sign: 'the-sun',
+        tradition: 'rider-waite',
+        source_id: null,
+        interpretant: null,
+        min_score: null,
+        region_id: 'region-1',
+        locator: 'Ecclesiasticus 43:1',
+      },
+      reply_text: 'hello',
+      cards: [
+        { type: 'citation', source_label: 'Eccl.', locator: '43:1', text: 'quoted text' },
+        { type: 'interpretant_chips', chips: [{ interpretant: 'sun', kind: 'concept', score: 0.9, segment_ordinal: 1 }] },
+      ],
+      instructions: [],
+      thread_reset: true,
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(wire));
+    const result = await postAgentTurn('session-1', 'hi', uiSelection);
+    expect(result.threadReset).toBe(true);
+    expect(result.cards[0]).toEqual({ type: 'citation', sourceLabel: 'Eccl.', locator: '43:1', text: 'quoted text' });
+    expect(result.cards[1]).toEqual({
+      type: 'interpretant_chips',
+      chips: [{ interpretant: 'sun', kind: 'concept', score: 0.9, segmentOrdinal: 1 }],
+    });
+    expect(result.context.regionId).toBe('region-1');
+  });
+
+  it('throws the response detail message on a non-ok response', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ detail: 'agent unavailable' }, false, 503));
+    await expect(postAgentTurn('session-1', 'hi', uiSelection)).rejects.toThrow('agent unavailable');
+  });
+});
