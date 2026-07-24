@@ -71,8 +71,8 @@ function AgentCards({ cards }: { cards: AgentCard[] }) {
 }
 
 /** Docked, floating chat panel grounded in the active hotspot
- * (specs/in-app-agent-chat), now a controlled view onto whichever tab is
- * active (specs/tabbed-workspace-redesign FR88): `items`/`isSending` and the
+ * (master spec.md FR94-FR102), now a controlled view onto whichever tab is
+ * active (FR88): `items`/`isSending` and the
  * `onSend` network call are owned by `useTabs`, scoped per tab, so switching
  * tabs simply re-renders this same instance against different data. Only the
  * composer's live text and the dock's collapsed/expanded chrome stay local —

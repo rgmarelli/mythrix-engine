@@ -31,8 +31,8 @@ def run_turn(
     context_summary: str = "",
 ) -> tuple[list, TurnResult]:
     """Runs one turn: appends `user_text` to `history`, streams the graph,
-    and returns the updated history plus the ordered tool-name trace (spec
-    FR9) and reply. On hitting the per-turn tool-call bound (spec FR11), the
+    and returns the updated history plus the ordered tool-name trace (master
+    spec.md FR67) and reply. On hitting the per-turn tool-call bound (FR69), the
     turn ends with a clear message and `history` is returned unchanged — the
     runaway turn's messages are not kept.
 

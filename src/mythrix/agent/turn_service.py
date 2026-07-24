@@ -1,5 +1,4 @@
-"""Composes one full `POST /api/agent` turn (spec.md "Architecture (where
-things run)") out of the existing agent primitives: thread-reset detection
+"""Composes one full `POST /api/agent` turn out of the existing agent primitives: thread-reset detection
 (`agent/context.py`), the LangGraph turn driver (`agent/runner.py`), card
 building (`agent/cards.py`), notes splitting (`agent/notes.py`), and citation
 validation (`core/synthesis/citations.py`). `api/routes.py`'s handler is a

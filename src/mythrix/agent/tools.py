@@ -1,6 +1,6 @@
-"""The agent's fixed, read-only tool set (spec FR3, FR4) — every tool is a
-thin wrapper over an existing Mythrix service function; none of this module
-implements retrieval, graph, embedding, or synthesis logic of its own.
+"""The agent's fixed, read-only tool set (master spec.md FR60, FR61) — every
+tool is a thin wrapper over an existing Mythrix service function; none of this
+module implements retrieval, graph, embedding, or synthesis logic of its own.
 
 `build_tools` closes over an already-built `Stores`, `Settings`, and
 `ChatClient` (constructed once by `api/dependencies.py`) instead of holding
@@ -8,11 +8,11 @@ module-level globals, so the tool set is trivially fakeable in tests and is
 rebuilt fresh per process rather than shared mutable state.
 
 Each tool returns compact, JSON-serializable data (dicts / lists of dicts) —
-never prose — so the LLM relays cited evidence rather than inventing it (spec
-FR6). A `MythrixError` raised while a tool runs (unknown sign/tradition/source,
+never prose — so the LLM relays cited evidence rather than inventing it
+(FR63). A `MythrixError` raised while a tool runs (unknown sign/tradition/source,
 an unreachable model) is caught here and turned into a structured `{"error":
 ...}` result instead of propagating, so a bad tool call becomes a recoverable
-turn (spec FR10) rather than crashing the graph.
+turn (FR68) rather than crashing the graph.
 """
 
 from __future__ import annotations
@@ -107,10 +107,10 @@ def _render_regions(result: RegionQueryResult) -> dict:
 
 
 def build_tools(stores: Stores, settings: Settings, chat_client: ChatClient) -> list:
-    """Returns the seven read-only tools the agent may call (spec FR3). The
-    registered set contains no `upsert_*`, `load_*`, or reload operation —
-    read-only is a structural property of this list, not a runtime check
-    (spec FR4)."""
+    """Returns the seven read-only tools the agent may call (master spec.md
+    FR60). The registered set contains no `upsert_*`, `load_*`, or reload
+    operation — read-only is a structural property of this list, not a
+    runtime check (FR61)."""
 
     @tool
     def list_semiotic_systems() -> list[str]:

@@ -1,5 +1,5 @@
-"""Per-browser-session conversation + context state (spec FR14: retained
-only for the life of the backend process, never persisted to disk)."""
+"""Per-browser-session conversation + context state (master spec.md FR100:
+retained only for the life of the backend process, never persisted to disk)."""
 
 from __future__ import annotations
 

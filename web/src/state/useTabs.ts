@@ -20,9 +20,9 @@ export function itemId(): string {
   return `item-${nextItemId}`;
 }
 
-// One independent unit of workspace state (specs/tabbed-workspace-redesign):
-// a query selection, its facets/result/selected hotspot, and its own agent
-// session/thread. Tabs never share or merge state with one another (FR84).
+// One independent unit of workspace state (master spec.md FR84): a query
+// selection, its facets/result/selected hotspot, and its own agent
+// session/thread. Tabs never share or merge state with one another.
 export interface Tab {
   id: string;
   selectedSystem: string;
@@ -74,7 +74,7 @@ function tieBreakScore(hotspot: Hotspot, activeInterpretant: string | null): num
 type TabPatch = Partial<Tab> | ((tab: Tab) => Partial<Tab>);
 
 /** Owns the tab array and every piece of state/derived data that used to be
- * flat on `App.tsx` (specs/tabbed-workspace-redesign) — one query selection,
+ * flat on `App.tsx` (master spec.md FR84) — one query selection,
  * its facets/result/selected hotspot, and its own agent session/thread,
  * fully isolated per tab (FR84). Existing presentational components
  * (`SignTraditionPicker`, `FacetRow`, `HotspotList`, `HotspotDetailPanel`)

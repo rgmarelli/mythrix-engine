@@ -36,8 +36,8 @@ class AgentState(TypedDict):
 
 
 def _build_tool_chat_model(*, generation_model: str, base_url: str, num_ctx: int) -> ChatOllama:
-    """Constructs the tool-capable chat model, fail-fast (spec FR8) — mirrors
-    `OllamaChatClient.__init__`'s message-text error mapping."""
+    """Constructs the tool-capable chat model, fail-fast (master spec.md
+    FR65) — mirrors `OllamaChatClient.__init__`'s message-text error mapping."""
     if not generation_model:
         raise ModelUnavailableError(generation_model or "<unset>")
     try:
@@ -85,7 +85,7 @@ def _needs_key(payload: object) -> str | None:
 def route_after_tools(state: AgentState) -> str:
     """Intercepts any tool result carrying a truthy `needs_*` key — e.g.
     `get_symbol`'s `needs_tradition` — before it ever reaches the model
-    (spec FR6). Observed live: a tool result carrying no interpretive content
+    (master spec.md FR98). Observed live: a tool result carrying no interpretive content
     at all (just a candidate list) is still, occasionally, followed by the
     model composing fabricated denotations rather than asking —
     sampling-dependent, not reliably reproduced, so not something a stronger
@@ -121,14 +121,14 @@ def compile_agent_graph(llm_with_tools, tools: list) -> CompiledStateGraph:  # n
     any `context_summary`) routes to `tools` (a `ToolNode` over the fixed
     read-only tool set) whenever the model's response carries tool calls, and
     back to `agent` afterward — except for a tool result carrying a truthy
-    `needs_*` key, which routes to `clarify` instead (spec FR6) and straight
-    on to `END`. Ends at `END` once the model answers without calling a tool.
+    `needs_*` key, which routes to `clarify` instead (master spec.md FR98) and
+    straight on to `END`. Ends at `END` once the model answers without calling a tool.
 
     Kept separate from `build_agent_graph` so a test can inject a stub
     tool-calling model with no live Ollama involved — `build_agent_graph`
     is the only caller that needs a real `ChatOllama`.
 
-    The per-turn tool-call bound (spec FR13) is a runtime concern, not a
+    The per-turn tool-call bound (FR69) is a runtime concern, not a
     compile-time one — `runner.run_turn` applies it via LangGraph's
     `recursion_limit` when it invokes the compiled graph, so a single
     compiled graph is reusable across turns with no reconstruction."""
@@ -154,7 +154,7 @@ def compile_agent_graph(llm_with_tools, tools: list) -> CompiledStateGraph:  # n
 
 
 def build_agent_graph(*, generation_model: str, base_url: str, num_ctx: int, tools: list) -> CompiledStateGraph:
-    """Constructs the real, tool-bound `ChatOllama` (fail-fast, spec FR8) and
+    """Constructs the real, tool-bound `ChatOllama` (fail-fast, master spec.md FR65) and
     compiles the graph around it. `mythrix.api.dependencies`'s only call into
     this module."""
     llm_with_tools = _build_tool_chat_model(

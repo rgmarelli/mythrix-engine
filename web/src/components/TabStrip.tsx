@@ -15,9 +15,8 @@ function tabLabel(tab: Tab, signs: SignSummary[]): string {
   return signs.find((s) => s.slug === tab.selectedSymbol)?.canonical_name ?? 'Untitled query';
 }
 
-/** The tab strip in the top bar (specs/tabbed-workspace-redesign FR85/FR86)
- * — pure rendering plus the three callbacks; all tab state lives in
- * `useTabs`. */
+/** The tab strip in the top bar (master spec.md FR85/FR86) — pure rendering
+ * plus the three callbacks; all tab state lives in `useTabs`. */
 export function TabStrip({ tabs, activeTabId, signs, onSelect, onClose, onAdd }: Props) {
   return (
     <nav className="tabstrip">

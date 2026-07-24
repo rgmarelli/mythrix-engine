@@ -117,7 +117,7 @@ export interface HotspotQueryResult {
   hotspots: Hotspot[];
 }
 
-// --- Agent chat (specs/in-app-agent-chat) ---
+// --- Agent chat (master spec.md FR94-FR102) ---
 // Wire shapes mirror `api/routes.py`'s `AgentUiSelection`/`AgentTurnRequest`/
 // `AgentContext`/`AgentCard`/`AgentTurnResponse` — snake_case, as
 // `.model_dump(mode="json")` sends them. `client.ts` is the single seam

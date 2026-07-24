@@ -171,7 +171,7 @@ def agent_turn(
     sessions: SessionStore = Depends(get_agent_sessions),
     graph: CompiledStateGraph = Depends(get_agent_graph),
 ) -> AgentTurnResponse:
-    """One turn of the in-app chat panel (`specs/in-app-agent-chat/plan.md`):
+    """One turn of the in-app chat panel (master spec.md FR94-FR102):
     the browser sends its message plus its current UI selection, as-is, each
     turn; the backend detects a thread reset, runs the agent loop, and
     returns the three-part response (updated context, grounded reply text,

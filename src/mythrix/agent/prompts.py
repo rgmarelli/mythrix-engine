@@ -1,4 +1,4 @@
-"""The operator system prompt (spec FR5, FR6, FR9) — distinct from
+"""The operator system prompt (master spec.md FR62, FR63, FR66) — distinct from
 `core/synthesis/prompts.py`, which renders passage-summary prompts and
 `[G#]`/`[S#]` citation blocks for the `summarize_passage` tool; that module is
 reused unchanged here, not duplicated."""

@@ -136,7 +136,7 @@ function toAgentCard(card: AgentCardWire): AgentCard {
   return { type: 'citation', sourceLabel: card.source_label ?? '', locator: card.locator ?? '', text: card.text ?? '' };
 }
 
-// The chat panel's one turn (specs/in-app-agent-chat) — the browser sends
+// The chat panel's one turn (master spec.md FR94-FR102) — the browser sends
 // its message plus its current UI selection, as-is, each turn; the backend
 // returns the updated context, grounded reply text, and structured cards.
 export async function postAgentTurn(
