@@ -17,7 +17,7 @@
 
 ## Spec-Driven Development
 
-This project follows Spec-Driven Development (SDD). Every non-trivial feature or change moves through four stages before it's considered done, each producing an artifact under `specs/<feature-slug>/`:
+This project follows Spec-Driven Development (SDD). Every non-trivial feature or change moves through four stages before it's considered done, each producing an artifact under `specs/tmp/<feature-slug>/`:
 
 1. **Specify** — write `spec.md`: the problem, goals, non-goals, and functional requirements. Focus on what the system does, not implementation.
 2. **Plan** — write `plan.md`: the technical approach, architecture, affected modules, data flow, and key trade-offs. This is *how*, grounded in the actual codebase.

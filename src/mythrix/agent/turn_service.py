@@ -37,6 +37,36 @@ _CITATION_FAILURE_MESSAGE = (
     "I drafted a reply but it referenced something I couldn't actually back up with a tool result, "
     "so I'm not showing it. Could you ask again, maybe more specifically?"
 )
+_SUMMARIZE_PREFIX = "/summarize"
+
+
+def _rewrite_summarize_command(message: str, context: AgentContext) -> str | None:
+    """Returns a rewritten directive if `message` is a `/summarize` composer
+    command, else `None`. Detected before the agent loop runs (`run_turn`,
+    below) so the model always sees an explicit instruction rather than
+    inferring intent from a bare command."""
+    head, _, rest = message.strip().partition(" ")
+    if head.lower() != _SUMMARIZE_PREFIX:
+        return None
+    focus = rest.strip()
+
+    if not context.region_id:
+        return (
+            "The user typed /summarize but no hotspot is currently selected in the UI. "
+            "Tell them to select a passage first; do not call any tools."
+        )
+
+    target = context.locator or context.region_id
+    directive = f"Use the summarize_passage tool to summarize the active passage ({target})."
+    if focus:
+        directive += f" Focus specifically on: {focus}."
+    elif context.interpretant:
+        directive += f" Focus on the interpretant: {context.interpretant}."
+    directive += (
+        " If you don't already have this passage's text from earlier in this thread, "
+        "call fetch_segments first to retrieve it, then call summarize_passage."
+    )
+    return directive
 
 
 class AgentCard(BaseModel):
@@ -130,11 +160,13 @@ def run_chat_turn(
             note_line = f"Notes from earlier in this thread: {session.agent_notes}"
             full_context_summary = f"{full_context_summary}\n{note_line}" if full_context_summary else note_line
 
+        effective_message = _rewrite_summarize_command(message, context) or message
+
         try:
             new_history, result = run_turn(
                 graph,
                 session.history,
-                message,
+                effective_message,
                 max_tool_iterations=max_tool_iterations,
                 context_summary=full_context_summary,
             )

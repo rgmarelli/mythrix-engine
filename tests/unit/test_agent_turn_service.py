@@ -1,7 +1,7 @@
 """Unit tests for `agent/turn_service.py::run_chat_turn` — drives a stub
 tool-calling model through `compile_agent_graph`, no live Ollama involved."""
 
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.tools import tool
 
 from mythrix.agent.context import AgentUiSelection
@@ -23,7 +23,13 @@ def get_symbol(symbol: str, tradition: str | None = None) -> dict:
     }
 
 
-_TOOLS = [get_symbol]
+@tool
+def summarize_passage(passage_text: str, concepts: list[str]) -> dict:
+    """Fake summarize_passage mirroring the real tool's shape."""
+    return {"summary": f"Summary of: {passage_text} ({', '.join(concepts)})"}
+
+
+_TOOLS = [get_symbol, summarize_passage]
 
 
 class ScriptedLLM:
@@ -211,3 +217,70 @@ def test_fabricated_citation_marker_is_not_shown_and_history_is_not_persisted() 
     assert "[G9]" not in response.reply_text
     assert "fabricated" not in response.reply_text
     assert sessions.get_or_create("s1").history == []
+
+
+def test_summarize_command_with_active_hotspot_rewrites_message_and_drives_the_tool() -> None:
+    script = [
+        AIMessage(
+            content="",
+            tool_calls=[
+                {
+                    "name": "summarize_passage",
+                    "args": {"passage_text": "some text", "concepts": ["fire"]},
+                    "id": "c1",
+                }
+            ],
+        ),
+        AIMessage(content="Here's the summary."),
+    ]
+    sessions = SessionStore()
+
+    response = run_chat_turn(
+        graph=_graph(script),
+        sessions=sessions,
+        session_id="s1",
+        message="/summarize",
+        ui_selection=AgentUiSelection(region_id="waite::0-1", locator="The Fool"),
+        max_tool_iterations=8,
+    )
+
+    assert "Here's the summary." in response.reply_text
+    human_messages = [m for m in sessions.get_or_create("s1").history if isinstance(m, HumanMessage)]
+    assert len(human_messages) == 1
+    assert "summarize_passage" in human_messages[0].content
+    assert "The Fool" in human_messages[0].content
+
+
+def test_summarize_command_with_no_hotspot_asks_the_user_to_select_one_without_calling_tools() -> None:
+    script = [AIMessage(content="Please select a passage first.")]
+    sessions = SessionStore()
+
+    response = run_chat_turn(
+        graph=_graph(script),
+        sessions=sessions,
+        session_id="s1",
+        message="/summarize",
+        ui_selection=AgentUiSelection(),
+        max_tool_iterations=8,
+    )
+
+    assert response.cards == []
+    human_messages = [m for m in sessions.get_or_create("s1").history if isinstance(m, HumanMessage)]
+    assert "no hotspot is currently selected" in human_messages[0].content
+
+
+def test_summarize_command_includes_trailing_focus_text_in_the_directive() -> None:
+    script = [AIMessage(content="Focused summary.")]
+    sessions = SessionStore()
+
+    run_chat_turn(
+        graph=_graph(script),
+        sessions=sessions,
+        session_id="s1",
+        message="/summarize focus on redemption imagery",
+        ui_selection=AgentUiSelection(region_id="waite::0-1", locator="The Fool"),
+        max_tool_iterations=8,
+    )
+
+    human_messages = [m for m in sessions.get_or_create("s1").history if isinstance(m, HumanMessage)]
+    assert "redemption imagery" in human_messages[0].content
