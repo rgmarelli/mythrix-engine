@@ -18,7 +18,7 @@ export function HotspotCard({ hotspot, isActive, onSelect }: Props) {
       <div className="hc-dots">
         {hotspot.matches.map((match) => (
           <span className="conv-chip" key={`${match.interpretant}-${match.segmentOrdinal}`}>
-            {match.interpretant} · {match.kind === 'exact' ? 'exact' : match.score.toFixed(2)}
+            {match.interpretant} · {match.kind === 'concept' ? match.score.toFixed(2) : match.kind}
           </span>
         ))}
       </div>

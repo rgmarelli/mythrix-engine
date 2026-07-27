@@ -205,7 +205,7 @@ export function HotspotDetailPanel({
               }
               onClick={() => goToSegment(match.segmentOrdinal)}
             >
-              {match.interpretant} · {match.kind === 'exact' ? 'exact' : match.score.toFixed(2)}
+              {match.interpretant} · {match.kind === 'concept' ? match.score.toFixed(2) : match.kind}
             </button>
           ))}
         </div>

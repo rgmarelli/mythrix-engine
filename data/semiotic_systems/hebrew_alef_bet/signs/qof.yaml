@@ -12,7 +12,7 @@ sign:
     - type: numeric_value
       value: '100'
       query:
-        directive: filter
+        directive: exact
         as_token: hundred
     - type: meaning
       value: Monkey

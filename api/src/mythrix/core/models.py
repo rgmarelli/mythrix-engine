@@ -97,15 +97,20 @@ class Property(MythrixModel):
 
 
 class QueryDirective(MythrixModel):
-    """A curator-authored retrieval instruction on one `Interpretant` (FR-CO-03, FR-RT-09, FR-RT-11).
+    """A curator-authored retrieval instruction on one `Interpretant` (FR-CO-03, FR-RT-09,
+    FR-RT-11, FR-EX-01–05).
 
-    `directive` is a free-text hint, not an enforced enum — v1 code interprets
-    `"filter"`, which marks this interpretant as an exact value: it is excluded from
+    `directive` is a free-text hint, not an enforced enum — v1 code interprets three
+    values. `"filter"` marks this interpretant as an exact value: it is excluded from
     the plain concept query text and instead applied as an additional literal-text
-    filter using `as_token`; and `"skip"`, which excludes this interpretant from
-    retrieval entirely — no plain query and no literal-text filter — while it
-    remains an ordinary fact elsewhere in the Sign Graph. `as_token` is required
-    for `"filter"` and unused for `"skip"`.
+    filter, using `as_token`, cross-joined with every other concept in the sign.
+    `"exact"` keeps this interpretant in the plain concept query text *and*
+    additionally applies a literal-text filter scoped to its own concept only —
+    `as_token` is optional here and defaults to `value` when omitted. `"skip"`
+    excludes this interpretant from retrieval entirely — no plain query and no
+    literal-text filter — while it remains an ordinary fact elsewhere in the Sign
+    Graph. `as_token` is required for `"filter"`, optional for `"exact"`, and unused
+    for `"skip"`.
     """
 
     directive: str
@@ -115,8 +120,8 @@ class QueryDirective(MythrixModel):
 class Interpretant(MythrixModel):
     """A conceptual token, value, or meaning evoked by a sign within one
     manifestation (FR-SD-05) — eligible for retrieval query construction (FR-CO-03, FR-RT-07)
-    unless it carries a `query` directive, in which case it is handled as described
-    on `QueryDirective`.
+    unless it carries a `query` directive that says otherwise, in which case it is
+    handled as described on `QueryDirective`.
 
     `type` is a free-text hint for display/organization (e.g. "concept",
     "foundation", "numeric_value") — descriptive metadata only, not part of
@@ -418,12 +423,13 @@ class Match(MythrixModel):
     constituent `Segment` it hit (`segment_ordinal`) so a consumer can
     navigate directly to where the match occurred rather than re-scanning the
     region (FR-RK-09). `kind` distinguishes a `"concept"` match (dense similarity,
-    carries a meaningful `score`) from an `"exact"` match (literal
-    whole-word-bounded containment, `exact_value=True`, `score` not
-    meaningful)."""
+    carries a meaningful `score`) from a literal whole-word-bounded containment
+    match (`exact_value=True`, `score` not meaningful) — labeled `"exact"` when
+    reached via a `query.directive: "exact"` interpretant (FR-EX-04) or `"filter"`
+    when reached via a `query.directive: "filter"` interpretant (FR-EX-05)."""
 
     interpretant: str
-    kind: Literal["concept", "exact"]
+    kind: Literal["concept", "exact", "filter"]
     score: float = 0.0
     exact_value: bool = False
     segment_ordinal: int

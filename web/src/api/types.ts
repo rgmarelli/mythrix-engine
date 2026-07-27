@@ -64,7 +64,7 @@ export interface RegionSegment {
 
 export interface RegionMatch {
   interpretant: string;
-  kind: 'concept' | 'exact';
+  kind: 'concept' | 'exact' | 'filter';
   score: number;
   exact_value: boolean;
   segment_ordinal: number;
@@ -96,7 +96,7 @@ export interface HotspotSegment {
 
 export interface HotspotMatch {
   interpretant: string;
-  kind: 'concept' | 'exact';
+  kind: 'concept' | 'exact' | 'filter';
   score: number;
   exactValue: boolean;
   segmentOrdinal: number;
@@ -148,7 +148,7 @@ export interface AgentCardWire {
   locator?: string | null;
   text?: string | null;
   chips?:
-    | { interpretant: string; kind: 'concept' | 'exact'; score: number; segment_ordinal: number }[]
+    | { interpretant: string; kind: 'concept' | 'exact' | 'filter'; score: number; segment_ordinal: number }[]
     | null;
 }
 
@@ -184,7 +184,7 @@ export interface AgentCitationCard {
 
 export interface AgentInterpretantChipsCard {
   type: 'interpretant_chips';
-  chips: { interpretant: string; kind: 'concept' | 'exact'; score: number; segmentOrdinal: number }[];
+  chips: { interpretant: string; kind: 'concept' | 'exact' | 'filter'; score: number; segmentOrdinal: number }[];
 }
 
 export type AgentCard = AgentCitationCard | AgentInterpretantChipsCard;

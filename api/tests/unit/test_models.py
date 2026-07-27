@@ -327,6 +327,15 @@ def test_exact_match_carries_no_meaningful_score() -> None:
     assert match.exact_value is True
 
 
+def test_filter_match_carries_no_meaningful_score() -> None:
+    """FR-EX-05: a `"filter"`-directive hit is labeled `kind="filter"`,
+    distinct from `"exact"` (reserved for a `query.directive: "exact"` hit)."""
+    match = Match(interpretant="hundred", kind="filter", exact_value=True, segment_ordinal=104)
+
+    assert match.score == 0.0
+    assert match.exact_value is True
+
+
 def test_region_query_result_round_trip(waite_source: Source) -> None:
     region = Region(
         region_id="en_drb::104",

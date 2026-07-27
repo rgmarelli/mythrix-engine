@@ -62,7 +62,7 @@ function AgentCards({ cards }: { cards: AgentCard[] }) {
           <div className="chips" key={index}>
             {card.chips.map((chip) => (
               <span className="chip" key={`${chip.interpretant}-${chip.segmentOrdinal}`}>
-                {chip.interpretant} · {chip.kind === 'exact' ? 'exact' : chip.score.toFixed(2)}
+                {chip.interpretant} · {chip.kind === 'concept' ? chip.score.toFixed(2) : chip.kind}
               </span>
             ))}
           </div>

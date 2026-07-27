@@ -345,6 +345,91 @@ def test_query_texts_skip_directive_produces_no_query_at_all() -> None:
     assert not any("needle" in q.text for q in query_texts)
 
 
+def test_query_texts_exact_directive_omits_the_unrestricted_plain_query() -> None:
+    """FR-EX-01/02: unlike an ordinary concept, an `"exact"`-directive
+    interpretant contributes no unrestricted plain query of its own value —
+    only its self-scoped filtered variant, so every hit under its value is a
+    guaranteed literal match. With no `as_token` given, the filter searches
+    the interpretant's own value directly (FR-EX-02's default)."""
+    manifestation_with_exact = THE_TOWER_MANIFESTATION.model_copy(
+        update={
+            "interpretants": (
+                Interpretant(
+                    id="interp-numeric-value",
+                    type="numeric_value",
+                    value="2",
+                    query=QueryDirective(directive="exact"),
+                ),
+            )
+        }
+    )
+    graph_facts = GraphFacts(sign=THE_TOWER, manifestation=manifestation_with_exact)
+
+    query_texts = build_query_texts(graph_facts)
+
+    assert [q.text for q in query_texts] == ["2"]
+    (filtered,) = query_texts
+    assert filtered.filter_token is not None
+    assert filtered.filter_token.value == "2"
+    assert filtered.filter_token.as_token == "2"
+    assert filtered.filter_token.kind == "exact"
+
+
+def test_query_texts_exact_directive_as_token_overrides_the_search_form() -> None:
+    """FR-EX-02: an `"exact"`-directive interpretant's `as_token`, when given,
+    is used as the literal search form instead of `value` — e.g. a numeral
+    whose corpus surface form is spelled out."""
+    manifestation_with_exact = THE_TOWER_MANIFESTATION.model_copy(
+        update={
+            "interpretants": (
+                Interpretant(
+                    id="interp-numeric-value",
+                    type="numeric_value",
+                    value="100",
+                    query=QueryDirective(directive="exact", as_token="hundred"),
+                ),
+            )
+        }
+    )
+    graph_facts = GraphFacts(sign=THE_TOWER, manifestation=manifestation_with_exact)
+
+    query_texts = build_query_texts(graph_facts)
+
+    filtered = next(q for q in query_texts if q.filter_token is not None)
+    assert filtered.filter_token.as_token == "hundred"
+    assert filtered.filter_token.value == "100"
+
+
+def test_query_texts_exact_directive_filter_never_pairs_with_an_unrelated_concept() -> None:
+    """FR-EX-03: unlike a `"filter"`-directive token, which is collected
+    globally and paired with every concept in the sign (see the gematria
+    tests above), an `"exact"`-directive token only ever appears alongside
+    its own concept's query — an unrelated concept elsewhere in the sign gets
+    no filtered variant for it."""
+    manifestation_with_exact = THE_TOWER_MANIFESTATION.model_copy(
+        update={
+            "interpretants": (
+                Interpretant(id="interp-element", type="element", value="Fire"),
+                Interpretant(
+                    id="interp-numeric-value",
+                    type="numeric_value",
+                    value="2",
+                    query=QueryDirective(directive="exact"),
+                ),
+            )
+        }
+    )
+    graph_facts = GraphFacts(sign=THE_TOWER, manifestation=manifestation_with_exact)
+
+    query_texts = build_query_texts(graph_facts)
+
+    fire_queries = [q for q in query_texts if q.text == "Fire"]
+    assert all(q.filter_token is None for q in fire_queries)
+    two_queries = [q for q in query_texts if q.text == "2"]
+    assert len(two_queries) == 1
+    assert all(q.filter_token is not None for q in two_queries)
+
+
 def test_retrieve_searches_the_full_corpus_with_no_scoping_filter(graph_store: KuzuGraphStore) -> None:
     """FR-CO-02: retrieval is never scoped by tradition — there is no tradition
     parameter left on `similarity_search` to pass one through."""
@@ -822,6 +907,46 @@ def test_exact_value_pairs_with_the_concept_sharing_its_chunk(graph_store: KuzuG
     assert matches_by_concept["Fish"].score == pytest.approx(0.7)
 
 
+def test_exact_directive_concept_pairs_with_a_real_score_not_synthetic_membership(
+    graph_store: KuzuGraphStore,
+) -> None:
+    """FR-EX-03: an `"exact"`-directive interpretant's value is a real concept
+    (FR-EX-01) with its own similarity score — when it converges with another
+    concept it pairs normally, scored like any concept, unlike a
+    `"filter"`-directive token, which pairs as membership-only with a forced
+    `score=0.0` (`test_exact_value_pairs_with_the_concept_sharing_its_chunk`
+    above). It never appears via the separate global filter cross-join
+    either."""
+    manifestation = THE_TOWER_MANIFESTATION.model_copy(
+        update={
+            "interpretants": (
+                Interpretant(id="interp-element", type="element", value="Fire"),
+                Interpretant(
+                    id="interp-numeric-value",
+                    type="numeric_value",
+                    value="2",
+                    query=QueryDirective(directive="exact"),
+                ),
+            )
+        }
+    )
+    graph_facts = GraphFacts(sign=THE_TOWER, manifestation=manifestation)
+    shared_hit = _make_hit("shared", distance=0.2)
+    # 2 calls: Fire(plain), "2"(filtered) — "2" has no unrestricted plain
+    # query of its own (FR-EX-01), so this is its only query.
+    vector_store = SequencedVectorStore([[shared_hit], [shared_hit]])
+    pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
+
+    context = pipeline.retrieve(graph_facts)
+
+    assert len(context.pair_candidates) == 1
+    pair = context.pair_candidates[0]
+    assert set(pair.concepts) == {"Fire", "2"}
+    two_match = next(m for m in pair.candidates[0].matches if m.concept == "2")
+    assert two_match.exact_value is False
+    assert two_match.score != 0.0
+
+
 def test_combined_score_ranks_a_balanced_pair_above_a_lopsided_one_with_the_same_sum() -> None:
     """Sum and arithmetic mean can't tell these apart: (0.90+0.20) ==
     (0.57+0.53) == 1.10, and both average to 0.55. But only the second
@@ -1043,9 +1168,11 @@ def test_retrieve_regions_rare_interpretant_outweighs_a_ubiquitous_one_of_equal_
 
 
 def test_retrieve_regions_exact_match_scores_by_fixed_presence_strength(graph_store: KuzuGraphStore) -> None:
-    """FR-RK-05: an exact-token match contributes a fixed presence strength to
-    the region score, not a computed similarity — and does not count toward
-    `convergence_count`."""
+    """FR-RK-05: a literal-containment match contributes a fixed presence
+    strength to the region score, not a computed similarity — and does not
+    count toward `convergence_count`. Reached via a `"filter"`-directive
+    interpretant, so it is labeled `kind == "filter"` (FR-EX-05), not
+    `"exact"` (reserved for a `query.directive: "exact"` interpretant)."""
     graph_facts = _gematria_intersemiotic_graph_facts()
     hit = _make_segment_hit("waite-pictorial-key::1", ordinal=1, locator="Genesis 21:5", distance=0.3)
     # 4 calls: Fire(None), Fire(hundred), Fish(None), Fish(hundred) — hit only
@@ -1058,11 +1185,50 @@ def test_retrieve_regions_exact_match_scores_by_fixed_presence_strength(graph_st
     result = pipeline.retrieve_regions(graph_facts)
 
     region = result.regions[0]
-    assert len(region.matches) == 2  # "Fish" (concept) + "100" (exact)
-    assert region.convergence_count == 1  # exact match excluded from the count
-    exact_match = next(m for m in region.matches if m.kind == "exact")
-    assert exact_match.interpretant == "100"
-    assert exact_match.exact_value is True
+    assert len(region.matches) == 2  # "Fish" (concept) + "100" (filter)
+    assert region.convergence_count == 1  # filter match excluded from the count
+    filter_match = next(m for m in region.matches if m.kind == "filter")
+    assert filter_match.interpretant == "100"
+    assert filter_match.exact_value is True
+
+
+def test_retrieve_regions_exact_directive_never_shows_two_pills_for_one_value(
+    graph_store: KuzuGraphStore,
+) -> None:
+    """An `"exact"`-directive interpretant has exactly one query (FR-EX-01),
+    so a hit it returns always qualifies as both a `"concept"` match (via
+    `deep_hits_by_concept`) and an `"exact"` match (via
+    `filter_token_chunk_ids`) on the same segment. The region must not
+    surface two pills for the same value — one scored, one not. The
+    `"concept"` match (a real score) wins and the redundant `"exact"` match
+    is dropped, exactly like two matches of one concept on the same segment
+    already collapse (FR-RK-01/05)."""
+    manifestation = THE_TOWER_MANIFESTATION.model_copy(
+        update={
+            "interpretants": (
+                Interpretant(
+                    id="interp-numeric-value",
+                    type="numeric_value",
+                    value="2",
+                    query=QueryDirective(directive="exact"),
+                ),
+            )
+        }
+    )
+    graph_facts = GraphFacts(sign=THE_TOWER, manifestation=manifestation)
+    hit = _make_segment_hit("waite-pictorial-key::1", ordinal=1, locator="Genesis 1:1", distance=0.3)
+    # 1 call: "2"'s only query (filtered) returns the hit, which then
+    # qualifies as both a "concept" match and an "exact" match on segment 1.
+    vector_store = SequencedVectorStore([[hit]], corpus_size=200, document_frequencies={"2": 10})
+    pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
+
+    result = pipeline.retrieve_regions(graph_facts)
+
+    region = result.regions[0]
+    matches_for_two = [m for m in region.matches if m.interpretant == "2"]
+    assert len(matches_for_two) == 1
+    assert matches_for_two[0].kind == "concept"
+    assert matches_for_two[0].score == pytest.approx(0.7)
 
 
 def test_retrieve_regions_anchors_an_exact_match_that_never_survives_a_concepts_own_deep_pool(
@@ -1098,9 +1264,9 @@ def test_retrieve_regions_anchors_an_exact_match_that_never_survives_a_concepts_
     assert len(result.regions) == 1
     region = result.regions[0]
     assert {s.ordinal for s in region.segments} == {99, 100}
-    exact_match = next(m for m in region.matches if m.kind == "exact")
-    assert exact_match.segment_ordinal == 99
-    assert exact_match.score == 0.0
+    filter_match = next(m for m in region.matches if m.kind == "filter")
+    assert filter_match.segment_ordinal == 99
+    assert filter_match.score == 0.0
 
 
 def test_retrieve_regions_facets_count_eligible_regions(graph_store: KuzuGraphStore) -> None:

@@ -118,9 +118,11 @@ class PropertyEntry(LoaderModel):
 
 
 class QueryDirectiveEntry(LoaderModel):
-    """An interpretant's `query:` annotation (FR-CO-03, FR-RT-09, FR-RT-11). `directive` is
-    free text; v1 code interprets `"filter"` (requires `as_token`) and `"skip"`
-    (excludes the interpretant from retrieval entirely; `as_token` unused)."""
+    """An interpretant's `query:` annotation (FR-CO-03, FR-RT-09, FR-RT-11, FR-EX-01–05).
+    `directive` is free text; v1 code interprets `"filter"` (requires `as_token`,
+    excluded from the plain query), `"exact"` (kept in the plain query, `as_token`
+    optional and defaults to `value`), and `"skip"` (excludes the interpretant from
+    retrieval entirely; `as_token` unused)."""
 
     directive: str
     as_token: str = ""
