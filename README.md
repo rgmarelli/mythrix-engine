@@ -1,5 +1,7 @@
 # Mythrix Engine
 
+> 🚧 **Work in Progress** — Mythrix is an actively developed project. The architecture, APIs, data model, and user experience are still evolving.
+
 **An explainable symbolic-interpretation engine where every retrieved result is grounded in cited primary sources — never presented as an unsupported model guess.**
 
 Symbol-interpretation systems typically face a trade-off between explainability and flexibility. Traditional systems can provide explicit sources but are often limited to predefined interpretations, while LLM-based systems can produce fluent explanations without a verifiable reasoning trail.
