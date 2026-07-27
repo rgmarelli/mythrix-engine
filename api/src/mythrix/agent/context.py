@@ -150,10 +150,9 @@ def render_context_summary(context: AgentContext) -> str:
         if context.locator:
             lines.append(f"Its human-readable reference is: {context.locator}.")
     if context.sign:
-        subject = context.sign
-        if context.tradition:
-            subject += f" ({context.tradition})"
-        lines.append(f"Current sign: {subject}.")
+        lines.append(f"Current sign: {context.sign}.")
+    if context.tradition:
+        lines.append(f"Current tradition: {context.tradition}.")
     if context.semiotic_system:
         lines.append(f"Semiotic system: {context.semiotic_system}.")
     return "\n".join(lines)
