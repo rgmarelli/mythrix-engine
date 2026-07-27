@@ -58,6 +58,14 @@ Refines FR-AG-01–FR-AG-13 for the panel's web-UI-specific behavior; the underl
 
 - FR-AG-27: Every turn's input, resolved context, each model invocation's full input and response, each tool call and result, and the final outcome are logged to the process's standard log output at INFO level, for local debugging. This is operational visibility only — it adds no visible behavior for the user and never changes the API response.
 
+### Prompt requirements
+
+- FR-AG-28: The agent's system prompt must be kept clean, short, and simple: as few rules, as little wording per rule, and as little total length as satisfies the remaining requirements in this section. Every rule in the prompt must earn its place by changing which tool the model selects, when it selects one, or how it composes a reply from tool results; a rule that does neither is removed, not reworded ([ADR-009](../architecture-decisions/adr-009-minimal-agent-system-prompt.md)).
+- FR-AG-29: The system prompt does not restate domain knowledge that a tool result already carries (e.g. the semiotic-system/sign/tradition/interpretant model), and does not duplicate a formatting or state-persistence rule that is enforced elsewhere in the system rather than by the model's own compliance.
+- FR-AG-30: The system prompt places no formatting restriction on the model's reply text (e.g. no markdown ban); reply formatting is governed entirely by rendering (FR-AG-23–FR-AG-26).
+- FR-AG-31: The system prompt asks the model to persist no state of its own across turns within its reply text. Any state that must carry across turns is held in the context object (FR-AG-17), populated deterministically from tool results and UI selections, never from model-authored text.
+- FR-AG-32: Adding a new rule to the system prompt is justified only when the requirement cannot be enforced in code or in the UI instead; where enforcement in code is possible, that takes precedence over relying on the model to follow a prompt instruction.
+
 ## Non-goals
 
 - Any mutating/administrative tool in the conversational agent's tool set (ingesting signs/documents, reloading stores), a cloud/hosted generation model, or persisting agent sessions across process restarts; the agent is an orchestration and presentation layer that introduces no new retrieval, ranking, or convergence behavior and does not parse free text into retrieval query text.
