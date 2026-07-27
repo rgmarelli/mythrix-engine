@@ -218,6 +218,59 @@ def test_get_segments_start_after_end_returns_empty_without_querying(store: Chro
     assert store.get_segments("s1", start_ordinal=3, end_ordinal=1) == []
 
 
+def test_document_matches_returns_every_containing_chunk_with_no_top_k_cap(store: ChromaVectorStore) -> None:
+    """An `"exact"`-directive token (FR-EX-01/02) needs every literal
+    occurrence, not an ANN-ranked, `top_k`-capped subset — `document_matches`
+    is a pure document scan, so it returns all matching chunks regardless of
+    how many there are."""
+    chunks = [Chunk(index=i, text=f"chunk {i} mentions a hundred years", char_start=0, char_end=30) for i in range(8)]
+    unrelated = Chunk(index=8, text="chunk with no mention of the number", char_start=0, char_end=36)
+    store.add_chunks([*chunks, unrelated], embeddings=[[1.0, 0.0]] * 9, metadata=_metadata(source_id="s1"))
+
+    hits = store.document_matches("hundred")
+
+    assert len(hits) == 8
+    assert {hit.text for hit in hits} == {c.text for c in chunks}
+
+
+def test_document_matches_is_word_bounded_not_substring(store: ChromaVectorStore) -> None:
+    """FR-RT-15: same whole-word-boundary rule as `document_contains` — `50`
+    must not match inside `150`."""
+    matching = Chunk(index=0, text="he lived for 50 years", char_start=0, char_end=22)
+    non_matching = Chunk(index=1, text="the sum was 150 talents", char_start=23, char_end=47)
+    store.add_chunks([matching, non_matching], embeddings=[[1.0, 0.0]] * 2, metadata=_metadata(source_id="s1"))
+
+    hits = store.document_matches("50")
+
+    assert [hit.text for hit in hits] == ["he lived for 50 years"]
+
+
+def test_document_matches_needs_no_embedding_and_still_returns_the_full_segment(store: ChromaVectorStore) -> None:
+    """A caller (e.g. `RetrievalPipeline`) can hydrate a full segment/passage
+    from a `document_matches` hit — locator, ordinal, section, and text are
+    all populated exactly as `similarity_search` would, even though no query
+    embedding was ever involved. `distance` is a placeholder (`0.0`), not a
+    similarity judgment."""
+    chunk = Chunk(
+        index=0,
+        text="a hundred years old",
+        char_start=0,
+        char_end=20,
+        locator="Genesis 21:5",
+        ordinal=5,
+        section="Genesis 21",
+    )
+    store.add_chunks([chunk], embeddings=[[1.0, 0.0]], metadata=_metadata(source_id="s1"))
+
+    (hit,) = store.document_matches("hundred")
+
+    assert hit.locator == "Genesis 21:5"
+    assert hit.ordinal == 5
+    assert hit.section == "Genesis 21"
+    assert hit.source_id == "s1"
+    assert hit.distance == 0.0
+
+
 def test_document_frequency_counts_word_bounded_matches(store: ChromaVectorStore) -> None:
     chunks = [
         Chunk(index=0, text="he lived for 50 years", char_start=0, char_end=22),

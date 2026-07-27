@@ -12,7 +12,7 @@ sign:
     - type: numeric_value
       value: '9'
       query:
-        directive: filter
+        directive: exact
         as_token: nine
     - type: meaning
       value: Inclination
@@ -29,4 +29,6 @@ sign:
         as_token: Leo
     - type: spelling
       value: Tet
+      query:
+        directive: exact
     cites: Sepher Yetzirah

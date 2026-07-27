@@ -29,4 +29,6 @@ sign:
         as_token: Pisces
     - type: spelling
       value: Qof
+      query:
+        directive: exact
     cites: Sepher Yetzirah

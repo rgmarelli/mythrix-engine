@@ -15,13 +15,14 @@ additional literal-text-filtered query (`query.as_token`) alongside — never
 instead of — its plain query. Every filter token recognized anywhere in the
 current `GraphFacts` is collected once and applied to every concept's query,
 not just the ones in its own group (`_collect_filter_tokens`, `_fact_queries`).
-An interpretant carrying `query.directive: "exact"` (FR-EX-01–03) is searched
-only through a literal-text-filtered variant of its own concept, scoped to
-itself and never cross-joined with other concepts (`_self_filtered_queries`)
-— unlike `"filter"`, it contributes no separate *unrestricted* plain query,
-so every hit found under its value is a guaranteed literal match. An interpretant
-carrying `query.directive: "skip"` (FR-RT-11) is excluded from retrieval
-entirely (`_is_skipped`, `_extract_concepts`).
+An interpretant carrying `query.directive: "exact"` (FR-EX-01–03) is never
+embedded or ANN-searched at all — it is matched by an exhaustive literal
+document scan of its own value only (`collect_exact_tokens`,
+`ChromaVectorStore.document_matches`), never cross-joined with other
+concepts and never assigned a similarity score, since there is no query
+vector behind the match. An interpretant carrying `query.directive: "skip"`
+(FR-RT-11) is excluded from retrieval entirely (`_is_skipped`,
+`_extract_concepts`).
 
 Retrieval searches the full corpus by default (FR-CO-02). Each hit is hydrated
 into a `RetrievedPassage` carrying its `Source` for citation (FR-RT-05).
@@ -40,7 +41,8 @@ is the geometric mean of its two component scores (`_combined_score`; ADR-007
 on why geometric rather than arithmetic). An interpretant reached via a
 `"filter"` directive contributes membership to a pair but no score; one
 reached via an `"exact"` directive never contributes a pair candidate at all
-(FR-EX-03) — its literal filter is scoped to its own concept only.
+(FR-EX-03) — it is never embedded, so it never shares a deep pool with any
+other concept in the first place.
 
 Scores are comparable only within a pair group, where every candidate is
 scored by the same two queries; they are not comparable across groups.
@@ -198,28 +200,31 @@ class RetrievalPipeline:
     ) -> tuple[dict[str, dict[str, VectorHit]], dict[str, set[str]], dict[str, VectorHit], dict[str, str]]:
         """Runs every query from `build_query_texts`, Reciprocal-Rank-Fusing
         hits *within* each concept's own queries only (never across
-        concepts), to `match_pool_size` depth. Returns `(deep_hits_by_concept,
-        filter_token_chunk_ids, all_hits_by_chunk_id, token_kind_by_value)` —
-        `token_kind_by_value` maps each filter token's authored `value` to the
-        directive that produced it (`"filter"` or `"exact"`, FR-EX-04/05), so
-        callers can label a token-matched hit correctly without re-deriving
-        the directive.
+        concepts), to `match_pool_size` depth, then separately runs an
+        exhaustive document scan for every `collect_exact_tokens` token (no
+        embedding, no ANN, no `top_k` cap — FR-EX-01/02). Returns
+        `(deep_hits_by_concept, filter_token_chunk_ids, all_hits_by_chunk_id,
+        token_kind_by_value)` — `token_kind_by_value` maps each token's
+        authored `value` to the directive that produced it (`"filter"` or
+        `"exact"`, FR-EX-04/05), so callers can label a token-matched hit
+        correctly without re-deriving the directive.
 
-        `all_hits_by_chunk_id` holds every hit any query returned, before RRF
-        trims each concept's own pool to `match_pool_size` — `retrieve_regions`
-        needs this unfiltered map because an exact-token match's chunk can be
-        a genuine filter hit (`document_contains` is a hard containment
-        guarantee) without ranking highly enough for any single *concept* to
-        survive into that concept's own RRF-trimmed pool.
+        `all_hits_by_chunk_id` holds every hit any query or exact-token scan
+        returned, before RRF trims each concept's own pool to
+        `match_pool_size` — `retrieve_regions` needs this unfiltered map to
+        hydrate a token-matched segment that never ranked into any concept's
+        own pool.
 
         Each concept's `dict[chunk_id, VectorHit]` preserves RRF-rank order
         (insertion order), so a caller taking its first `top_k` entries gets
         the same displayed slice `iter_candidates`'s `ConceptCandidates`
-        would."""
+        would. An `"exact"`-directive token never becomes a concept here —
+        see `collect_exact_tokens`."""
         self._lookup_cache: dict[str, Source] = {}
 
         queries = build_query_texts(graph_facts)
-        query_embeddings = self._embedder.embed([query.text for query in queries])
+        exact_tokens = collect_exact_tokens(graph_facts)
+        query_embeddings = self._embedder.embed([query.text for query in queries]) if queries else []
 
         queries_by_concept: dict[str, list[tuple[_Query, list[float]]]] = {}
         for query, embedding in zip(queries, query_embeddings, strict=True):
@@ -275,6 +280,14 @@ class RetrievalPipeline:
                 "filter_token=%r as_token=%r hits=%d", value, as_token_by_value.get(value, value), len(chunk_ids)
             )
 
+        for token in exact_tokens:
+            hits = self._vector_store.document_matches(token.as_token)
+            filter_token_chunk_ids.setdefault(token.value, set()).update(hit.chunk_id for hit in hits)
+            for hit in hits:
+                all_hits_by_chunk_id.setdefault(hit.chunk_id, hit)
+            token_kind_by_value[token.value] = "exact"
+            logger.info("exact_token=%r as_token=%r hits=%d", token.value, token.as_token, len(hits))
+
         return deep_hits_by_concept, filter_token_chunk_ids, all_hits_by_chunk_id, token_kind_by_value
 
     def retrieve_regions(self, graph_facts: GraphFacts) -> RegionQueryResult:
@@ -287,28 +300,25 @@ class RetrievalPipeline:
         match is kept only if it clears `min_score` (FR-RT-14), then matches
         are grouped into regions by contiguous ordinal within
         `region_window_size` (FR-RK-02). Within a region, an interpretant that
-        matched more than one of its segments — or matched the same segment
-        via both the `"concept"` loop and the filter-token loop below, which
-        for an `"exact"`-directive value draw from the very same query
-        (FR-EX-04) — keeps only its single best match (FR-RK-01,
-        FR-RK-05): summing every per-segment occurrence would let a passage
-        repeating one token across many adjacent segments inflate its score
-        by repetition alone (ADR-004), and showing both a real similarity
-        score and a redundant fixed-strength exact match for the same value
-        would double-count one signal as two. Keyed by `interpretant` alone,
-        so a `"concept"` match (a real score) always wins over an
-        `"exact"`/`"filter"` match (fixed strength) for the same value — the
-        exact-token match only surfaces on its own when no concept match for
-        that value exists in the region at all (FR-RT-15's classic case: the
-        token's own segment falls outside every concept's surviving deep
-        pool). That single best match still anchors to the specific segment
-        it occurred at (FR-RK-09). A region is eligible when its count of
-        distinct *concept* interpretants reaches `region_min_interpretants` —
-        an exact-token match (`"exact"` or `"filter"` kind) is excluded from
-        this count since it is a containment guarantee, not a semantic
-        signal, and shouldn't alone make a region eligible; the default of 1
-        makes an isolated strong match a valid, rankable region on its own
-        (FR-RK-03)."""
+        matched more than one of its segments keeps only its single best
+        match (FR-RK-01, FR-RK-05): summing every per-segment occurrence
+        would let a passage repeating one token across many adjacent
+        segments inflate its score by repetition alone (ADR-004). Keyed by
+        `interpretant` alone, so a `"concept"` match (a real score) wins over
+        an `"exact"`/`"filter"` match (fixed strength) if the same authored
+        value happens to reach both (e.g. a `"filter"` token that also
+        matches on its own literal reading elsewhere) — an
+        `"exact"`-directive value itself never has a `"concept"` match to
+        compete with, since it is never embedded (FR-EX-01). That single
+        best match still anchors to the specific segment it occurred at
+        (FR-RK-09). A region is eligible when its count of distinct matching
+        interpretants — of any kind, `"concept"` and `"exact"`/`"filter"`
+        alike — reaches `region_min_interpretants` (FR-RK-03/05); the default
+        of 1 makes an isolated match a valid, rankable region on its own,
+        including one reached only by an `"exact"`-directive token with no
+        nearby concept match at all — the whole point of `"exact"` is that
+        every literal occurrence surfaces, not only the ones that happen to
+        sit next to a semantic match."""
         deep_hits_by_concept, filter_token_chunk_ids, hit_by_chunk_id, token_kind_by_value = self._search_deep_pools(
             graph_facts
         )
@@ -373,8 +383,8 @@ class RetrievalPipeline:
                             best_match_by_interpretant[match.interpretant] = match
 
                 region_matches = list(best_match_by_interpretant.values())
-                concept_interpretants = {match.interpretant for match in region_matches if match.kind == "concept"}
-                if len(concept_interpretants) < self._region_min_interpretants:
+                distinct_interpretants = {match.interpretant for match in region_matches}
+                if len(distinct_interpretants) < self._region_min_interpretants:
                     continue
 
                 score = sum(
@@ -389,7 +399,7 @@ class RetrievalPipeline:
                         source=self._source_for(representative_hit),
                         locator=_region_locator(tuple(region_segments)),
                         score=score,
-                        convergence_count=len(concept_interpretants),
+                        convergence_count=len(distinct_interpretants),
                         segments=tuple(region_segments),
                         matches=tuple(region_matches),
                     )
@@ -553,11 +563,10 @@ def _is_filter_directive(interpretant: Interpretant) -> bool:
 def _is_exact_directive(interpretant: Interpretant) -> bool:
     """True only for `query.directive == "exact"` — excluded from the
     unrestricted plain concept query text like `"filter"` (FR-EX-01), but for
-    a different reason: an `"exact"` interpretant is searched exclusively
-    through its own self-scoped literal-filtered variant
-    (`_self_filtered_queries`), never through an unfiltered query of its own
-    value. That filtered query still stands in as this interpretant's
-    "concept" for display, scoring, and pair-candidate purposes (FR-EX-02)."""
+    a different reason: an `"exact"` interpretant is never embedded or
+    ANN-searched at all, only matched by an exhaustive literal document scan
+    of its own value (`collect_exact_tokens`, FR-EX-02) — a membership
+    guarantee, not a similarity judgment, so it carries no score."""
     return interpretant.query is not None and interpretant.query.directive == "exact"
 
 
@@ -567,10 +576,11 @@ def _extract_concepts(interpretants: tuple[Interpretant, ...]) -> list[str]:
     carrying `query.directive: "filter"` is excluded here since it's handled
     separately as a global filter (`_collect_filter_tokens`); one carrying
     `"skip"` (FR-RT-11) is excluded outright. An interpretant carrying
-    `"exact"` is also excluded — its query is generated solely by
-    `_self_filtered_queries` (FR-EX-01), guaranteeing every hit under its
-    value is a genuine literal match rather than an unfiltered semantic
-    guess. `properties` are never passed to this function — only
+    `"exact"` is also excluded — it is never embedded or ANN-searched at all,
+    only scanned for directly by `collect_exact_tokens` (FR-EX-01),
+    guaranteeing every hit under its value is a genuine literal match rather
+    than an unfiltered semantic guess. `properties` are never passed to this
+    function — only
     `Manifestation.interpretants` and
     `IntersemioticInterpretant.target_interpretants` ever reach it."""
     concepts: list[str] = []
@@ -591,9 +601,8 @@ def _collect_filter_tokens(interpretant_groups: list[tuple[Interpretant, ...]]) 
     ones that happen to share a group with the token. The authored form is
     kept alongside the search form so it can surface as a pair member in its
     own right (FR-RT-09). `"exact"`-directive tokens are excluded here — they
-    are scoped to their own concept's query only (FR-EX-03) and collected
-    instead by `_self_filtered_queries`, never cross-joined with other
-    concepts."""
+    never pair with an embedding query at all and are collected instead by
+    `collect_exact_tokens` (FR-EX-01/03)."""
     tokens: list[_FilterToken] = []
     seen_as_tokens: set[str] = set()
     for interpretants in interpretant_groups:
@@ -605,21 +614,24 @@ def _collect_filter_tokens(interpretant_groups: list[tuple[Interpretant, ...]]) 
     return tokens
 
 
-def _self_filtered_queries(interpretants: tuple[Interpretant, ...]) -> list[_Query]:
-    """One filtered query per atomic concept of each `"exact"`-directive
-    interpretant in this group, paired only with that interpretant's own
-    token (FR-EX-02) — never cross-joined with other concepts the way
-    `"filter"` tokens are (FR-EX-03, `_collect_filter_tokens`). This is the
-    *only* query such an interpretant contributes (`_extract_concepts`
-    excludes it from the unrestricted plain query), so it doubles as that
-    value's entire "concept" pool."""
-    queries: list[_Query] = []
-    for interpretant in interpretants:
-        token = _filter_token_for(interpretant)
-        if token is None or token.kind != "exact":
-            continue
-        queries += [_Query(text=concept, filter_token=token) for concept in _atomic_values(interpretant.value)]
-    return queries
+def _collect_exact_tokens(interpretant_groups: list[tuple[Interpretant, ...]]) -> list[_FilterToken]:
+    """Every recognized `"exact"`-directive token found anywhere across
+    `interpretant_groups`, deduplicated by `as_token`. Unlike a `"filter"`
+    token, an `"exact"` token never pairs with an embedding query
+    (`_fact_queries`) at all — `_search_deep_pools` scans for it directly via
+    `ChromaVectorStore.document_matches` (FR-EX-01/02), so which group it
+    came from doesn't matter; this collects globally purely so a token
+    reachable through two paths (e.g. a bare interpretant and an
+    intersemiotic target) isn't scanned for twice."""
+    tokens: list[_FilterToken] = []
+    seen_as_tokens: set[str] = set()
+    for interpretants in interpretant_groups:
+        for interpretant in interpretants:
+            token = _filter_token_for(interpretant)
+            if token and token.kind == "exact" and token.as_token not in seen_as_tokens:
+                seen_as_tokens.add(token.as_token)
+                tokens.append(token)
+    return tokens
 
 
 def _fact_queries(interpretants: tuple[Interpretant, ...], filter_tokens: list[_FilterToken]) -> list[_Query]:
@@ -627,17 +639,16 @@ def _fact_queries(interpretants: tuple[Interpretant, ...], filter_tokens: list[_
     query, plus — for every `"filter"`-directive token recognized anywhere in
     the current `GraphFacts` — one additional filtered variant per concept,
     combined with that token as a literal-text filter (FR-CO-03: alongside,
-    never instead of, the plain query). Also includes, for each
-    `"exact"`-directive interpretant in this group, its own self-scoped
-    filtered query (`_self_filtered_queries`, FR-EX-02). A group with no
-    concepts of its own contributes no plain or `"filter"`-paired queries
-    here — a lone `"filter"` token with nothing to filter is handled once,
-    globally, by `build_query_texts`."""
+    never instead of, the plain query). An `"exact"`-directive interpretant
+    in this group contributes nothing here at all — it is handled entirely
+    by `collect_exact_tokens`/`_search_deep_pools`, never embedded. A group
+    with no concepts of its own contributes no plain or `"filter"`-paired
+    queries here — a lone `"filter"` token with nothing to filter is handled
+    once, globally, by `build_query_texts`."""
     concepts = _extract_concepts(interpretants)
     queries = [_Query(text=concept) for concept in concepts]
     for token in filter_tokens:
         queries += [_Query(text=concept, filter_token=token) for concept in concepts]
-    queries += _self_filtered_queries(interpretants)
     return queries
 
 
@@ -654,19 +665,31 @@ def _intersemiotic_query_texts(
     return _fact_queries(interpretant.target_interpretants, filter_tokens)
 
 
+def _interpretant_groups(graph_facts: GraphFacts) -> list[tuple[Interpretant, ...]]:
+    """Every group of interpretants reachable from `graph_facts`: the queried
+    sign's own manifestation, then each intersemiotic interpretant's
+    `target_interpretants` — the traversal `build_query_texts`,
+    `collect_exact_tokens`, and `_filter_token_surface_forms` all need before
+    doing their own thing with it."""
+    sign, manifestation = graph_facts.sign, graph_facts.manifestation
+    groups = [manifestation.interpretants]
+    groups += [interpretant.target_interpretants for interpretant in sign.intersemiotic_interpretants]
+    return groups
+
+
 def build_query_texts(graph_facts: GraphFacts) -> list[_Query]:
     """One query per individual atomic concept reachable from the queried
     sign (FR-CO-03): one per atomic concept in each interpretant of the
     sign's own manifestation, then for each intersemiotic interpretant
     (FR-DM-03, FR-SD-04), one per atomic concept about the target. Every
-    recognized filter token anywhere in `graph_facts` becomes a filtered
-    variant of every concept, not just the ones in its own group.
-    `RetrievalPipeline.retrieve` embeds and searches every one, then merges
-    the results by rank (RRF; ADR-007), not raw score, within each concept."""
+    recognized `"filter"` token anywhere in `graph_facts` becomes a filtered
+    variant of every concept, not just the ones in its own group. An
+    `"exact"`-directive interpretant's value never appears here at all — see
+    `collect_exact_tokens`. `RetrievalPipeline.retrieve` embeds and searches
+    every one, then merges the results by rank (RRF; ADR-007), not raw
+    score, within each concept."""
     sign, manifestation = graph_facts.sign, graph_facts.manifestation
-    interpretant_groups = [manifestation.interpretants]
-    interpretant_groups += [interpretant.target_interpretants for interpretant in sign.intersemiotic_interpretants]
-    filter_tokens = _collect_filter_tokens(interpretant_groups)
+    filter_tokens = _collect_filter_tokens(_interpretant_groups(graph_facts))
 
     queries = _fact_queries(manifestation.interpretants, filter_tokens)
     for interpretant in sign.intersemiotic_interpretants:
@@ -677,25 +700,34 @@ def build_query_texts(graph_facts: GraphFacts) -> list[_Query]:
         # no concept to attach the token to — search each token's search form
         # on its own rather than dropping it. Not tagged with `filter_token=`:
         # with no concept to pair against, it can't participate in
-        # FR-RT-08/FR-RT-09 convergence anyway. An "exact"-directive
-        # interpretant never reaches this branch — it always contributes its
-        # own self-filtered query (FR-EX-01, `_self_filtered_queries`).
+        # FR-RT-08/FR-RT-09 convergence anyway. A sign whose only fact is a
+        # bare "exact"-directive interpretant legitimately yields `[]` here —
+        # `collect_exact_tokens`/`_search_deep_pools` handle it entirely
+        # separately, with no embedding involved.
         queries += [_Query(text=token.as_token) for token in filter_tokens]
 
     return [query for query in queries if query.text]
 
 
+def collect_exact_tokens(graph_facts: GraphFacts) -> list[_FilterToken]:
+    """Every recognized `"exact"`-directive token reachable from
+    `graph_facts` (FR-EX-01/02), deduplicated by `as_token`. Kept separate
+    from `build_query_texts`'s ANN-embeddable queries — an `"exact"` token is
+    never embedded, only scanned for directly via
+    `ChromaVectorStore.document_matches` in `_search_deep_pools`."""
+    return _collect_exact_tokens(_interpretant_groups(graph_facts))
+
+
 def _filter_token_surface_forms(graph_facts: GraphFacts) -> dict[str, str]:
-    """Maps every recognized filter token's curator-authored `value` (the
-    form used as `Match.interpretant`, e.g. `"100"`) to its searched
-    `as_token` (the literal form actually present in the corpus, e.g.
-    `"hundred"`) — specificity weighting for a token interpretant must use
-    the searched form, not the authored one, since that's what
+    """Maps every recognized token's curator-authored `value` (the form used
+    as `Match.interpretant`, e.g. `"100"`) to its searched `as_token` (the
+    literal form actually present in the corpus, e.g. `"hundred"`) — for both
+    `"filter"` and `"exact"` tokens, since specificity weighting for either
+    must use the searched form, not the authored one, which is what
     `document_frequency` actually counts."""
-    sign, manifestation = graph_facts.sign, graph_facts.manifestation
-    interpretant_groups = [manifestation.interpretants]
-    interpretant_groups += [interpretant.target_interpretants for interpretant in sign.intersemiotic_interpretants]
-    return {token.value: token.as_token for token in _collect_filter_tokens(interpretant_groups)}
+    groups = _interpretant_groups(graph_facts)
+    tokens = _collect_filter_tokens(groups) + _collect_exact_tokens(groups)
+    return {token.value: token.as_token for token in tokens}
 
 
 def _cluster_ordinals(ordinals: set[int], window_size: int) -> list[list[int]]:

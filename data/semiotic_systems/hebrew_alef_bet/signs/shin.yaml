@@ -12,7 +12,7 @@ sign:
     - type: numeric_value
       value: '300'
       query:
-        directive: filter
+        directive: exact
         as_token: three hundred
     - type: foundation
       value: Heaven
@@ -20,4 +20,6 @@ sign:
       value: Fire
     - type: spelling
       value: Shin
+      query:
+        directive: exact
     cites: Sepher Yetzirah

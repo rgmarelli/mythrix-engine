@@ -12,7 +12,7 @@ sign:
     - type: numeric_value
       value: '4'
       query:
-        directive: filter
+        directive: exact
         as_token: four
     - type: meaning
       value: Door
@@ -26,4 +26,6 @@ sign:
       value: Sun
     - type: spelling
       value: Dalet
+      query:
+        directive: exact
     cites: Sepher Yetzirah

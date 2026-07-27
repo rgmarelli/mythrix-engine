@@ -12,7 +12,7 @@ sign:
     - type: numeric_value
       value: '8'
       query:
-        directive: filter
+        directive: exact
         as_token: eight
     - type: meaning
       value: Fear
@@ -27,4 +27,6 @@ sign:
         as_token: Cancer
     - type: spelling
       value: Chet
+      query:
+        directive: exact
     cites: Sepher Yetzirah

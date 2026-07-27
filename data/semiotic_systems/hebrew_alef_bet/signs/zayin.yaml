@@ -12,7 +12,7 @@ sign:
     - type: numeric_value
       value: '7'
       query:
-        directive: filter
+        directive: exact
         as_token: seven
     - type: meaning
       value: Weapon
@@ -27,4 +27,6 @@ sign:
         as_token: Gemini
     - type: spelling
       value: Zayin
+      query:
+        directive: exact
     cites: Sepher Yetzirah

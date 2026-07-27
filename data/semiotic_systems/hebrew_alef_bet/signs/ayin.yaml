@@ -12,7 +12,7 @@ sign:
     - type: numeric_value
       value: '70'
       query:
-        directive: filter
+        directive: exact
         as_token: seventy
     - type: meaning
       value: Eye
@@ -25,4 +25,6 @@ sign:
         as_token: Capricorn
     - type: spelling
       value: Ayin
+      query:
+        directive: exact
     cites: Sepher Yetzirah

@@ -12,7 +12,7 @@ sign:
     - type: numeric_value
       value: '80'
       query:
-        directive: filter
+        directive: exact
         as_token: eighty
     - type: meaning
       value: Mouth
@@ -24,4 +24,6 @@ sign:
       value: Mercury
     - type: spelling
       value: Pe
+      query:
+        directive: exact
     cites: Sepher Yetzirah

@@ -12,7 +12,7 @@ sign:
     - type: numeric_value
       value: '40'
       query:
-        directive: filter
+        directive: exact
         as_token: forty
     - type: meaning
       value: Water
@@ -26,4 +26,6 @@ sign:
       value: Water
     - type: spelling
       value: Mem
+      query:
+        directive: exact
     cites: Sepher Yetzirah

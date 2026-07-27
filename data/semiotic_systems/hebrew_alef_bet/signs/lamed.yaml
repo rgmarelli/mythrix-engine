@@ -12,7 +12,7 @@ sign:
     - type: numeric_value
       value: '30'
       query:
-        directive: filter
+        directive: exact
         as_token: thirty
     - type: meaning
       value: To learn
@@ -27,4 +27,6 @@ sign:
         as_token: Libra
     - type: spelling
       value: Lamed
+      query:
+        directive: exact
     cites: Sepher Yetzirah

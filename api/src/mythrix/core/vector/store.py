@@ -188,6 +188,37 @@ class ChromaVectorStore:
             )
         return hits
 
+    def document_matches(self, term: str) -> list[VectorHit]:
+        """Every chunk whose text contains `term` on whole-word boundaries
+        (FR-RT-15) — a pure document scan (`collection.get`), no query
+        embedding and no `top_k` cap, unlike `similarity_search`. Used for a
+        literal-containment directive (`"exact"`/`"filter"`) where the point
+        is a guarantee every occurrence is found, not an approximate nearest-
+        neighbor ranking: an ANN search combined with a document filter can
+        still miss a chunk that ranks outside `top_k` among the filtered
+        candidates, which this can't. `VectorHit.distance` is set to `0.0`
+        for every result — there is no query vector here to measure a
+        distance against, so this is a placeholder, not a similarity
+        judgment; callers must not treat it as a score."""
+        result = self._collection.get(where_document=_word_bounded_filter(term), include=["documents", "metadatas"])
+        return [
+            VectorHit(
+                chunk_id=chunk_id,
+                source_id=meta["source_id"],
+                domain=meta["domain"],
+                text=document,
+                chunk_index=meta["chunk_index"],
+                char_start=meta["char_start"],
+                char_end=meta["char_end"],
+                embedding_model=meta["embedding_model"],
+                distance=0.0,
+                locator=meta.get("locator") or "",
+                ordinal=meta.get("ordinal") or 0,
+                section=meta.get("section") or "",
+            )
+            for chunk_id, document, meta in zip(result["ids"], result["documents"], result["metadatas"], strict=True)
+        ]
+
     def get_segments(self, source_id: str, *, start_ordinal: int, end_ordinal: int) -> list[Chunk]:
         """Every chunk of `source_id` with `ordinal` in `[start_ordinal,
         end_ordinal]`, sorted ascending by ordinal — a coordinate lookup for

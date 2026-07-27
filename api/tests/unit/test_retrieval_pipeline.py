@@ -37,7 +37,7 @@ from mythrix.core.models import (
     Source,
     Tradition,
 )
-from mythrix.core.retrieval.pipeline import RetrievalPipeline, _combined_score, build_query_texts
+from mythrix.core.retrieval.pipeline import RetrievalPipeline, _combined_score, build_query_texts, collect_exact_tokens
 from mythrix.core.vector.store import VectorHit
 
 RIDER_WAITE = Tradition(id="rider-waite", slug="rider-waite", name="Rider-Waite-Smith", domain="tarot")
@@ -72,9 +72,13 @@ class FakeEmbedder:
 
 
 class FakeVectorStore:
-    def __init__(self, hits: list[VectorHit]) -> None:
+    def __init__(
+        self, hits: list[VectorHit], *, document_matches_by_term: dict[str, list[VectorHit]] | None = None
+    ) -> None:
         self._hits = hits
+        self._document_matches_by_term = document_matches_by_term or {}
         self.last_call: dict | None = None
+        self.document_matches_calls: list[str] = []
 
     def similarity_search(self, query_embedding, *, top_k=6, document_contains=None):  # noqa: ANN001, ANN201
         self.last_call = {
@@ -84,6 +88,10 @@ class FakeVectorStore:
         }
         return self._hits
 
+    def document_matches(self, term: str) -> list[VectorHit]:
+        self.document_matches_calls.append(term)
+        return self._document_matches_by_term.get(term, [])
+
 
 class DocumentFrequencyVectorStore(FakeVectorStore):
     """`FakeVectorStore` plus `count()`/`document_frequency()`, for tests of
@@ -91,8 +99,15 @@ class DocumentFrequencyVectorStore(FakeVectorStore):
     and per-term literal document frequency (FR-RK-04/FR-RK-06)
     that plain `FakeVectorStore` has no use for."""
 
-    def __init__(self, hits: list[VectorHit], *, corpus_size: int, document_frequencies: dict[str, int]) -> None:
-        super().__init__(hits)
+    def __init__(
+        self,
+        hits: list[VectorHit],
+        *,
+        corpus_size: int,
+        document_frequencies: dict[str, int],
+        document_matches_by_term: dict[str, list[VectorHit]] | None = None,
+    ) -> None:
+        super().__init__(hits, document_matches_by_term=document_matches_by_term)
         self._corpus_size = corpus_size
         self._document_frequencies = document_frequencies
 
@@ -119,17 +134,24 @@ class SequencedVectorStore:
         *,
         corpus_size: int = 1,
         document_frequencies: dict[str, int] | None = None,
+        document_matches_by_term: dict[str, list[VectorHit]] | None = None,
     ) -> None:
         self._hits_per_call = iter(hits_per_call)
         self.call_count = 0
         self.document_contains_per_call: list[str | None] = []
         self._corpus_size = corpus_size
         self._document_frequencies = document_frequencies or {}
+        self._document_matches_by_term = document_matches_by_term or {}
+        self.document_matches_calls: list[str] = []
 
     def similarity_search(self, query_embedding, *, top_k=6, document_contains=None):  # noqa: ANN001, ANN201
         self.call_count += 1
         self.document_contains_per_call.append(document_contains)
         return next(self._hits_per_call)
+
+    def document_matches(self, term: str) -> list[VectorHit]:
+        self.document_matches_calls.append(term)
+        return self._document_matches_by_term.get(term, [])
 
     def count(self) -> int:
         return self._corpus_size
@@ -345,12 +367,11 @@ def test_query_texts_skip_directive_produces_no_query_at_all() -> None:
     assert not any("needle" in q.text for q in query_texts)
 
 
-def test_query_texts_exact_directive_omits_the_unrestricted_plain_query() -> None:
-    """FR-EX-01/02: unlike an ordinary concept, an `"exact"`-directive
-    interpretant contributes no unrestricted plain query of its own value —
-    only its self-scoped filtered variant, so every hit under its value is a
-    guaranteed literal match. With no `as_token` given, the filter searches
-    the interpretant's own value directly (FR-EX-02's default)."""
+def test_query_texts_exact_directive_contributes_no_embeddable_query_at_all() -> None:
+    """FR-EX-01: unlike an ordinary concept or a `"filter"`-directive token,
+    an `"exact"`-directive interpretant is never embedded or ANN-searched —
+    it contributes nothing to `build_query_texts` at all. It is matched
+    entirely by `collect_exact_tokens`'s exhaustive document scan instead."""
     manifestation_with_exact = THE_TOWER_MANIFESTATION.model_copy(
         update={
             "interpretants": (
@@ -367,18 +388,37 @@ def test_query_texts_exact_directive_omits_the_unrestricted_plain_query() -> Non
 
     query_texts = build_query_texts(graph_facts)
 
-    assert [q.text for q in query_texts] == ["2"]
-    (filtered,) = query_texts
-    assert filtered.filter_token is not None
-    assert filtered.filter_token.value == "2"
-    assert filtered.filter_token.as_token == "2"
-    assert filtered.filter_token.kind == "exact"
+    assert query_texts == []
 
 
-def test_query_texts_exact_directive_as_token_overrides_the_search_form() -> None:
-    """FR-EX-02: an `"exact"`-directive interpretant's `as_token`, when given,
-    is used as the literal search form instead of `value` — e.g. a numeral
-    whose corpus surface form is spelled out."""
+def test_collect_exact_tokens_defaults_as_token_to_value() -> None:
+    """FR-EX-02: with no `as_token` given, an `"exact"`-directive token
+    searches the interpretant's own value directly."""
+    manifestation_with_exact = THE_TOWER_MANIFESTATION.model_copy(
+        update={
+            "interpretants": (
+                Interpretant(
+                    id="interp-numeric-value",
+                    type="numeric_value",
+                    value="2",
+                    query=QueryDirective(directive="exact"),
+                ),
+            )
+        }
+    )
+    graph_facts = GraphFacts(sign=THE_TOWER, manifestation=manifestation_with_exact)
+
+    (token,) = collect_exact_tokens(graph_facts)
+
+    assert token.value == "2"
+    assert token.as_token == "2"
+    assert token.kind == "exact"
+
+
+def test_collect_exact_tokens_honors_an_explicit_as_token() -> None:
+    """FR-EX-02: an `"exact"`-directive interpretant's `as_token`, when
+    given, is used as the literal search form instead of `value` — e.g. a
+    numeral whose corpus surface form is spelled out."""
     manifestation_with_exact = THE_TOWER_MANIFESTATION.model_copy(
         update={
             "interpretants": (
@@ -393,19 +433,18 @@ def test_query_texts_exact_directive_as_token_overrides_the_search_form() -> Non
     )
     graph_facts = GraphFacts(sign=THE_TOWER, manifestation=manifestation_with_exact)
 
-    query_texts = build_query_texts(graph_facts)
+    (token,) = collect_exact_tokens(graph_facts)
 
-    filtered = next(q for q in query_texts if q.filter_token is not None)
-    assert filtered.filter_token.as_token == "hundred"
-    assert filtered.filter_token.value == "100"
+    assert token.value == "100"
+    assert token.as_token == "hundred"
 
 
-def test_query_texts_exact_directive_filter_never_pairs_with_an_unrelated_concept() -> None:
+def test_collect_exact_tokens_never_touches_an_unrelated_concepts_query() -> None:
     """FR-EX-03: unlike a `"filter"`-directive token, which is collected
     globally and paired with every concept in the sign (see the gematria
-    tests above), an `"exact"`-directive token only ever appears alongside
-    its own concept's query — an unrelated concept elsewhere in the sign gets
-    no filtered variant for it."""
+    tests above), an `"exact"`-directive token never becomes part of any
+    concept's query at all — `build_query_texts` for an unrelated concept in
+    the same sign carries no trace of it."""
     manifestation_with_exact = THE_TOWER_MANIFESTATION.model_copy(
         update={
             "interpretants": (
@@ -423,11 +462,10 @@ def test_query_texts_exact_directive_filter_never_pairs_with_an_unrelated_concep
 
     query_texts = build_query_texts(graph_facts)
 
-    fire_queries = [q for q in query_texts if q.text == "Fire"]
-    assert all(q.filter_token is None for q in fire_queries)
-    two_queries = [q for q in query_texts if q.text == "2"]
-    assert len(two_queries) == 1
-    assert all(q.filter_token is not None for q in two_queries)
+    assert [q.text for q in query_texts] == ["Fire"]
+    assert query_texts[0].filter_token is None
+    (token,) = collect_exact_tokens(graph_facts)
+    assert token.value == "2"
 
 
 def test_retrieve_searches_the_full_corpus_with_no_scoping_filter(graph_store: KuzuGraphStore) -> None:
@@ -907,16 +945,17 @@ def test_exact_value_pairs_with_the_concept_sharing_its_chunk(graph_store: KuzuG
     assert matches_by_concept["Fish"].score == pytest.approx(0.7)
 
 
-def test_exact_directive_concept_pairs_with_a_real_score_not_synthetic_membership(
+def test_exact_directive_never_contributes_a_pair_candidate(
     graph_store: KuzuGraphStore,
 ) -> None:
-    """FR-EX-03: an `"exact"`-directive interpretant's value is a real concept
-    (FR-EX-01) with its own similarity score — when it converges with another
-    concept it pairs normally, scored like any concept, unlike a
-    `"filter"`-directive token, which pairs as membership-only with a forced
-    `score=0.0` (`test_exact_value_pairs_with_the_concept_sharing_its_chunk`
-    above). It never appears via the separate global filter cross-join
-    either."""
+    """FR-EX-03: an `"exact"`-directive interpretant's value is never
+    embedded (FR-EX-01), so it never shares a deep pool with another concept
+    and never appears in `_build_pair_candidates` at all — not as a real-
+    score concept pairing, and not as a synthetic membership pairing the way
+    a `"filter"`-directive token does
+    (`test_exact_value_pairs_with_the_concept_sharing_its_chunk` above) —
+    even when its literal scan and another concept's query surface the same
+    chunk."""
     manifestation = THE_TOWER_MANIFESTATION.model_copy(
         update={
             "interpretants": (
@@ -932,19 +971,15 @@ def test_exact_directive_concept_pairs_with_a_real_score_not_synthetic_membershi
     )
     graph_facts = GraphFacts(sign=THE_TOWER, manifestation=manifestation)
     shared_hit = _make_hit("shared", distance=0.2)
-    # 2 calls: Fire(plain), "2"(filtered) — "2" has no unrestricted plain
-    # query of its own (FR-EX-01), so this is its only query.
-    vector_store = SequencedVectorStore([[shared_hit], [shared_hit]])
+    # 1 ANN call: Fire(plain) — "2" is never embedded (FR-EX-01), it's found
+    # only through the separate, non-ANN `document_matches` scan.
+    vector_store = SequencedVectorStore([[shared_hit]], document_matches_by_term={"2": [shared_hit]})
     pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
 
     context = pipeline.retrieve(graph_facts)
 
-    assert len(context.pair_candidates) == 1
-    pair = context.pair_candidates[0]
-    assert set(pair.concepts) == {"Fire", "2"}
-    two_match = next(m for m in pair.candidates[0].matches if m.concept == "2")
-    assert two_match.exact_value is False
-    assert two_match.score != 0.0
+    assert context.pair_candidates == ()
+    assert vector_store.document_matches_calls == ["2"]
 
 
 def test_combined_score_ranks_a_balanced_pair_above_a_lopsided_one_with_the_same_sum() -> None:
@@ -1169,10 +1204,11 @@ def test_retrieve_regions_rare_interpretant_outweighs_a_ubiquitous_one_of_equal_
 
 def test_retrieve_regions_exact_match_scores_by_fixed_presence_strength(graph_store: KuzuGraphStore) -> None:
     """FR-RK-05: a literal-containment match contributes a fixed presence
-    strength to the region score, not a computed similarity — and does not
-    count toward `convergence_count`. Reached via a `"filter"`-directive
-    interpretant, so it is labeled `kind == "filter"` (FR-EX-05), not
-    `"exact"` (reserved for a `query.directive: "exact"` interpretant)."""
+    strength to the region score, not a computed similarity — but it does
+    count toward `convergence_count` like any other matching interpretant
+    (FR-RK-03). Reached via a `"filter"`-directive interpretant, so it is
+    labeled `kind == "filter"` (FR-EX-05), not `"exact"` (reserved for a
+    `query.directive: "exact"` interpretant)."""
     graph_facts = _gematria_intersemiotic_graph_facts()
     hit = _make_segment_hit("waite-pictorial-key::1", ordinal=1, locator="Genesis 21:5", distance=0.3)
     # 4 calls: Fire(None), Fire(hundred), Fish(None), Fish(hundred) — hit only
@@ -1186,23 +1222,62 @@ def test_retrieve_regions_exact_match_scores_by_fixed_presence_strength(graph_st
 
     region = result.regions[0]
     assert len(region.matches) == 2  # "Fish" (concept) + "100" (filter)
-    assert region.convergence_count == 1  # filter match excluded from the count
+    assert region.convergence_count == 2
     filter_match = next(m for m in region.matches if m.kind == "filter")
     assert filter_match.interpretant == "100"
     assert filter_match.exact_value is True
 
 
-def test_retrieve_regions_exact_directive_never_shows_two_pills_for_one_value(
+def test_retrieve_regions_exact_directive_reports_membership_only_no_score(
     graph_store: KuzuGraphStore,
 ) -> None:
-    """An `"exact"`-directive interpretant has exactly one query (FR-EX-01),
-    so a hit it returns always qualifies as both a `"concept"` match (via
-    `deep_hits_by_concept`) and an `"exact"` match (via
-    `filter_token_chunk_ids`) on the same segment. The region must not
-    surface two pills for the same value — one scored, one not. The
-    `"concept"` match (a real score) wins and the redundant `"exact"` match
-    is dropped, exactly like two matches of one concept on the same segment
-    already collapse (FR-RK-01/05)."""
+    """FR-EX-01/04: an `"exact"`-directive interpretant's match is
+    membership-only (`kind == "exact"`, `score == 0.0`) — it is never
+    embedded, so it never competes with a `"concept"` match for the same
+    value. Its segment is still fully hydrated (locator, text) purely from
+    `document_matches`'s exhaustive scan, with no ANN query or embedding
+    involved for it at all."""
+    manifestation = THE_TOWER_MANIFESTATION.model_copy(
+        update={
+            "interpretants": (
+                Interpretant(id="interp-element", type="element", value="Fire"),
+                Interpretant(
+                    id="interp-numeric-value",
+                    type="numeric_value",
+                    value="2",
+                    query=QueryDirective(directive="exact"),
+                ),
+            )
+        }
+    )
+    graph_facts = GraphFacts(sign=THE_TOWER, manifestation=manifestation)
+    hit = _make_segment_hit("waite-pictorial-key::1", ordinal=1, locator="Genesis 1:1", distance=0.3)
+    # 1 ANN call: Fire(plain) lands on the same segment "2"'s document scan
+    # finds, so both matches merge into one eligible region.
+    vector_store = SequencedVectorStore([[hit]], document_matches_by_term={"2": [hit]})
+    pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
+
+    result = pipeline.retrieve_regions(graph_facts)
+
+    region = result.regions[0]
+    assert region.segments[0].locator == "Genesis 1:1"
+    assert len(region.matches) == 2  # "Fire" (concept) + "2" (exact)
+    assert region.convergence_count == 2
+    two_match = next(m for m in region.matches if m.interpretant == "2")
+    assert two_match.kind == "exact"
+    assert two_match.score == 0.0
+    assert two_match.exact_value is True
+    assert vector_store.document_matches_calls == ["2"]
+
+
+def test_retrieve_regions_lone_exact_directive_match_is_eligible_on_its_own(
+    graph_store: KuzuGraphStore,
+) -> None:
+    """FR-RK-03: a region matched by exactly one interpretant is eligible and
+    rankable regardless of kind — an `"exact"`-directive value with no
+    nearby concept match at all still forms its own region. This is the
+    whole point of `"exact"`: every literal occurrence of the token
+    surfaces, not only the ones sitting next to a semantic match."""
     manifestation = THE_TOWER_MANIFESTATION.model_copy(
         update={
             "interpretants": (
@@ -1217,18 +1292,18 @@ def test_retrieve_regions_exact_directive_never_shows_two_pills_for_one_value(
     )
     graph_facts = GraphFacts(sign=THE_TOWER, manifestation=manifestation)
     hit = _make_segment_hit("waite-pictorial-key::1", ordinal=1, locator="Genesis 1:1", distance=0.3)
-    # 1 call: "2"'s only query (filtered) returns the hit, which then
-    # qualifies as both a "concept" match and an "exact" match on segment 1.
-    vector_store = SequencedVectorStore([[hit]], corpus_size=200, document_frequencies={"2": 10})
+    vector_store = SequencedVectorStore([], document_matches_by_term={"2": [hit]})
     pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
 
     result = pipeline.retrieve_regions(graph_facts)
 
+    assert len(result.regions) == 1
     region = result.regions[0]
-    matches_for_two = [m for m in region.matches if m.interpretant == "2"]
-    assert len(matches_for_two) == 1
-    assert matches_for_two[0].kind == "concept"
-    assert matches_for_two[0].score == pytest.approx(0.7)
+    assert region.convergence_count == 1
+    (match,) = region.matches
+    assert match.interpretant == "2"
+    assert match.kind == "exact"
+    assert match.score == 0.0
 
 
 def test_retrieve_regions_anchors_an_exact_match_that_never_survives_a_concepts_own_deep_pool(

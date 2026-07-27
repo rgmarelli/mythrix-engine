@@ -167,7 +167,7 @@ The corpus document is not Waite's own text (see [corpus.md](retrieval/corpus.md
 | `FR-DM` | Domain Model | [domain/domain-model.md](domain/domain-model.md) | FR-DM-01–FR-DM-05 |
 | `FR-SD` | Structured Data | [domain/structured-data.md](domain/structured-data.md) | FR-SD-01–FR-SD-05 |
 | `FR-CO` | Corpus | [retrieval/corpus.md](retrieval/corpus.md) | FR-CO-01–FR-CO-07 |
-| `FR-RT` | Retrieval | [retrieval/retrieval.md](retrieval/retrieval.md) | FR-RT-01–FR-RT-16 |
+| `FR-RT` | Retrieval | [retrieval/retrieval.md](retrieval/retrieval.md) | FR-RT-01–FR-RT-20 |
 | `FR-RK` | Ranking | [retrieval/ranking.md](retrieval/ranking.md) | FR-RK-01–FR-RK-10 |
 | `FR-CE` | Context Expansion | [retrieval/context-expansion.md](retrieval/context-expansion.md) | FR-CE-01–FR-CE-12 |
 | `FR-API` | Backend API | [interfaces/api.md](interfaces/api.md) | FR-API-01–FR-API-04 |
@@ -175,7 +175,7 @@ The corpus document is not Waite's own text (see [corpus.md](retrieval/corpus.md
 | `FR-AG` | Conversational Agent | [interfaces/agent.md](interfaces/agent.md) | FR-AG-01–FR-AG-32 |
 | `CON-SYS` | System-wide constraints | this document, §7 | CON-SYS-01 |
 
-107 active requirements in total. A prior flat-numbered scheme (`FR1`–`FR102`) was superseded by the identifiers above; six items from that scheme (`FR14`, `FR15`, `FR25`, `FR26`, `FR54`, `FR78`) were retired outright — superseded by concept/pair retrieval and the conversational agent's summarize tool replacing an earlier synthesized-summary design — and carry no identifier in the current scheme.
+111 active requirements in total. A prior flat-numbered scheme (`FR1`–`FR102`) was superseded by the identifiers above; six items from that scheme (`FR14`, `FR15`, `FR25`, `FR26`, `FR54`, `FR78`) were retired outright — superseded by concept/pair retrieval and the conversational agent's summarize tool replacing an earlier synthesized-summary design — and carry no identifier in the current scheme.
 
 ## 11. Architectural Decisions
 
