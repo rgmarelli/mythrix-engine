@@ -4,13 +4,7 @@ sees via `AgentState["messages"]`. `AgentContext` is deliberately the single
 class used both as `turn_service`'s internal working context and as
 `api/routes.py`'s response field: `AgentUiSelection` (what the browser sends,
 as-is, each turn) and `AgentContext` (the backend-confirmed shape) carry the
-same fields, so both live here rather than being redefined in `api/routes.py`.
-
-`agent_notes` is deliberately not a field on either class — it is
-session/thread working memory the backend and agent use internally
-(`agent/sessions.py::SessionState`), never round-tripped to the client (the
-context strip only needs the hotspot reference + interpretants, which the
-frontend already has client-side)."""
+same fields, so both live here rather than being redefined in `api/routes.py`."""
 
 from __future__ import annotations
 

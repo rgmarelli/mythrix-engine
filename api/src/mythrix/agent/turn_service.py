@@ -1,6 +1,6 @@
 """Composes one full `POST /api/agent` turn out of the existing agent primitives: thread-reset detection
 (`agent/context.py`), the LangGraph turn driver (`agent/runner.py`), card
-building (`agent/cards.py`), notes splitting (`agent/notes.py`), and citation
+building (`agent/cards.py`), reply cleanup (`agent/notes.py`), and citation
 validation (`core/synthesis/citations.py`). `api/routes.py`'s handler is a
 thin wrapper around `run_chat_turn`, matching every existing route's
 thinness."""
@@ -23,7 +23,7 @@ from mythrix.agent.context import (
     detect_thread_reset,
     render_context_summary,
 )
-from mythrix.agent.notes import split_agent_notes, strip_markdown
+from mythrix.agent.notes import strip_markdown
 from mythrix.agent.runner import run_turn
 from mythrix.agent.sessions import SessionStore
 from mythrix.core.errors import CitationValidationError, MythrixError
@@ -151,14 +151,10 @@ def run_chat_turn(
         previous_context = session.context
         thread_reset = detect_thread_reset(previous_context, ui_selection)
         if thread_reset:
-            session.agent_notes = ""
             session.history = []
 
         context = apply_ui_selection(previous_context, ui_selection)
         full_context_summary = render_context_summary(context)
-        if session.agent_notes:
-            note_line = f"Notes from earlier in this thread: {session.agent_notes}"
-            full_context_summary = f"{full_context_summary}\n{note_line}" if full_context_summary else note_line
 
         effective_message = _rewrite_summarize_command(message, context) or message
 
@@ -187,14 +183,11 @@ def run_chat_turn(
         model_driven_reset = any(_resolved_differently(field) for field in _SESSION_SCOPED_RESET_FIELDS)
         if model_driven_reset:
             thread_reset = True
-            session.agent_notes = ""
 
         # FIXME: cards disabled — check if we remove Cards from API and Web entirely.
         # cards = _build_cards(tool_messages)
         cards: list[AgentCard] = []
-        visible_reply, notes = split_agent_notes(result.reply)
-        if notes:
-            session.agent_notes = f"{session.agent_notes}\n{notes}".strip() if session.agent_notes else notes
+        visible_reply = result.reply.strip()
 
         valid_ids = _build_valid_marker_ids(tool_messages)
         invalid_markers = find_invalid_markers(visible_reply, valid_ids)

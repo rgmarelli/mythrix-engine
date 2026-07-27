@@ -50,7 +50,7 @@ def _graph(script: list[AIMessage]):
     return compile_agent_graph(ScriptedLLM(script), _TOOLS)
 
 
-def test_normal_turn_grounds_the_reply_backfills_context_and_builds_cards() -> None:
+def test_normal_turn_grounds_the_reply_and_backfills_context() -> None:
     script = [
         AIMessage(
             content="",
@@ -74,19 +74,18 @@ def test_normal_turn_grounds_the_reply_backfills_context_and_builds_cards() -> N
     assert response.context.sign == "The Magician"
     assert response.context.tradition == "rider-waite"
     assert response.context.semiotic_system == "tarot"
-    assert len(response.cards) == 1
-    assert response.cards[0].type == "citation"
-    assert response.cards[0].source_label == "Waite"
+    # Card output is currently disabled (turn_service.py's FIXME).
+    assert response.cards == []
     assert response.thread_reset is False
 
 
-def test_hotspot_navigation_resets_the_thread_and_clears_agent_notes() -> None:
+def test_hotspot_navigation_resets_the_thread() -> None:
     script = [
         AIMessage(
             content="",
             tool_calls=[{"name": "get_sign", "args": {"sign": "The Magician", "tradition": "rider-waite"}, "id": "c1"}],
         ),
-        AIMessage(content="Noted [G1].\n```agent-notes\nalready summarized this passage\n```"),
+        AIMessage(content="Noted [G1]."),
         AIMessage(
             content="",
             tool_calls=[{"name": "get_sign", "args": {"sign": "The Magician", "tradition": "rider-waite"}, "id": "c2"}],
@@ -108,7 +107,6 @@ def test_hotspot_navigation_resets_the_thread_and_clears_agent_notes() -> None:
         ui_selection=AgentUiSelection(region_id="waite::0-1"),
         max_tool_iterations=8,
     )
-    assert sessions.get_or_create("s1").agent_notes == "already summarized this passage"
 
     second = run_chat_turn(
         graph=graph,
@@ -120,7 +118,6 @@ def test_hotspot_navigation_resets_the_thread_and_clears_agent_notes() -> None:
     )
 
     assert second.thread_reset is True
-    assert sessions.get_or_create("s1").agent_notes == ""
     # The raw transcript the model sees must not carry over either — otherwise
     # a bad turn from the old thread keeps getting imitated in the new one.
     # One turn is HumanMessage + tool-call AIMessage + ToolMessage + final

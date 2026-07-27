@@ -13,7 +13,6 @@ from mythrix.agent.context import AgentContext
 class SessionState:
     history: list = field(default_factory=list)
     context: AgentContext = field(default_factory=AgentContext)
-    agent_notes: str = ""
 
 
 class SessionStore:

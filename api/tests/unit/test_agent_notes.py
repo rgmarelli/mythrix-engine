@@ -1,39 +1,6 @@
 """Unit tests for `agent/notes.py`."""
 
-from mythrix.agent.notes import split_agent_notes, strip_markdown
-
-
-def test_splits_visible_reply_from_a_trailing_notes_block() -> None:
-    text = "The Tower signifies upheaval.\n\n```agent-notes\nalready summarized this passage\n```"
-
-    visible, notes = split_agent_notes(text)
-
-    assert visible == "The Tower signifies upheaval."
-    assert notes == "already summarized this passage"
-
-
-def test_no_notes_block_returns_the_whole_reply_and_empty_notes() -> None:
-    visible, notes = split_agent_notes("Just a plain reply.")
-    assert visible == "Just a plain reply."
-    assert notes == ""
-
-
-def test_multiline_notes_block_is_preserved() -> None:
-    text = "Reply text.\n```agent-notes\nline one\nline two\n```"
-
-    visible, notes = split_agent_notes(text)
-
-    assert visible == "Reply text."
-    assert notes == "line one\nline two"
-
-
-def test_empty_notes_block_yields_empty_notes() -> None:
-    text = "Reply text.\n```agent-notes\n```"
-
-    visible, notes = split_agent_notes(text)
-
-    assert visible == "Reply text."
-    assert notes == ""
+from mythrix.agent.notes import strip_markdown
 
 
 def test_strip_markdown_removes_bold_and_keeps_the_words() -> None:
