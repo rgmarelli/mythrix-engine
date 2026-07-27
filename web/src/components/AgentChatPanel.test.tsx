@@ -63,6 +63,27 @@ it('renders citation and interpretant_chips cards on an ai item', () => {
   expect(screen.getByText('sun · 0.80')).toBeInTheDocument();
 });
 
+it('renders markdown formatting in an ai item as elements, not literal syntax', () => {
+  const items: ThreadItem[] = [
+    { kind: 'ai', id: '1', text: 'This is **bold**.\n\n- first\n- second', cards: [] },
+  ];
+  const { container } = render(
+    <AgentChatPanel items={items} isSending={false} onSend={vi.fn()} onClear={vi.fn()} selectedHotspot={null} />,
+  );
+  expect(container.querySelector('.bubble strong')).toHaveTextContent('bold');
+  expect(container.querySelectorAll('.bubble li')).toHaveLength(2);
+  expect(screen.queryByText('**bold**', { exact: false })).not.toBeInTheDocument();
+});
+
+it('renders HTML-like text in an ai item as inert text, not a live element', () => {
+  const items: ThreadItem[] = [{ kind: 'ai', id: '1', text: '<img src=x onerror="window.__pwned = true">', cards: [] }];
+  const { container } = render(
+    <AgentChatPanel items={items} isSending={false} onSend={vi.fn()} onClear={vi.fn()} selectedHotspot={null} />,
+  );
+  expect(container.querySelector('.bubble img')).not.toBeInTheDocument();
+  expect((window as unknown as { __pwned?: boolean }).__pwned).toBeUndefined();
+});
+
 it('/clear wipes the composer, calls onClear, and never calls onSend or appears as a message', async () => {
   const onSend = vi.fn();
   const onClear = vi.fn();

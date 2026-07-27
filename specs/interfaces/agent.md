@@ -49,6 +49,10 @@ Refines FR-AG-01–FR-AG-13 for the panel's web-UI-specific behavior; the underl
 - FR-AG-20: Thread and session history and context are retained only for the life of the browser session; none of it is persisted across a backend process restart.
 - FR-AG-21: The context object's thread-scoped fields include the active hotspot's human-readable locator (e.g. "Ecclesiasticus 43:1-4") alongside its structural reference, giving the agent a ready citation to quote without a separate tool call purely to resolve it.
 - FR-AG-22: The composer recognizes a `/clear` command: it is never sent to the agent or shown as a user message, and instead wipes the active thread and starts a new agent session, so the next turn carries no prior history.
+- FR-AG-23: Each assistant-authored message's text is rendered with markdown formatting: at minimum, paragraphs, emphasis (bold/italic), ordered and unordered lists, inline code spans, fenced code blocks, and links are visually formatted rather than shown as literal syntax.
+- FR-AG-24: Markdown rendering never executes script content or renders raw HTML tags present in the model's reply text; such content is escaped or stripped, not rendered as markup.
+- FR-AG-25: User-authored messages, error messages, and reset dividers are unaffected by markdown rendering and continue to render as plain text.
+- FR-AG-26: The backend API's agent chat response returns the model's reply text without stripping markdown decoration (bold, headings, bullets); citation-marker stripping and validation are unaffected and continue to apply.
 
 ## Non-goals
 

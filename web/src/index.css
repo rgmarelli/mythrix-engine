@@ -1130,7 +1130,6 @@ button {
   line-height: 1.55;
   padding: 10px 13px;
   border-radius: 12px;
-  white-space: pre-wrap;
 }
 
 .agent-dock .msg.user .bubble {
@@ -1138,6 +1137,7 @@ button {
   color: var(--ink-h);
   border: 1px solid var(--line-soft);
   border-bottom-right-radius: 4px;
+  white-space: pre-wrap;
 }
 
 .agent-dock .msg.ai .bubble {
@@ -1146,6 +1146,53 @@ button {
   color: var(--agent-ink);
   border-bottom-left-radius: 4px;
   border: 1px solid var(--agent-line-soft);
+}
+
+.agent-dock .msg.ai .bubble > *:first-child {
+  margin-top: 0;
+}
+
+.agent-dock .msg.ai .bubble > *:last-child {
+  margin-bottom: 0;
+}
+
+.agent-dock .msg.ai .bubble p {
+  margin: 0.5em 0;
+}
+
+.agent-dock .msg.ai .bubble ul,
+.agent-dock .msg.ai .bubble ol {
+  margin: 0.5em 0;
+  padding-left: 1.3em;
+}
+
+.agent-dock .msg.ai .bubble li + li {
+  margin-top: 0.2em;
+}
+
+.agent-dock .msg.ai .bubble a {
+  color: var(--agent-violet);
+}
+
+.agent-dock .msg.ai .bubble code {
+  font-family: var(--f-mono);
+  font-size: 0.92em;
+  background: var(--agent-violet-wash);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+}
+
+.agent-dock .msg.ai .bubble pre {
+  margin: 0.5em 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--agent-violet-wash);
+  overflow-x: auto;
+}
+
+.agent-dock .msg.ai .bubble pre code {
+  background: none;
+  padding: 0;
 }
 
 .agent-dock .thinking-bubble {

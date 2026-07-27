@@ -1,7 +1,7 @@
 """Composes one full `POST /api/agent` turn out of the existing agent primitives: thread-reset detection
 (`agent/context.py`), the LangGraph turn driver (`agent/runner.py`), card
-building (`agent/cards.py`), reply cleanup (`agent/notes.py`), and citation
-validation (`core/synthesis/citations.py`). `api/routes.py`'s handler is a
+building (`agent/cards.py`), and citation validation
+(`core/synthesis/citations.py`). `api/routes.py`'s handler is a
 thin wrapper around `run_chat_turn`, matching every existing route's
 thinness."""
 
@@ -23,7 +23,6 @@ from mythrix.agent.context import (
     detect_thread_reset,
     render_context_summary,
 )
-from mythrix.agent.notes import strip_markdown
 from mythrix.agent.runner import run_turn
 from mythrix.agent.sessions import SessionStore
 from mythrix.core.errors import CitationValidationError, MythrixError
@@ -205,7 +204,7 @@ def run_chat_turn(
 
         return AgentTurnResponse(
             context=context,
-            reply_text=strip_markdown(strip_markers(visible_reply)),
+            reply_text=strip_markers(visible_reply),
             cards=cards,
             thread_reset=thread_reset,
         )

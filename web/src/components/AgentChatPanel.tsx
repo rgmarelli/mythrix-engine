@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import type { AgentCard, Hotspot } from '../api/types';
 import type { ThreadItem } from '../state/useTabs';
 import { hotspotTitle } from '../utils/hotspot';
@@ -153,7 +155,9 @@ export function AgentChatPanel({ items, isSending, onSend, onClear, selectedHots
           return (
             <div className="msg ai" key={item.id}>
               <AiAvatar />
-              <div className="bubble">{item.text}</div>
+              <div className="bubble">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.text}</ReactMarkdown>
+              </div>
               <AgentCards cards={item.cards} />
             </div>
           );
