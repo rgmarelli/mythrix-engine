@@ -172,10 +172,10 @@ The corpus document is not Waite's own text (see [corpus.md](retrieval/corpus.md
 | `FR-CE` | Context Expansion | [retrieval/context-expansion.md](retrieval/context-expansion.md) | FR-CE-01–FR-CE-12 |
 | `FR-API` | Backend API | [interfaces/api.md](interfaces/api.md) | FR-API-01–FR-API-04 |
 | `FR-WEB` | Web Viewer | [interfaces/web-viewer.md](interfaces/web-viewer.md) | FR-WEB-01–FR-WEB-15 |
-| `FR-AG` | Conversational Agent | [interfaces/agent.md](interfaces/agent.md) | FR-AG-01–FR-AG-27 |
+| `FR-AG` | Conversational Agent | [interfaces/agent.md](interfaces/agent.md) | FR-AG-01–FR-AG-32 |
 | `CON-SYS` | System-wide constraints | this document, §7 | CON-SYS-01 |
 
-102 active requirements in total. A prior flat-numbered scheme (`FR1`–`FR102`) was superseded by the identifiers above; six items from that scheme (`FR14`, `FR15`, `FR25`, `FR26`, `FR54`, `FR78`) were retired outright — superseded by concept/pair retrieval and the conversational agent's summarize tool replacing an earlier synthesized-summary design — and carry no identifier in the current scheme.
+107 active requirements in total. A prior flat-numbered scheme (`FR1`–`FR102`) was superseded by the identifiers above; six items from that scheme (`FR14`, `FR15`, `FR25`, `FR26`, `FR54`, `FR78`) were retired outright — superseded by concept/pair retrieval and the conversational agent's summarize tool replacing an earlier synthesized-summary design — and carry no identifier in the current scheme.
 
 ## 11. Architectural Decisions
 
