@@ -54,6 +54,10 @@ Refines FR-AG-01–FR-AG-13 for the panel's web-UI-specific behavior; the underl
 - FR-AG-25: User-authored messages, error messages, and reset dividers are unaffected by markdown rendering and continue to render as plain text.
 - FR-AG-26: The backend API's agent chat response returns the model's reply text without stripping markdown decoration (bold, headings, bullets); citation-marker stripping and validation are unaffected and continue to apply.
 
+### Operational logging
+
+- FR-AG-27: Every turn's input, resolved context, each model invocation's full input and response, each tool call and result, and the final outcome are logged to the process's standard log output at INFO level, for local debugging. This is operational visibility only — it adds no visible behavior for the user and never changes the API response.
+
 ## Non-goals
 
 - Any mutating/administrative tool in the conversational agent's tool set (ingesting signs/documents, reloading stores), a cloud/hosted generation model, or persisting agent sessions across process restarts; the agent is an orchestration and presentation layer that introduces no new retrieval, ranking, or convergence behavior and does not parse free text into retrieval query text.

@@ -8,6 +8,7 @@ thinness."""
 from __future__ import annotations
 
 import json
+import logging
 from typing import Literal
 
 from langchain_core.messages import ToolMessage
@@ -26,7 +27,10 @@ from mythrix.agent.context import (
 from mythrix.agent.runner import run_turn
 from mythrix.agent.sessions import SessionStore
 from mythrix.core.errors import CitationValidationError, MythrixError
+from mythrix.core.logging_config import truncate
 from mythrix.core.synthesis.citations import find_invalid_markers, strip_markers
+
+logger = logging.getLogger(__name__)
 
 _SESSION_SCOPED_RESET_FIELDS = ("semiotic_system", "sign", "tradition")
 _TOOL_FAILURE_MESSAGE = (
@@ -146,6 +150,7 @@ def run_chat_turn(
     max_tool_iterations: int,
 ) -> AgentTurnResponse:
     session = sessions.get_or_create(session_id)
+    logger.info("turn start: session_id=%s message=%s", session_id, truncate(message))
     with sessions.lock_for(session_id):
         previous_context = session.context
         thread_reset = detect_thread_reset(previous_context, ui_selection)
@@ -154,8 +159,17 @@ def run_chat_turn(
 
         context = apply_ui_selection(previous_context, ui_selection)
         full_context_summary = render_context_summary(context)
+        logger.info("resolved context: %s thread_reset=%s", context.model_dump(), thread_reset)
 
         effective_message = _rewrite_summarize_command(message, context) or message
+
+        def _log_outcome(reply_text: str, tool_calls: list[str], thread_reset: bool) -> None:
+            logger.info(
+                "turn outcome: reply=%s tool_calls=%s thread_reset=%s",
+                truncate(reply_text),
+                tool_calls,
+                thread_reset,
+            )
 
         try:
             new_history, result = run_turn(
@@ -165,8 +179,10 @@ def run_chat_turn(
                 max_tool_iterations=max_tool_iterations,
                 context_summary=full_context_summary,
             )
-        except MythrixError:
+        except MythrixError as exc:
+            logger.info("turn failed: tool error: %s", exc)
             session.context = context
+            _log_outcome(_TOOL_FAILURE_MESSAGE, [], thread_reset)
             return AgentTurnResponse(
                 context=context, reply_text=_TOOL_FAILURE_MESSAGE, cards=[], thread_reset=thread_reset
             )
@@ -193,8 +209,10 @@ def run_chat_turn(
         try:
             if invalid_markers:
                 raise CitationValidationError(invalid_markers)
-        except CitationValidationError:
+        except CitationValidationError as exc:
+            logger.info("turn failed: citation validation: %s", exc)
             session.context = context
+            _log_outcome(_CITATION_FAILURE_MESSAGE, result.tool_calls, thread_reset)
             return AgentTurnResponse(
                 context=context, reply_text=_CITATION_FAILURE_MESSAGE, cards=[], thread_reset=thread_reset
             )
@@ -202,9 +220,11 @@ def run_chat_turn(
         session.history = new_messages if model_driven_reset else new_history
         session.context = context
 
+        reply_text = strip_markers(visible_reply)
+        _log_outcome(reply_text, result.tool_calls, thread_reset)
         return AgentTurnResponse(
             context=context,
-            reply_text=strip_markers(visible_reply),
+            reply_text=reply_text,
             cards=cards,
             thread_reset=thread_reset,
         )

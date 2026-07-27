@@ -5,11 +5,16 @@ testable without stdin and reusable by a future non-CLI surface (e.g.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.errors import GraphRecursionError
 from langgraph.graph.state import CompiledStateGraph
+
+from mythrix.core.logging_config import truncate
+
+logger = logging.getLogger(__name__)
 
 _RECURSION_LIMIT_MESSAGE = (
     "I reached this turn's tool-call limit before finishing — try breaking the request into smaller steps."
@@ -41,6 +46,7 @@ def run_turn(
     messages = [*history, HumanMessage(content=user_text)]
     tool_calls: list[str] = []
     final_state = {"messages": messages}
+    logged_upto = len(messages)
 
     try:
         for state in graph.stream(
@@ -53,7 +59,24 @@ def run_turn(
 
             if isinstance(last_message, AIMessage) and last_message.tool_calls:
                 tool_calls.extend(call["name"] for call in last_message.tool_calls)
+
+            for new_message in state["messages"][logged_upto:]:
+                if isinstance(new_message, AIMessage):
+                    logger.info(
+                        "model output: content=%s tool_calls=%s",
+                        truncate(str(new_message.content)),
+                        [
+                            {"name": call["name"], "args": truncate(str(call["args"]))}
+                            for call in new_message.tool_calls
+                        ],
+                    )
+                elif isinstance(new_message, ToolMessage):
+                    logger.info("tool result: name=%s result=%s", new_message.name, truncate(str(new_message.content)))
+            logged_upto = len(state["messages"])
     except GraphRecursionError:
+        logger.info(
+            "turn hit recursion bound: max_tool_iterations=%d tool_calls=%d", max_tool_iterations, len(tool_calls)
+        )
         return history, TurnResult(reply=_RECURSION_LIMIT_MESSAGE, tool_calls=tool_calls)
 
     new_history = final_state["messages"]

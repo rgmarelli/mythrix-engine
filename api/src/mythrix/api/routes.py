@@ -6,6 +6,8 @@ GET routes."""
 
 from __future__ import annotations
 
+import logging
+import time
 from pathlib import Path
 
 from fastapi import APIRouter, Depends
@@ -18,11 +20,14 @@ from mythrix.agent.turn_service import AgentTurnResponse, run_chat_turn
 from mythrix.api.dependencies import get_agent_graph, get_agent_sessions, get_chat_client, get_stores
 from mythrix.core.bootstrap import Stores
 from mythrix.core.config import Settings
+from mythrix.core.errors import MythrixError
 from mythrix.core.loaders.sign_loader import load_directory, summarize_plan
 from mythrix.core.models import RegionQueryResult, Segment, SignSummary, Tradition
 from mythrix.core.query_service import fetch_source_segments, query_regions
 from mythrix.core.synthesis.chain import ChatClient
 from mythrix.core.synthesis.prompts import render_passage_summary_prompt
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -60,19 +65,45 @@ def query(
     (404/502 JSON).
     """
     settings = Settings()
-    return query_regions(
-        sign=sign,
-        tradition=tradition,
-        graph_store=stores.graph_store,
-        vector_store=stores.vector_store,
-        embedder=stores.embedder,
-        top_k=top_k or settings.retrieval_top_k,
-        match_pool_size=match_pool or settings.retrieval_match_pool_size,
-        merge_top_k=settings.merge_top_k,
-        min_score=min_score if min_score is not None else settings.retrieval_min_score,
-        region_window_size=settings.region_window_size,
-        region_min_interpretants=settings.region_min_interpretants,
+    effective_top_k = top_k or settings.retrieval_top_k
+    effective_match_pool_size = match_pool or settings.retrieval_match_pool_size
+    effective_min_score = min_score if min_score is not None else settings.retrieval_min_score
+
+    start = time.perf_counter()
+    try:
+        result = query_regions(
+            sign=sign,
+            tradition=tradition,
+            graph_store=stores.graph_store,
+            vector_store=stores.vector_store,
+            embedder=stores.embedder,
+            top_k=effective_top_k,
+            match_pool_size=effective_match_pool_size,
+            merge_top_k=settings.merge_top_k,
+            min_score=effective_min_score,
+            region_window_size=settings.region_window_size,
+            region_min_interpretants=settings.region_min_interpretants,
+        )
+    except MythrixError as exc:
+        duration_ms = (time.perf_counter() - start) * 1000
+        logger.info("query failed: sign=%s tradition=%s duration_ms=%.1f error=%s", sign, tradition, duration_ms, exc)
+        raise
+
+    duration_ms = (time.perf_counter() - start) * 1000
+    scores = [region.score for region in result.regions]
+    score_range = f"{min(scores):.3f}-{max(scores):.3f}" if scores else "n/a"
+    logger.info(
+        "query: sign=%s tradition=%s top_k=%d match_pool=%d min_score=%.3f duration_ms=%.1f regions=%d score_range=%s",
+        sign,
+        tradition,
+        effective_top_k,
+        effective_match_pool_size,
+        effective_min_score,
+        duration_ms,
+        len(result.regions),
+        score_range,
     )
+    return result
 
 
 @router.get("/segments", response_model=list[Segment])

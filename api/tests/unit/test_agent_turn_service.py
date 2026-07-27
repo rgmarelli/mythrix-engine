@@ -1,6 +1,9 @@
 """Unit tests for `agent/turn_service.py::run_chat_turn` — drives a stub
 tool-calling model through `compile_agent_graph`, no live Ollama involved."""
 
+import logging
+
+import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.tools import tool
 
@@ -8,6 +11,7 @@ from mythrix.agent.context import AgentUiSelection
 from mythrix.agent.graph import compile_agent_graph
 from mythrix.agent.sessions import SessionStore
 from mythrix.agent.turn_service import run_chat_turn
+from mythrix.core.errors import ModelRequestError
 
 
 @tool
@@ -271,3 +275,71 @@ def test_summarize_command_includes_trailing_focus_text_in_the_directive() -> No
 
     human_messages = [m for m in sessions.get_or_create("s1").history if isinstance(m, HumanMessage)]
     assert "redemption imagery" in human_messages[0].content
+
+
+class RaisingLLM:
+    """Simulates a mid-turn model failure (`ModelRequestError`, a
+    `MythrixError`) so `run_chat_turn`'s tool-failure branch can be
+    exercised without a live Ollama."""
+
+    def invoke(self, messages: list) -> AIMessage:
+        raise ModelRequestError("test-model", cause="boom")
+
+
+def test_plain_turn_logs_start_context_and_outcome(caplog: pytest.LogCaptureFixture) -> None:
+    script = [AIMessage(content="Hello there.")]
+    sessions = SessionStore()
+
+    with caplog.at_level(logging.INFO, logger="mythrix.agent.turn_service"):
+        run_chat_turn(
+            graph=_graph(script),
+            sessions=sessions,
+            session_id="s1",
+            message="hi",
+            ui_selection=AgentUiSelection(),
+            max_tool_iterations=8,
+        )
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert any("turn start" in m and "s1" in m for m in messages)
+    assert any("resolved context" in m for m in messages)
+    assert any("turn outcome" in m for m in messages)
+
+
+def test_tool_failure_logs_and_returns_fallback(caplog: pytest.LogCaptureFixture) -> None:
+    graph = compile_agent_graph(RaisingLLM(), _TOOLS)
+    sessions = SessionStore()
+
+    with caplog.at_level(logging.INFO, logger="mythrix.agent.turn_service"):
+        response = run_chat_turn(
+            graph=graph,
+            sessions=sessions,
+            session_id="s1",
+            message="tell me about the magician",
+            ui_selection=AgentUiSelection(),
+            max_tool_iterations=8,
+        )
+
+    assert "problem reaching one of Mythrix" in response.reply_text
+    messages = [record.getMessage() for record in caplog.records]
+    assert any("turn failed" in m and "tool error" in m for m in messages)
+    assert any("turn outcome" in m for m in messages)
+
+
+def test_citation_failure_logs_and_returns_fallback(caplog: pytest.LogCaptureFixture) -> None:
+    script = [AIMessage(content="This is fabricated [G9].")]
+    sessions = SessionStore()
+
+    with caplog.at_level(logging.INFO, logger="mythrix.agent.turn_service"):
+        response = run_chat_turn(
+            graph=_graph(script),
+            sessions=sessions,
+            session_id="s1",
+            message="tell me something",
+            ui_selection=AgentUiSelection(),
+            max_tool_iterations=8,
+        )
+
+    assert "[G9]" not in response.reply_text
+    messages = [record.getMessage() for record in caplog.records]
+    assert any("turn failed" in m and "citation validation" in m for m in messages)

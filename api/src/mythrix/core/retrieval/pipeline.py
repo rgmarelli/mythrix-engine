@@ -42,6 +42,7 @@ scored by the same two queries; they are not comparable across groups.
 from __future__ import annotations
 
 import itertools
+import logging
 import math
 from collections.abc import Iterator
 from typing import NamedTuple
@@ -68,6 +69,8 @@ from mythrix.core.models import (
     SourceFacet,
 )
 from mythrix.core.vector.store import ChromaVectorStore, VectorHit
+
+logger = logging.getLogger(__name__)
 
 # Damping constant for Reciprocal Rank Fusion (Cormack et al., 2009; ADR-007) —
 # large enough that a result's contribution depends mostly on how high it
@@ -234,6 +237,23 @@ class RetrievalPipeline:
             )
             deep_chunk_ids = ranked_chunk_ids[: self._match_pool_size]
             deep_hits_by_concept[concept] = {chunk_id: best_hit_by_chunk_id[chunk_id] for chunk_id in deep_chunk_ids}
+
+            variants = [
+                query.text if query.filter_token is None else f"{query.text}+filter:{query.filter_token.as_token}"
+                for query, _ in concept_queries
+            ]
+            hits_above_floor = sum(
+                1 for hit in deep_hits_by_concept[concept].values() if _similarity_score(hit) >= self._min_score
+            )
+            logger.info("concept=%r queries=%s hits_above_floor=%d", concept, variants, hits_above_floor)
+
+        as_token_by_value = {
+            query.filter_token.value: query.filter_token.as_token for query in queries if query.filter_token
+        }
+        for value, chunk_ids in filter_token_chunk_ids.items():
+            logger.info(
+                "filter_token=%r as_token=%r hits=%d", value, as_token_by_value.get(value, value), len(chunk_ids)
+            )
 
         return deep_hits_by_concept, filter_token_chunk_ids, all_hits_by_chunk_id
 

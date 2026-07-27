@@ -17,6 +17,7 @@ read-only `list_semiotic_systems` addition (`specs/interfaces/agent.md`).
 from __future__ import annotations
 
 import json
+import logging
 from typing import Annotated, TypedDict
 
 from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
@@ -28,6 +29,9 @@ from langgraph.prebuilt import ToolNode
 
 from mythrix.agent.prompts import SYSTEM_PROMPT
 from mythrix.core.errors import ModelRequestError, ModelUnavailableError
+from mythrix.core.logging_config import truncate
+
+logger = logging.getLogger(__name__)
 
 
 class AgentState(TypedDict):
@@ -135,6 +139,11 @@ def compile_agent_graph(llm_with_tools, tools: list) -> CompiledStateGraph:  # n
         if context_summary:
             system_text = f"{SYSTEM_PROMPT}\n\nCurrent context:\n{context_summary}"
         messages = [SystemMessage(content=system_text), *state["messages"]]
+        logger.info(
+            "model input: system_prompt=%r history=%s",
+            system_text,
+            [{"role": type(m).__name__, "content": truncate(str(m.content))} for m in state["messages"]],
+        )
         response = llm_with_tools.invoke(messages)
         return {"messages": [response]}
 

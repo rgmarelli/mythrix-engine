@@ -19,6 +19,7 @@ from mythrix.api import routes
 from mythrix.api.errors import register_exception_handlers
 from mythrix.core.bootstrap import build_stores
 from mythrix.core.config import Settings
+from mythrix.core.logging_config import configure_logging
 
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 _WEB_DIST = _REPO_ROOT / "web" / "dist"
@@ -36,6 +37,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 def create_app() -> FastAPI:
+    configure_logging()
     app = FastAPI(title="Mythrix Query Viewer API", lifespan=lifespan)
 
     web_origin = os.environ.get("MYTHRIX_WEB_ORIGIN", "http://localhost:5173")

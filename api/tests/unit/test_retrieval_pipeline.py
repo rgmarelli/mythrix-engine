@@ -15,6 +15,7 @@ e.g. Genesis, discoverable when querying a tarot sign, carrying no
 interpretive tradition of its own). Uses a fake vector store/embedder — no
 Ollama needed."""
 
+import logging
 import math
 from datetime import UTC, datetime
 from pathlib import Path
@@ -1115,3 +1116,41 @@ def test_retrieve_regions_facets_count_eligible_regions(graph_store: KuzuGraphSt
     assert result.facets.sources[0].count == 1
     interpretant_counts = {f.value: f.count for f in result.facets.interpretants}
     assert interpretant_counts == {"Fire": 1, "Fish": 1}
+
+
+# --- Query/filter-token logging (FR-QEL-07, FR-QEL-08) ---
+
+
+def test_search_deep_pools_logs_each_concepts_plain_and_filtered_query_variants(
+    graph_store: KuzuGraphStore, caplog: pytest.LogCaptureFixture
+) -> None:
+    graph_facts = _gematria_intersemiotic_graph_facts()
+    fish_hit = _make_hit("waite-pictorial-key::0", distance=0.2)
+    # 4 calls: Fire(None), Fire(hundred), Fish(None), Fish(hundred).
+    vector_store = SequencedVectorStore([[], [], [fish_hit], []])
+    pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
+
+    with caplog.at_level(logging.INFO, logger="mythrix.core.retrieval.pipeline"):
+        pipeline.retrieve(graph_facts)
+
+    messages = [record.getMessage() for record in caplog.records]
+    fish_lines = [m for m in messages if "concept='Fish'" in m]
+    assert len(fish_lines) == 1
+    assert "'Fish'" in fish_lines[0]
+    assert "'Fish+filter:hundred'" in fish_lines[0]
+    assert "hits_above_floor=1" in fish_lines[0]
+
+
+def test_search_deep_pools_logs_a_filter_token_with_zero_matching_chunks(
+    graph_store: KuzuGraphStore, caplog: pytest.LogCaptureFixture
+) -> None:
+    graph_facts = _gematria_intersemiotic_graph_facts()
+    # 4 calls: Fire(None), Fire(hundred), Fish(None), Fish(hundred) — none match.
+    vector_store = SequencedVectorStore([[], [], [], []])
+    pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
+
+    with caplog.at_level(logging.INFO, logger="mythrix.core.retrieval.pipeline"):
+        pipeline.retrieve(graph_facts)
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert any("filter_token='100'" in m and "as_token='hundred'" in m and "hits=0" in m for m in messages)

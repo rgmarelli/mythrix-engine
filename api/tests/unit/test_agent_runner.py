@@ -2,6 +2,9 @@
 Drives a real compiled graph (via `compile_agent_graph`) with a stub
 tool-calling model, no live Ollama."""
 
+import logging
+
+import pytest
 from langchain_core.messages import AIMessage
 from langchain_core.tools import tool
 
@@ -31,6 +34,27 @@ class ScriptedLLM:
 class LoopingLLM:
     def invoke(self, messages: list) -> AIMessage:
         return AIMessage(content="", tool_calls=[{"name": "echo", "args": {"text": "hi"}, "id": "cx"}])
+
+
+class MultiToolLLM:
+    """Requests two tool calls in a single model pass, then answers plainly —
+    exercises the message-diff loop against a single `ToolNode` step that
+    appends more than one `ToolMessage` at once."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def invoke(self, messages: list) -> AIMessage:
+        self.calls += 1
+        if self.calls == 1:
+            return AIMessage(
+                content="",
+                tool_calls=[
+                    {"name": "echo", "args": {"text": "first"}, "id": "c1"},
+                    {"name": "echo", "args": {"text": "second"}, "id": "c2"},
+                ],
+            )
+        return AIMessage(content="done")
 
 
 def test_run_turn_returns_the_ordered_tool_trace_and_reply() -> None:
@@ -68,3 +92,55 @@ def test_run_turn_returns_a_clear_message_when_the_tool_budget_is_exceeded() -> 
 
     assert new_history == history  # runaway turn's messages are not kept
     assert "limit" in result.reply.lower()
+
+
+def test_run_turn_logs_model_output_and_tool_result(caplog: pytest.LogCaptureFixture) -> None:
+    graph = compile_agent_graph(ScriptedLLM(), [echo])
+
+    with caplog.at_level(logging.INFO, logger="mythrix.agent.runner"):
+        run_turn(graph, [], "call the tool", max_tool_iterations=8)
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert any("model output" in m and "echo" in m for m in messages)
+    assert any("tool result" in m and "hi" in m for m in messages)
+
+
+def test_run_turn_logs_every_tool_call_from_one_multi_tool_model_pass(caplog: pytest.LogCaptureFixture) -> None:
+    graph = compile_agent_graph(MultiToolLLM(), [echo])
+
+    with caplog.at_level(logging.INFO, logger="mythrix.agent.runner"):
+        run_turn(graph, [], "call the tools", max_tool_iterations=8)
+
+    messages = [record.getMessage() for record in caplog.records]
+    tool_result_lines = [m for m in messages if "tool result" in m]
+    assert any("first" in m for m in tool_result_lines)
+    assert any("second" in m for m in tool_result_lines)
+
+
+def test_run_turn_logs_recursion_bound_hit(caplog: pytest.LogCaptureFixture) -> None:
+    graph = compile_agent_graph(LoopingLLM(), [echo])
+
+    with caplog.at_level(logging.INFO, logger="mythrix.agent.runner"):
+        run_turn(graph, [], "loop forever", max_tool_iterations=3)
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert any("recursion bound" in m for m in messages)
+
+
+def test_run_turn_logs_model_input_for_every_invocation(caplog: pytest.LogCaptureFixture) -> None:
+    graph = compile_agent_graph(ScriptedLLM(), [echo])
+
+    with caplog.at_level(logging.INFO, logger="mythrix.agent.graph"):
+        run_turn(graph, [], "call the tool", max_tool_iterations=8, context_summary="Current sign: The Tower.")
+
+    messages = [record.getMessage() for record in caplog.records]
+    input_lines = [m for m in messages if m.startswith("model input:")]
+    assert len(input_lines) == 2  # one per model pass: the tool-calling pass, then the final reply
+    # The full operator system prompt is logged verbatim, not just the appended context.
+    assert "Mythrix semiotics expert assistant" in input_lines[0]
+    assert "traditions" in input_lines[0]
+    assert "The Tower" in input_lines[0]
+    assert "call the tool" in input_lines[0]
+    # The second invocation's history now also includes the first pass's tool call and result.
+    assert "ToolMessage" in input_lines[1]
+    assert "hi" in input_lines[1]

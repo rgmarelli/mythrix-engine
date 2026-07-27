@@ -5,6 +5,7 @@
 real `KuzuGraphStore`/`ChromaVectorStore` against `tmp_path`, a fake
 embedder. Mirrors `tests/unit/test_cli_query.py`'s fixture pattern."""
 
+import logging
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -227,6 +228,59 @@ def test_query_min_score_param_overrides_the_settings_default(
 
     assert response.status_code == 200
     assert response.json()["regions"] == []
+
+
+def test_query_logs_params_duration_count_and_score_range(
+    graph_store: KuzuGraphStore, vector_store: ChromaVectorStore, caplog: pytest.LogCaptureFixture
+) -> None:
+    vector_store.add_chunks(
+        [Chunk(index=0, text="The Tower represents sudden upheaval.", char_start=0, char_end=38)],
+        embeddings=[[1.0, 0.0]],
+        metadata=ChunkMetadata(
+            source_id="waite", domain="tarot", embedding_model="fake-embed", ingested_at="2026-01-01T00:00:00Z"
+        ),
+    )
+    client = _client(graph_store, vector_store)
+
+    with caplog.at_level(logging.INFO, logger="mythrix.api.routes"):
+        response = client.get("/api/query", params={"sign": "the-tower", "tradition": "rider-waite"})
+
+    assert response.status_code == 200
+    query_lines = [record.getMessage() for record in caplog.records if record.getMessage().startswith("query:")]
+    assert len(query_lines) == 1
+    line = query_lines[0]
+    assert "sign=the-tower" in line
+    assert "tradition=rider-waite" in line
+    assert "regions=1" in line
+    assert "score_range=n/a" not in line
+
+
+def test_query_with_no_results_logs_score_range_as_na(
+    graph_store: KuzuGraphStore, vector_store: ChromaVectorStore, caplog: pytest.LogCaptureFixture
+) -> None:
+    client = _client(graph_store, vector_store)
+
+    with caplog.at_level(logging.INFO, logger="mythrix.api.routes"):
+        response = client.get("/api/query", params={"sign": "the-tower", "tradition": "rider-waite"})
+
+    assert response.status_code == 200
+    query_lines = [record.getMessage() for record in caplog.records if record.getMessage().startswith("query:")]
+    assert len(query_lines) == 1
+    assert "regions=0" in query_lines[0]
+    assert "score_range=n/a" in query_lines[0]
+
+
+def test_query_unknown_sign_logs_failure_and_still_returns_404(
+    graph_store: KuzuGraphStore, vector_store: ChromaVectorStore, caplog: pytest.LogCaptureFixture
+) -> None:
+    client = _client(graph_store, vector_store)
+
+    with caplog.at_level(logging.INFO, logger="mythrix.api.routes"):
+        response = client.get("/api/query", params={"sign": "nonexistent", "tradition": "rider-waite"})
+
+    assert response.status_code == 404
+    messages = [record.getMessage() for record in caplog.records]
+    assert any(m.startswith("query failed:") for m in messages)
 
 
 def test_segments_returns_the_ordinal_range(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore) -> None:
