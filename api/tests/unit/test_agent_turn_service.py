@@ -42,7 +42,15 @@ def fetch_segments(source_id: str, start_ordinal: int, end_ordinal: int) -> list
     ]
 
 
-_TOOLS = [get_sign, summarize_passage, fetch_segments]
+@tool
+def list_signs(semiotic_system: str | None = None) -> list[dict]:
+    """Fake list_signs mirroring the real tool's shape — no `citations` field."""
+    return [
+        {"slug": "aleph", "name": "Aleph", "semiotic_system": "hebrew_alef_bet", "traditions": ["sepher-yetzirah-gra"]}
+    ]
+
+
+_TOOLS = [get_sign, summarize_passage, fetch_segments, list_signs]
 
 
 class ScriptedLLM:
@@ -214,6 +222,35 @@ def test_fabricated_citation_marker_is_not_shown_and_history_is_not_persisted() 
     assert "[G9]" not in response.reply_text
     assert "fabricated" not in response.reply_text
     assert sessions.get_or_create("s1").history == []
+
+
+def test_stray_marker_on_a_listing_tool_reply_is_stripped_not_rejected() -> None:
+    """`list_signs` has no `citations` field for any marker to ever be valid
+    against (unlike `get_sign`) — a marker the model wrongly attaches to it
+    is a formatting slip on real, tool-derived data, not the FR-AG-06
+    fabrication risk citation validation exists to catch, so the turn
+    succeeds with the marker stripped rather than being discarded."""
+    script = [
+        AIMessage(
+            content="",
+            tool_calls=[{"name": "list_signs", "args": {"semiotic_system": "hebrew_alef_bet"}, "id": "c1"}],
+        ),
+        AIMessage(content="[G1] Aleph"),
+    ]
+    sessions = SessionStore()
+
+    response = run_chat_turn(
+        graph=_graph(script),
+        sessions=sessions,
+        session_id="s1",
+        message="list signs from hebrew_alef_bet",
+        ui_selection=AgentUiSelection(),
+        max_tool_iterations=8,
+    )
+
+    assert "[G1]" not in response.reply_text
+    assert "Aleph" in response.reply_text
+    assert sessions.get_or_create("s1").history != []
 
 
 def test_summarize_command_with_active_hotspot_fetches_and_summarizes_deterministically() -> None:
