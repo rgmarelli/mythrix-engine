@@ -15,6 +15,17 @@
 - Answer the user's question directly.
 - Avoid unnecessary explanations or repetition.
 
+## Engineering Approach and Solution Quality
+
+* **Prioritize the correct solution over the quickest solution.** The primary proposed solution must address the underlying problem properly within the project's architecture, design principles, and long-term maintainability goals. Do not default to shortcuts, workarounds, hacks, or narrowly scoped fixes simply because they are faster or easier to implement.
+* **Do not silently introduce shortcuts.** If the technically correct solution is more complex, requires architectural changes, or takes significantly more effort, propose that solution first.
+* **Explicitly disclose shortcuts and compromises.** If a shortcut, workaround, temporary fix, or technically inferior alternative is being considered, clearly identify it as such, explain what the proper solution would be, and describe the trade-offs, limitations, and technical debt it introduces.
+* **Require explicit user approval for shortcuts.** Do not implement a shortcut, workaround, or deliberate architectural compromise without the user's explicit approval. The user's approval must be obtained before implementation, not inferred from the request to "make it work" or from time constraints.
+* **Do not optimize for implementation speed at the expense of correctness.** A solution that merely makes the current test, request, or use case pass is not sufficient if it leaves the underlying design problem unresolved.
+* **Prefer root-cause fixes.** When encountering a bug or design problem, investigate and address the underlying cause rather than masking symptoms with patches or special cases.
+* **When presenting options, lead with the recommended proper solution.** If alternatives exist, present the architecturally sound solution as the primary recommendation and clearly label any shortcut or compromise as an alternative requiring explicit approval.
+* **Never present a shortcut as the proper solution.** Do not frame a workaround as if it were the final or recommended architecture merely because it is simpler to implement.
+
 ## Spec-Driven Development
 
 This project follows Spec-Driven Development (SDD). Every non-trivial feature or change moves through four stages before it's considered done, each producing an artifact under `specs/tmp/<feature-slug>/`:
