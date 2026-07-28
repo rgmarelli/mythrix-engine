@@ -42,12 +42,11 @@ describe('fetchQuery', () => {
   it('encodes sign/tradition/opts as query params', async () => {
     const wire: RegionQueryResult = { facets: { sources: [], interpretants: [] }, regions: [] };
     vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(wire));
-    await fetchQuery('the-sun', 'rider-waite', { topK: 10, matchPool: 50, minScore: 0.5 });
+    await fetchQuery('the-sun', 'rider-waite', { matchPool: 50, minScore: 0.5 });
     const calledUrl = vi.mocked(fetch).mock.calls[0][0] as string;
     expect(calledUrl).toContain('/api/query?');
     expect(calledUrl).toContain('sign=the-sun');
     expect(calledUrl).toContain('tradition=rider-waite');
-    expect(calledUrl).toContain('top_k=10');
     expect(calledUrl).toContain('match_pool=50');
     expect(calledUrl).toContain('min_score=0.5');
   });
@@ -57,7 +56,6 @@ describe('fetchQuery', () => {
     vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(wire));
     await fetchQuery('the-sun', 'rider-waite');
     const calledUrl = vi.mocked(fetch).mock.calls[0][0] as string;
-    expect(calledUrl).not.toContain('top_k');
     expect(calledUrl).not.toContain('match_pool');
     expect(calledUrl).not.toContain('min_score');
   });

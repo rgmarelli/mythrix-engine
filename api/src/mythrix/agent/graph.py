@@ -2,16 +2,13 @@
 fixed read-only tool set, looping through a `tools` node until the model
 answers without a further tool call.
 
-Builds its **own** tool-capable `ChatOllama` here rather than reusing
-`core/synthesis/chain.py::OllamaChatClient`, which wraps `ChatOllama` behind a
-narrow `invoke(prompt) -> str` with no tool-binding surface. Keeping that
-client narrow (it is also used, unchanged, by the `summarize_passage` tool)
-and giving the agent node its own construction avoids overloading one class
-with two different jobs (plain completion vs. tool-calling). The
-"not found"/"can't reach the daemon" message-text matching below mirrors
-`OllamaChatClient.__init__` — duplicated rather than factored into `core/`,
-since this package is otherwise self-contained from `core/` beyond the
-read-only `list_semiotic_systems` addition (`specs/interfaces/agent.md`).
+This module takes the tool-bound model as an argument and never constructs
+one — `api/dependencies.py` builds a single chat model via
+`core/ollama.py::create_chat_model` and derives both roles from it: the
+tool-bound binding compiled in here, and the narrow `ChatClient` the
+`summarize_passage` tool uses. Keeping construction out of this module is what
+keeps the daemon validated once per process while leaving the two roles
+distinct.
 """
 
 from __future__ import annotations
@@ -21,7 +18,6 @@ import logging
 from typing import Annotated, TypedDict
 
 from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
-from langchain_ollama import ChatOllama
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.graph.state import CompiledStateGraph
@@ -49,7 +45,7 @@ from mythrix.agent.summarize_command import (
     resolve_hotspot,
 )
 from mythrix.agent.summarize_command import command_of as summarize_command_of
-from mythrix.core.errors import AdhocQueryValidationError, ModelRequestError, ModelUnavailableError
+from mythrix.core.errors import AdhocQueryValidationError
 from mythrix.core.logging_config import truncate
 
 logger = logging.getLogger(__name__)
@@ -62,30 +58,6 @@ class AgentState(TypedDict):
     instructions: list[dict]
     region_id: str | None
     interpretant: str | None
-
-
-def _build_tool_chat_model(*, generation_model: str, base_url: str, num_ctx: int) -> ChatOllama:
-    """Constructs the tool-capable chat model, fail-fast (agent.md FR-AG-08)
-    — mirrors `OllamaChatClient.__init__`'s message-text error mapping."""
-    if not generation_model:
-        raise ModelUnavailableError(generation_model or "<unset>")
-    try:
-        return ChatOllama(
-            model=generation_model,
-            base_url=base_url,
-            temperature=0.15,
-            num_predict=2048,  # FIXME: make configurable
-            num_ctx=num_ctx,
-            validate_model_on_init=True,
-        )
-    except Exception as exc:  # noqa: BLE001 - validate_model_on_init raises inconsistent exception
-        # types across langchain_ollama/httpx versions for "model not found" and
-        # "can't reach the daemon at all" alike, so match on message rather than
-        # type — same mapping as OllamaChatClient.
-        message = str(exc)
-        if "not found in Ollama" in message or "Failed to connect to Ollama" in message:
-            raise ModelUnavailableError(generation_model) from exc
-        raise ModelRequestError(generation_model, cause=f"{type(exc).__name__}: {message}") from exc
 
 
 def route_input(state: AgentState) -> str:
@@ -279,9 +251,8 @@ def compile_agent_graph(llm_with_tools, tools: list) -> CompiledStateGraph:  # n
     (agent.md FR-AG-18) and straight on to `END`. Ends at `END` once the model
     answers without calling a tool.
 
-    Kept separate from `build_agent_graph` so a test can inject a stub
-    tool-calling model with no live Ollama involved — `build_agent_graph`
-    is the only caller that needs a real `ChatOllama`.
+    `llm_with_tools` is already bound, so a test can inject a stub
+    tool-calling model with no live Ollama involved.
 
     The per-turn tool-call bound (FR-AG-12) is a runtime concern, not a
     compile-time one — `runner.run_turn` applies it via LangGraph's
@@ -326,13 +297,3 @@ def compile_agent_graph(llm_with_tools, tools: list) -> CompiledStateGraph:  # n
     builder.add_conditional_edges("tools", route_after_tools, {"agent": "agent", "clarify": "clarify"})
     builder.add_edge("clarify", END)
     return builder.compile()
-
-
-def build_agent_graph(*, generation_model: str, base_url: str, num_ctx: int, tools: list) -> CompiledStateGraph:
-    """Constructs the real, tool-bound `ChatOllama` (fail-fast, agent.md FR-AG-08) and
-    compiles the graph around it. `mythrix.api.dependencies`'s only call into
-    this module."""
-    llm_with_tools = _build_tool_chat_model(
-        generation_model=generation_model, base_url=base_url, num_ctx=num_ctx
-    ).bind_tools(tools)
-    return compile_agent_graph(llm_with_tools, tools)

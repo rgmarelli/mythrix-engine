@@ -531,11 +531,6 @@ class KuzuGraphStore:
             properties=self._get_sign_properties(row[0]),
         )
 
-    def get_tradition(self, tradition_slug: str) -> Tradition:
-        """Public lookup used by the retrieval pipeline (T15) to hydrate a
-        `VectorHit.tradition_slug` into a full `Tradition` for `RetrievedPassage`."""
-        return self._get_tradition_by_slug(tradition_slug)
-
     def _get_tradition_by_slug(self, slug: str) -> Tradition:
         result = self._execute(
             "MATCH (t:Tradition {slug: $slug}) RETURN t.id, t.slug, t.name, t.domain, t.description",

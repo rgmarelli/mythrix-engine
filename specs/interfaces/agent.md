@@ -34,7 +34,7 @@ The in-app, tool-calling chat agent served by the [Backend API](api.md) and dock
 - FR-AG-10: Each turn surfaces a tool trace — which tools the agent called, in order — so the user can see the evidence path behind the answer.
 - FR-AG-11: A tool that fails (e.g. an unknown sign or tradition, an unreachable model for summarization) returns a distinct error to the agent that the agent relays to the user, without terminating the session; the user can continue with further turns.
 - FR-AG-12: The agent loop is bounded: a single turn cannot invoke tools indefinitely. On reaching the bound, the turn ends with a clear message rather than looping.
-- FR-AG-13: The agent is additive and self-contained. It adds no command to the `mythrix` CLI; the existing `query`, `load-signs`, and `load-documents` commands and all other `/api/*` routes are unchanged in behavior and output.
+- FR-AG-13: The agent is additive and self-contained. It adds no command to the `mythrix` CLI; the existing `load-signs` and `load-documents` commands and all other `/api/*` routes are unchanged in behavior and output.
 
 ### Chat panel
 

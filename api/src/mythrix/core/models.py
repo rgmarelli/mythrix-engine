@@ -1,4 +1,4 @@
-"""Domain-agnostic core models shared across graph storage, retrieval, synthesis, and CLI output.
+"""Domain-agnostic core models shared across graph storage, retrieval, and the API.
 
 No domain-specific literals (tarot, Kabbalah, etc.) belong in this module — see
 tests/unit/test_domain_agnosticism.py.
@@ -97,7 +97,7 @@ class Property(MythrixModel):
 
 
 class QueryDirective(MythrixModel):
-    """A curator-authored retrieval instruction on one `Interpretant` (FR-CO-03, FR-RT-09,
+    """A curator-authored retrieval instruction on one `Interpretant` (FR-CO-03, FR-RT-15,
     FR-RT-11, FR-EX-01–05).
 
     `directive` is a free-text hint, not an enforced enum — v1 code interprets three
@@ -119,13 +119,13 @@ class QueryDirective(MythrixModel):
 
 class Interpretant(MythrixModel):
     """A conceptual token, value, or meaning evoked by a sign within one
-    manifestation (FR-SD-05) — eligible for retrieval query construction (FR-CO-03, FR-RT-07)
+    manifestation (FR-SD-05) — eligible for retrieval query construction (FR-CO-03)
     unless it carries a `query` directive that says otherwise, in which case it is
     handled as described on `QueryDirective`.
 
     `type` is a free-text hint for display/organization (e.g. "concept",
-    "foundation", "numeric_value") — descriptive metadata only, not part of
-    concept-pair grouping identity (FR-RT-08), which is keyed by `value` alone.
+    "foundation", "numeric_value") — descriptive metadata only, never part of
+    matching identity, which is keyed by `value` alone.
     """
 
     id: str
@@ -270,120 +270,6 @@ class GraphFacts(MythrixModel):
 
     sign: Sign
     manifestation: Manifestation
-
-
-class RetrievedPassage(MythrixModel):
-    """A single retrieved document chunk, carrying full verbatim text for
-    display (FR-RT-05). Carries no `Tradition` — a retrieved passage always comes
-    from an independent corpus document (FR-CO-02), which has no interpretive
-    tradition of its own; `source.citation_label` is what attributes it."""
-
-    chunk_id: str
-    source: Source
-    text: str
-    locator: str = ""
-    score: float = 0.0
-    chunk_index: int = 0
-    char_start: int = 0
-    char_end: int = 0
-    embedding_model: str = ""
-
-
-class ConceptCandidates(MythrixModel):
-    """Retrieved passages for one individually-queried concept (FR-RT-07) — an
-    interpretant value, exactly as decomposed by `retrieval.pipeline.build_query_texts`.
-    Kept separate from every other concept's candidates rather than merged into
-    one shared pool, so a well-supported concept (e.g. a precise exact-value
-    match) can't be crowded out by unrelated concepts that simply generated
-    more queries. Where two concepts both retrieve the same passage, that
-    convergence is surfaced separately as `ConceptPairCandidates` (FR-RT-08).
-
-    `concept` doubles as both the grouping key and the human-readable label shown in
-    output — it's the atomic query text itself (e.g. "white horse", "laughter"),
-    which is already exactly what a researcher would recognize the concept by.
-    """
-
-    concept: str
-    passages: tuple[RetrievedPassage, ...] = ()
-
-
-class ConceptMatchScore(MythrixModel):
-    """One concept's own claim on a passage, within a pair match (FR-RT-08, FR-RT-09).
-
-    `score` is that concept's best similarity for this passage. `exact_value` marks
-    the FR-RT-09 case: an interpretant carrying a `query.directive: "filter"`
-    annotation reaches a passage through a literal-text filter, not through
-    embedding similarity, so its membership is a *guarantee* that the passage
-    contains its `as_token` text rather than a similarity judgment. Such a match
-    carries no meaningful magnitude — its `score` is not comparable to a
-    semantic concept's and is excluded from the combined score (see
-    `ConceptPairCandidates`).
-    """
-
-    concept: str
-    score: float = 0.0
-    exact_value: bool = False
-
-
-class MergedCandidate(MythrixModel):
-    """A passage two concepts both retrieved, with the components of its combined
-    score kept alongside the verdict (FR-RT-08) — a researcher sees not just that a
-    passage converged but how strongly it did on each side, which is what
-    distinguishes a genuine intersection from a strong match on one concept that
-    merely grazed the other."""
-
-    passage: RetrievedPassage
-    matches: tuple[ConceptMatchScore, ...] = ()
-    combined_score: float = 0.0
-
-
-class ConceptPairCandidates(MythrixModel):
-    """Passages retrieved by *both* of two concepts (FR-RT-08) — emitted alongside, never
-    instead of, each concept's own `ConceptCandidates`. Convergence is the signal
-    per-concept grouping alone discards: a passage matching two independently-derived
-    concepts at once is a stronger finding than either concept's own top hit, but
-    under FR-RT-07 it is merely duplicated into two groups with nothing recording that
-    it was the same passage.
-
-    Because groups are additive, a strong single-concept match never loses to a
-    convergent one — it still stands in its own concept's group — so no ranking rule
-    has to adjudicate between the two kinds of result.
-
-    Candidates are ranked by the geometric mean of the pair's *semantic* component
-    scores, clamped at zero — geometric rather than arithmetic because convergence
-    is conjunctive, not additive (ADR-007). An `exact_value` member (FR-RT-09)
-    contributes membership but no score, so a concept-plus-filter-token pair is
-    scored by its semantic concept alone.
-
-    Scores are only comparable *within* a group, where every candidate is scored by
-    the same two queries and any per-query bias is constant across the rows being
-    compared. They are not comparable across groups.
-    """
-
-    concepts: tuple[str, ...] = ()
-    candidates: tuple[MergedCandidate, ...] = ()
-
-
-class RetrievalContext(MythrixModel):
-    """Everything retrieved for a query: graph facts, grounding document passages
-    grouped per concept (FR-RT-07), and the concept pairs those passages converge on
-    (FR-RT-08). No synthesized text — the query path invokes no generation model (FR-RT-10)."""
-
-    graph_facts: GraphFacts
-    concept_candidates: tuple[ConceptCandidates, ...] = ()
-    pair_candidates: tuple[ConceptPairCandidates, ...] = ()
-
-    @property
-    def all_passages(self) -> tuple[RetrievedPassage, ...]:
-        """Every retrieved passage across every concept, flattened — for callers that
-        only need a corpus-wide view (e.g. counting total passages retrieved), not
-        the per-concept grouping itself. Deliberately excludes `pair_candidates`,
-        which are *mostly* but not entirely a subset of these: pair membership is
-        detected against a matching pool deeper than the one displayed here (FR-RT-08),
-        so a passage can converge on two concepts while ranking below both of their
-        displayed cutoffs. Callers needing every passage the query touched must read
-        `pair_candidates` too."""
-        return tuple(passage for candidates in self.concept_candidates for passage in candidates.passages)
 
 
 class SourceFacet(MythrixModel):

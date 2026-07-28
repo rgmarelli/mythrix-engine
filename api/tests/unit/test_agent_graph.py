@@ -1,7 +1,6 @@
 """Unit tests for `agent/graph.py`. Drives `compile_agent_graph` with a stub
-tool-calling model — no live Ollama — since `build_agent_graph` (the only
-caller that constructs a real `ChatOllama`) exists precisely so a test can
-bypass it."""
+tool-calling model — no live Ollama — which this module accepts directly:
+construction lives in `api/dependencies.py`, not here."""
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage

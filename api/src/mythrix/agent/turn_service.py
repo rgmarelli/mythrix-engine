@@ -1,7 +1,7 @@
 """Composes one full `POST /api/agent` turn out of the existing agent primitives: thread-reset detection
 (`agent/context.py`), the LangGraph turn driver (`agent/runner.py`), card
 building (`agent/cards.py`), and citation validation
-(`core/synthesis/citations.py`). `api/routes.py`'s handler is a
+(`agent/citations.py`). `api/routes.py`'s handler is a
 thin wrapper around `run_chat_turn`, matching every existing route's
 thinness."""
 
@@ -17,6 +17,7 @@ from pydantic import BaseModel
 
 from mythrix.agent.adhoc_query import is_adhoc_command
 from mythrix.agent.cards import build_cards
+from mythrix.agent.citations import find_invalid_markers, strip_markers
 from mythrix.agent.context import (
     AgentContext,
     AgentUiSelection,
@@ -29,7 +30,6 @@ from mythrix.agent.runner import run_turn
 from mythrix.agent.sessions import SessionStore
 from mythrix.core.errors import CitationValidationError, MythrixError
 from mythrix.core.logging_config import truncate
-from mythrix.core.synthesis.citations import find_invalid_markers, strip_markers
 
 logger = logging.getLogger(__name__)
 

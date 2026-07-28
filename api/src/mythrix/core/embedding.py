@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from mythrix.core.errors import ModelRequestError, ModelUnavailableError
+from mythrix.core.ollama import create_embeddings, model_errors
 
 
 class Embedder(Protocol):
@@ -22,19 +22,9 @@ class OllamaEmbedder:
     `Embedder` instead."""
 
     def __init__(self, *, model: str, base_url: str) -> None:
-        from langchain_ollama import OllamaEmbeddings
-
         self.model_name = model
-        self._embeddings = OllamaEmbeddings(model=model, base_url=base_url)
+        self._embeddings = create_embeddings(model=model, base_url=base_url)
 
     def embed(self, texts: list[str]) -> list[list[float]]:
-        from ollama import ResponseError
-
-        try:
+        with model_errors(self.model_name):
             return self._embeddings.embed_documents(texts)
-        except ResponseError as exc:
-            if exc.status_code == 404:
-                raise ModelUnavailableError(self.model_name) from exc
-            raise ModelRequestError(self.model_name, cause=str(exc)) from exc
-        except Exception as exc:  # noqa: BLE001 - connection drops, timeouts, etc: surface the real cause
-            raise ModelRequestError(self.model_name, cause=f"{type(exc).__name__}: {exc}") from exc

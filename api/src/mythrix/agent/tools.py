@@ -19,13 +19,13 @@ from __future__ import annotations
 
 from langchain_core.tools import tool
 
+from mythrix.agent.prompts import render_passage_summary_prompt
 from mythrix.core.bootstrap import Stores
+from mythrix.core.chat import ChatClient
 from mythrix.core.config import Settings
 from mythrix.core.errors import MythrixError
 from mythrix.core.models import GraphFacts, RegionQueryResult
 from mythrix.core.query_service import fetch_source_segments, query_regions
-from mythrix.core.synthesis.chain import ChatClient
-from mythrix.core.synthesis.prompts import render_passage_summary_prompt
 
 
 def _error(exc: MythrixError) -> dict:
@@ -188,7 +188,6 @@ def build_tools(stores: Stores, settings: Settings, chat_client: ChatClient) -> 
     def query_sign(
         sign: str,
         tradition: str,
-        top_k: int | None = None,
         min_score: float | None = None,
     ) -> dict:
         """Retrieve ranked textual evidence regions (hotspots) for a sign in
@@ -212,9 +211,7 @@ def build_tools(stores: Stores, settings: Settings, chat_client: ChatClient) -> 
                 graph_store=stores.graph_store,
                 vector_store=stores.vector_store,
                 embedder=stores.embedder,
-                top_k=top_k or settings.retrieval_top_k,
                 match_pool_size=settings.retrieval_match_pool_size,
-                merge_top_k=settings.merge_top_k,
                 min_score=min_score if min_score is not None else settings.retrieval_min_score,
                 region_window_size=settings.region_window_size,
                 region_min_interpretants=settings.region_min_interpretants,

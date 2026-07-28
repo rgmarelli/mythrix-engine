@@ -65,10 +65,9 @@ function toHotspot(region: Region): Hotspot {
 export async function fetchQuery(
   sign: string,
   tradition: string,
-  opts?: { topK?: number; matchPool?: number; minScore?: number },
+  opts?: { matchPool?: number; minScore?: number },
 ): Promise<HotspotQueryResult> {
   const params = new URLSearchParams({ sign, tradition });
-  if (opts?.topK !== undefined) params.set('top_k', String(opts.topK));
   if (opts?.matchPool !== undefined) params.set('match_pool', String(opts.matchPool));
   if (opts?.minScore !== undefined) params.set('min_score', String(opts.minScore));
 

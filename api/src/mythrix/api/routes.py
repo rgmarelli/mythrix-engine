@@ -45,7 +45,6 @@ def list_signs(stores: Stores = Depends(get_stores)) -> list[SignSummary]:
 def query(
     sign: str,
     tradition: str,
-    top_k: int | None = None,
     match_pool: int | None = None,
     min_score: float | None = None,
     stores: Stores = Depends(get_stores),
@@ -64,7 +63,6 @@ def query(
     (404/502 JSON).
     """
     settings = Settings()
-    effective_top_k = top_k or settings.retrieval_top_k
     effective_match_pool_size = match_pool or settings.retrieval_match_pool_size
     effective_min_score = min_score if min_score is not None else settings.retrieval_min_score
 
@@ -76,9 +74,7 @@ def query(
             graph_store=stores.graph_store,
             vector_store=stores.vector_store,
             embedder=stores.embedder,
-            top_k=effective_top_k,
             match_pool_size=effective_match_pool_size,
-            merge_top_k=settings.merge_top_k,
             min_score=effective_min_score,
             region_window_size=settings.region_window_size,
             region_min_interpretants=settings.region_min_interpretants,
@@ -92,10 +88,9 @@ def query(
     scores = [region.score for region in result.regions]
     score_range = f"{min(scores):.3f}-{max(scores):.3f}" if scores else "n/a"
     logger.info(
-        "query: sign=%s tradition=%s top_k=%d match_pool=%d min_score=%.3f duration_ms=%.1f regions=%d score_range=%s",
+        "query: sign=%s tradition=%s match_pool=%d min_score=%.3f duration_ms=%.1f regions=%d score_range=%s",
         sign,
         tradition,
-        effective_top_k,
         effective_match_pool_size,
         effective_min_score,
         duration_ms,
@@ -107,7 +102,6 @@ def query(
 
 class AdhocQueryRequest(BaseModel):
     terms: list[AdhocTerm]
-    top_k: int | None = None
     match_pool: int | None = None
     min_score: float | None = None
 
@@ -125,7 +119,6 @@ def query_adhoc(request: AdhocQueryRequest, stores: Stores = Depends(get_stores)
     modified. FastAPI emits OpenAPI 3.1, which has no `query` path-item key, so
     this route is absent from the generated docs page until 3.2."""
     settings = Settings()
-    effective_top_k = request.top_k or settings.retrieval_top_k
     effective_match_pool_size = request.match_pool or settings.retrieval_match_pool_size
     effective_min_score = request.min_score if request.min_score is not None else settings.retrieval_min_score
 
@@ -136,9 +129,7 @@ def query_adhoc(request: AdhocQueryRequest, stores: Stores = Depends(get_stores)
             graph_store=stores.graph_store,
             vector_store=stores.vector_store,
             embedder=stores.embedder,
-            top_k=effective_top_k,
             match_pool_size=effective_match_pool_size,
-            merge_top_k=settings.merge_top_k,
             min_score=effective_min_score,
             region_window_size=settings.region_window_size,
             region_min_interpretants=settings.region_min_interpretants,
@@ -150,9 +141,8 @@ def query_adhoc(request: AdhocQueryRequest, stores: Stores = Depends(get_stores)
 
     duration_ms = (time.perf_counter() - start) * 1000
     logger.info(
-        "adhoc query: terms=%d top_k=%d match_pool=%d min_score=%.3f duration_ms=%.1f regions=%d",
+        "adhoc query: terms=%d match_pool=%d min_score=%.3f duration_ms=%.1f regions=%d",
         len(request.terms),
-        effective_top_k,
         effective_match_pool_size,
         effective_min_score,
         duration_ms,

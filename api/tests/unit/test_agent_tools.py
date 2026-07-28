@@ -129,9 +129,7 @@ def stores(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore) -> Stor
 @pytest.fixture
 def settings() -> Settings:
     return Settings(
-        retrieval_top_k=6,
         retrieval_match_pool_size=30,
-        merge_top_k=6,
         retrieval_min_score=0.0,
         region_window_size=3,
         region_min_interpretants=1,

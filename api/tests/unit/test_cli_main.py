@@ -1,6 +1,6 @@
-"""Smoke tests for the actual Typer app wiring (T20-T22's `cli/main.py`) — just
-`--help` on every command, which exercises real Typer argument parsing without
-needing a running Kùzu/Chroma/Ollama."""
+"""Smoke tests for the actual Typer app wiring — just `--help` on every
+command, which exercises real Typer argument parsing without needing a running
+Kùzu/Chroma/Ollama."""
 
 from typer.testing import CliRunner
 
@@ -9,26 +9,19 @@ from mythrix.cli.main import app
 runner = CliRunner()
 
 
-def test_root_help_lists_all_three_commands() -> None:
+def test_root_help_lists_both_ingestion_commands() -> None:
     result = runner.invoke(app, ["--help"])
 
     assert result.exit_code == 0
-    assert "query" in result.output
     assert "load-signs" in result.output
     assert "load-documents" in result.output
 
 
-def test_query_help_lists_expected_options() -> None:
-    """--facts-only and --strict are gone (FR-RT-10 — every query is now
-    facts-only in shape, and there's no generated citation to be strict
-    about); --match-pool is new (FR-RT-08)."""
-    result = runner.invoke(app, ["query", "--help"])
-
-    assert result.exit_code == 0
-    for option in ("--sign", "--tradition", "--top-k", "--match-pool", "--json"):
-        assert option in result.output
-    for removed_option in ("--facts-only", "--strict"):
-        assert removed_option not in result.output
+def test_no_query_command_is_registered() -> None:
+    """Querying is served by `/api/query` over the region shape (ADR-013) —
+    the CLI is an ingestion surface only (FR-10)."""
+    assert "query" not in runner.invoke(app, ["--help"]).output
+    assert runner.invoke(app, ["query", "--help"]).exit_code != 0
 
 
 def test_load_signs_help_lists_expected_options() -> None:
