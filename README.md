@@ -426,6 +426,16 @@ The deterministic query engine is designed to remain usable independently of the
 
 ---
 
+## Documentation
+
+Mythrix is developed using specification-driven development, with system requirements and architectural decisions documented alongside the implementation.
+
+* [Setup Guide](docs/SETUP.md) — Run Mythrix locally and explore the system.
+* [System Specification](specs/spec.md) — Goals, non-goals, requirements, architecture, constraints, and end-to-end flows.
+* [Architecture Decision Records](specs/architecture-decisions) — The reasoning behind key architectural decisions.
+
+---
+
 ## Current Status
 
 > 🚧 **Work in Progress**
