@@ -24,6 +24,7 @@ changed decision is a new ADR that supersedes an earlier one, not an edit.
 | [ADR-009](adr-009-minimal-agent-system-prompt.md) | Keep the agent's system prompt minimal for the local tool-calling model; enforce formatting and cross-turn state in code/UI, not prompt prose | Accepted |
 | [ADR-010](adr-010-agnostic-adhoc-interpretant-query.md) | A scoped, deterministically-gated exception letting one separate, explicitly-marked query path build query text from raw user-typed terms, without touching graph-native retrieval/ranking or the agent's model | Accepted |
 | [ADR-011](adr-011-backend-declared-agent-capabilities.md) | One backend-served capabilities document declares the command vocabulary and how each instruction type is executed (method, path, body mode, result kind); consumers implement result kinds, not instruction types | Accepted |
+| [ADR-012](adr-012-deterministic-command-nodes-bypass-tool-selection.md) | A command whose tool sequence is fully determined by context is handled by a dedicated graph node that calls tools directly, in code; the model is invoked only for a step that is genuinely generative | Accepted |
 
 Primary sources for these records: `specs/retrieval/corpus.md`, `specs/retrieval/retrieval.md`,
 and `specs/retrieval/ranking.md` (the factual requirements these decisions produced,

@@ -37,7 +37,14 @@ from mythrix.core.models import (
     Source,
     Tradition,
 )
-from mythrix.core.retrieval.pipeline import RetrievalPipeline, _combined_score, build_query_texts, collect_exact_tokens
+from mythrix.core.retrieval.pipeline import (
+    RetrievalPipeline,
+    _combined_score,
+    build_query_texts,
+    collect_exact_tokens,
+    parse_region_id,
+    region_id_of,
+)
 from mythrix.core.vector.store import VectorHit
 
 RIDER_WAITE = Tradition(id="rider-waite", slug="rider-waite", name="Rider-Waite-Smith", domain="tarot")
@@ -389,6 +396,20 @@ def test_query_texts_exact_directive_contributes_no_embeddable_query_at_all() ->
     query_texts = build_query_texts(graph_facts)
 
     assert query_texts == []
+
+
+def test_region_id_round_trips_through_parse_region_id() -> None:
+    assert parse_region_id(region_id_of("ecclesiasticus-vulgate", 0, 3)) == ("ecclesiasticus-vulgate", 0, 3)
+
+
+def test_parse_region_id_rejects_a_missing_separator() -> None:
+    with pytest.raises(ValueError, match="missing '::'"):
+        parse_region_id("waite-0-1")
+
+
+def test_parse_region_id_rejects_a_non_numeric_range() -> None:
+    with pytest.raises(ValueError, match="non-numeric ordinal range"):
+        parse_region_id("waite::first-last")
 
 
 def test_collect_exact_tokens_defaults_as_token_to_value() -> None:

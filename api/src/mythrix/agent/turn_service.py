@@ -41,36 +41,6 @@ _CITATION_FAILURE_MESSAGE = (
     "I drafted a reply but it referenced something I couldn't actually back up with a tool result, "
     "so I'm not showing it. Could you ask again, maybe more specifically?"
 )
-SUMMARIZE_COMMAND = "/summarize"
-
-
-def _rewrite_summarize_command(message: str, context: AgentContext) -> str | None:
-    """Returns a rewritten directive if `message` is a `/summarize` composer
-    command, else `None`. Detected before the agent loop runs (`run_turn`,
-    below) so the model always sees an explicit instruction rather than
-    inferring intent from a bare command."""
-    head, _, rest = message.strip().partition(" ")
-    if head.lower() != SUMMARIZE_COMMAND:
-        return None
-    focus = rest.strip()
-
-    if not context.region_id:
-        return (
-            "The user typed /summarize but no hotspot is currently selected in the UI. "
-            "Tell them to select a passage first; do not call any tools."
-        )
-
-    target = context.locator or context.region_id
-    directive = f"Use the summarize_passage tool to summarize the active passage ({target})."
-    if focus:
-        directive += f" Focus specifically on: {focus}."
-    elif context.interpretant:
-        directive += f" Focus on the interpretant: {context.interpretant}."
-    directive += (
-        " If you don't already have this passage's text from earlier in this thread, "
-        "call fetch_segments first to retrieve it, then call summarize_passage."
-    )
-    return directive
 
 
 class AgentCard(BaseModel):
@@ -173,8 +143,6 @@ def run_chat_turn(
         full_context_summary = render_context_summary(context)
         logger.info("resolved context: %s thread_reset=%s", context.model_dump(), thread_reset)
 
-        effective_message = _rewrite_summarize_command(message, context) or message
-
         def _log_outcome(reply_text: str, tool_calls: list[str], thread_reset: bool) -> None:
             logger.info(
                 "turn outcome: reply=%s tool_calls=%s thread_reset=%s",
@@ -187,10 +155,12 @@ def run_chat_turn(
             new_history, result = run_turn(
                 graph,
                 session.history,
-                effective_message,
+                message,
                 max_tool_iterations=max_tool_iterations,
                 context_summary=full_context_summary,
                 pending_query=session.pending_query,
+                region_id=context.region_id,
+                interpretant=context.interpretant,
             )
         except MythrixError as exc:
             logger.info("turn failed: tool error: %s", exc)

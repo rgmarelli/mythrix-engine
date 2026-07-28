@@ -53,6 +53,10 @@ Refines FR-AG-01–FR-AG-13 for the panel's web-UI-specific behavior; the underl
 - FR-AG-24: Markdown rendering never executes script content or renders raw HTML tags present in the model's reply text; such content is escaped or stripped, not rendered as markup.
 - FR-AG-25: User-authored messages, error messages, and reset dividers are unaffected by markdown rendering and continue to render as plain text.
 - FR-AG-26: The backend API's agent chat response returns the model's reply text without stripping markdown decoration (bold, headings, bullets); citation-marker stripping and validation are unaffected and continue to apply.
+- FR-AG-33: The `/summarize` command is handled deterministically: which tools are called (fetch the active hotspot's passage, then summarize it) and in what order is decided in code, not by the generation model's own tool selection. The generation model is invoked exactly once per `/summarize` turn, for the summarization itself.
+- FR-AG-34: When `/summarize` is sent with no active hotspot, the agent replies that a passage must be selected first, deterministically, without invoking the generation model or any tool.
+- FR-AG-35: Trailing text after `/summarize` scopes the summary to that focus; absent trailing text, the currently selected interpretant (if any) scopes it instead; absent both, the summary is unscoped.
+- FR-AG-36: The `/summarize` command's turn is recorded in conversation history like any other turn — the stored user message is the literal text the user sent, not a rewritten or fabricated instruction — so later turns in the thread can refer back to the summary.
 
 ### Operational logging
 

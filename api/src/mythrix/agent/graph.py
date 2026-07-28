@@ -41,6 +41,14 @@ from mythrix.agent.adhoc_query import (
     render_dispatch,
 )
 from mythrix.agent.prompts import SYSTEM_PROMPT
+from mythrix.agent.summarize_command import (
+    NO_HOTSPOT_MESSAGE,
+    SUMMARIZE_COMMAND,
+    concepts_for,
+    focus_of,
+    resolve_hotspot,
+)
+from mythrix.agent.summarize_command import command_of as summarize_command_of
 from mythrix.core.errors import AdhocQueryValidationError, ModelRequestError, ModelUnavailableError
 from mythrix.core.logging_config import truncate
 
@@ -52,6 +60,8 @@ class AgentState(TypedDict):
     context_summary: str
     pending_query: PendingAdhocQuery | None
     instructions: list[dict]
+    region_id: str | None
+    interpretant: str | None
 
 
 def _build_tool_chat_model(*, generation_model: str, base_url: str, num_ctx: int) -> ChatOllama:
@@ -80,14 +90,18 @@ def _build_tool_chat_model(*, generation_model: str, base_url: str, num_ctx: int
 
 def route_input(state: AgentState) -> str:
     """Dispatches the turn's incoming message: the two ad-hoc-query commands
-    (specs/interfaces/agnostic-query.md FR-AQ-01, FR-AQ-08) go to their own
-    deterministic nodes, everything else to the model. This is the only place
-    command dispatch happens."""
-    command = command_of(str(state["messages"][-1].content))
+    (specs/interfaces/agnostic-query.md FR-AQ-01, FR-AQ-08) and `/summarize`
+    (agent.md FR-AG-33, ADR-012) go to their own deterministic nodes,
+    everything else to the model. This is the only place command dispatch
+    happens."""
+    message_text = str(state["messages"][-1].content)
+    command = command_of(message_text) or summarize_command_of(message_text)
     if command == CONFIRM_COMMAND:
         return "execute_query"
     if command == QUERY_COMMAND:
         return "parse_query"
+    if command == SUMMARIZE_COMMAND:
+        return "summarize"
     return "agent"
 
 
@@ -131,6 +145,71 @@ def execute_query_node(state: AgentState) -> dict:
         "messages": [AIMessage(content=render_dispatch(pending.terms))],
         "pending_query": None,
         "instructions": [execute_query_instruction(pending.terms)],
+    }
+
+
+def _tool_by_name(tools: list, name: str):  # noqa: ANN001, ANN201 - BaseTool, no shared base type worth importing
+    return next(t for t in tools if t.name == name)
+
+
+def summarize_node(state: AgentState, tools: list) -> dict:  # noqa: ANN001 - BaseTool list
+    """Handles `/summarize` deterministically (agent.md FR-AG-33–FR-AG-36,
+    ADR-012): which tools are called, in what order, and with what
+    arguments is decided here from the active hotspot's `region_id` and the
+    command's own focus text — never by the model's tool selection. Calls
+    the same `fetch_segments`/`summarize_passage` tool objects the model
+    would otherwise select (looked up by name from the graph's bound tool
+    set), so their `MythrixError`-to-`{"error": ...}` mapping (FR-AG-11) is
+    inherited unchanged.
+
+    Fabricates the `AIMessage(tool_calls=...)`/`ToolMessage` pairs a
+    model-driven call would have produced, so conversation history, the
+    tool trace (FR-AG-10), and citation-marker accounting are unaffected in
+    shape — only who decided to call the tool differs.
+
+    Calls no model of its own: the one generative step (the summary text)
+    happens inside `summarize_passage`, and its result becomes the reply
+    verbatim — the same "pure formatting needs no second model call"
+    reasoning `clarify_node` already applies (ADR-006)."""
+    pending = state.get("pending_query")
+    region_id = state.get("region_id")
+    if not region_id:
+        return _adhoc_reply(NO_HOTSPOT_MESSAGE, pending)
+
+    try:
+        source_id, start_ordinal, end_ordinal = resolve_hotspot(region_id)
+    except ValueError:
+        return _adhoc_reply("Couldn't resolve the selected passage — try reselecting it.", pending)
+
+    fetch_args = {"source_id": source_id, "start_ordinal": start_ordinal, "end_ordinal": end_ordinal}
+    segments = _tool_by_name(tools, "fetch_segments").invoke(fetch_args)
+    fetch_messages = [
+        AIMessage(content="", tool_calls=[{"name": "fetch_segments", "args": fetch_args, "id": "summarize-fetch"}]),
+        ToolMessage(content=json.dumps(segments), name="fetch_segments", tool_call_id="summarize-fetch"),
+    ]
+
+    error = next((seg["error"] for seg in segments if isinstance(seg, dict) and "error" in seg), None)
+    if error or not segments:
+        text = error or "Couldn't retrieve any text for the selected passage."
+        return {"messages": [*fetch_messages, AIMessage(content=text)], "pending_query": pending, "instructions": []}
+
+    passage_text = "\n\n".join(segment["text"] for segment in segments)
+    concepts = concepts_for(focus_of(str(state["messages"][-1].content)), state.get("interpretant"))
+    summarize_args = {"passage_text": passage_text, "concepts": concepts}
+    result = _tool_by_name(tools, "summarize_passage").invoke(summarize_args)
+    summarize_messages = [
+        AIMessage(
+            content="",
+            tool_calls=[{"name": "summarize_passage", "args": summarize_args, "id": "summarize-passage"}],
+        ),
+        ToolMessage(content=json.dumps(result), name="summarize_passage", tool_call_id="summarize-passage"),
+    ]
+    reply_text = result.get("error") or result["summary"]
+
+    return {
+        "messages": [*fetch_messages, *summarize_messages, AIMessage(content=reply_text)],
+        "pending_query": pending,
+        "instructions": [],
     }
 
 
@@ -189,8 +268,9 @@ def clarify_node(state: AgentState) -> dict:
 def compile_agent_graph(llm_with_tools, tools: list) -> CompiledStateGraph:  # noqa: ANN001 - Runnable, no shared base type worth importing
     """Compiles the turn's state machine given an already tool-bound chat
     model. `route_input` dispatches the incoming message: an ad-hoc-query
-    command goes to `parse_query`/`execute_query` and straight on to `END`,
-    reaching neither the model nor any tool (agnostic-query.md FR-AQ-01);
+    command goes to `parse_query`/`execute_query`, and `/summarize` goes to
+    `summarize` (ADR-012) — each straight on to `END`, reaching neither the
+    model nor `ToolNode` (agnostic-query.md FR-AQ-01; agent.md FR-AG-33);
     everything else goes to `agent`. `agent` (system prompt prepended fresh on
     every call, alongside any `context_summary`) routes to `tools` (a
     `ToolNode` over the fixed read-only tool set) whenever the model's response
@@ -228,13 +308,20 @@ def compile_agent_graph(llm_with_tools, tools: list) -> CompiledStateGraph:  # n
     builder.add_node("clarify", clarify_node)
     builder.add_node("parse_query", parse_query_node)
     builder.add_node("execute_query", execute_query_node)
+    builder.add_node("summarize", lambda state: summarize_node(state, tools))
     builder.add_conditional_edges(
         START,
         route_input,
-        {"parse_query": "parse_query", "execute_query": "execute_query", "agent": "agent"},
+        {
+            "parse_query": "parse_query",
+            "execute_query": "execute_query",
+            "summarize": "summarize",
+            "agent": "agent",
+        },
     )
     builder.add_edge("parse_query", END)
     builder.add_edge("execute_query", END)
+    builder.add_edge("summarize", END)
     builder.add_conditional_edges("agent", route_after_agent, {"tools": "tools", END: END})
     builder.add_conditional_edges("tools", route_after_tools, {"agent": "agent", "clarify": "clarify"})
     builder.add_edge("clarify", END)

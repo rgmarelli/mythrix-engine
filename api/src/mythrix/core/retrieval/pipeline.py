@@ -395,7 +395,7 @@ class RetrievalPipeline:
                 representative_hit = hit_by_segment[(source_id, cluster[0])]
                 regions.append(
                     Region(
-                        region_id=f"{source_id}::{cluster[0]}-{cluster[-1]}",
+                        region_id=region_id_of(source_id, cluster[0], cluster[-1]),
                         source=self._source_for(representative_hit),
                         locator=_region_locator(tuple(region_segments)),
                         score=score,
@@ -745,6 +745,28 @@ def _cluster_ordinals(ordinals: set[int], window_size: int) -> list[list[int]]:
         else:
             clusters.append([ordinal])
     return clusters
+
+
+def region_id_of(source_id: str, start_ordinal: int, end_ordinal: int) -> str:
+    return f"{source_id}::{start_ordinal}-{end_ordinal}"
+
+
+def parse_region_id(region_id: str) -> tuple[str, int, int]:
+    """Inverse of `region_id_of`. `region_id` is never user-typed — it
+    always originates from a region this backend itself produced — so a
+    parse failure here means the caller passed something stale or
+    malformed, not a validation case worth a friendly message: raises
+    `ValueError`."""
+    source_id, separator, span = region_id.partition("::")
+    if not separator:
+        raise ValueError(f"malformed region_id {region_id!r}: missing '::'")
+    start, dash, end = span.partition("-")
+    if not dash or not start or not end:
+        raise ValueError(f"malformed region_id {region_id!r}: missing ordinal range")
+    try:
+        return source_id, int(start), int(end)
+    except ValueError as exc:
+        raise ValueError(f"malformed region_id {region_id!r}: non-numeric ordinal range") from exc
 
 
 def _region_locator(segments: tuple[Segment, ...]) -> str:

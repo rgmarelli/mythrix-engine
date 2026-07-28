@@ -33,7 +33,16 @@ def summarize_passage(passage_text: str, concepts: list[str]) -> dict:
     return {"summary": f"Summary of: {passage_text} ({', '.join(concepts)})"}
 
 
-_TOOLS = [get_sign, summarize_passage]
+@tool
+def fetch_segments(source_id: str, start_ordinal: int, end_ordinal: int) -> list[dict]:
+    """Fake fetch_segments mirroring the real tool's shape."""
+    return [
+        {"ordinal": ordinal, "locator": f"{source_id} {ordinal}", "section": None, "text": f"text {ordinal}"}
+        for ordinal in range(start_ordinal, end_ordinal + 1)
+    ]
+
+
+_TOOLS = [get_sign, summarize_passage, fetch_segments]
 
 
 class ScriptedLLM:
@@ -210,24 +219,14 @@ def test_fabricated_citation_marker_is_not_shown_and_history_is_not_persisted() 
     assert sessions.get_or_create("s1").history == []
 
 
-def test_summarize_command_with_active_hotspot_rewrites_message_and_drives_the_tool() -> None:
-    script = [
-        AIMessage(
-            content="",
-            tool_calls=[
-                {
-                    "name": "summarize_passage",
-                    "args": {"passage_text": "some text", "concepts": ["fire"]},
-                    "id": "c1",
-                }
-            ],
-        ),
-        AIMessage(content="Here's the summary."),
-    ]
+def test_summarize_command_with_active_hotspot_fetches_and_summarizes_deterministically() -> None:
+    """FR-AG-33: the reply is the `summarize_passage` tool's own result, and
+    the stored `HumanMessage` is the user's literal command — not a
+    fabricated directive (FR-AG-36, ADR-012)."""
     sessions = SessionStore()
 
     response = run_chat_turn(
-        graph=_graph(script),
+        graph=_graph([]),
         sessions=sessions,
         session_id="s1",
         message="/summarize",
@@ -235,19 +234,21 @@ def test_summarize_command_with_active_hotspot_rewrites_message_and_drives_the_t
         max_tool_iterations=8,
     )
 
-    assert "Here's the summary." in response.reply_text
+    assert response.reply_text == "Summary of: text 0\n\ntext 1 ()"
     human_messages = [m for m in sessions.get_or_create("s1").history if isinstance(m, HumanMessage)]
-    assert len(human_messages) == 1
-    assert "summarize_passage" in human_messages[0].content
-    assert "The Fool" in human_messages[0].content
+    assert [m.content for m in human_messages] == ["/summarize"]
 
 
-def test_summarize_command_with_no_hotspot_asks_the_user_to_select_one_without_calling_tools() -> None:
-    script = [AIMessage(content="Please select a passage first.")]
+def test_summarize_command_with_no_hotspot_asks_the_user_to_select_one_without_calling_the_model() -> None:
+    class ExplodingLLM:
+        def invoke(self, messages: list) -> AIMessage:
+            raise AssertionError("model was invoked for a /summarize turn with no active hotspot")
+
     sessions = SessionStore()
+    graph = compile_agent_graph(ExplodingLLM(), _TOOLS)
 
     response = run_chat_turn(
-        graph=_graph(script),
+        graph=graph,
         sessions=sessions,
         session_id="s1",
         message="/summarize",
@@ -256,16 +257,35 @@ def test_summarize_command_with_no_hotspot_asks_the_user_to_select_one_without_c
     )
 
     assert response.cards == []
+    assert "select" in response.reply_text.lower()
     human_messages = [m for m in sessions.get_or_create("s1").history if isinstance(m, HumanMessage)]
-    assert "no hotspot is currently selected" in human_messages[0].content
+    assert [m.content for m in human_messages] == ["/summarize"]
 
 
-def test_summarize_command_includes_trailing_focus_text_in_the_directive() -> None:
-    script = [AIMessage(content="Focused summary.")]
+def test_summarize_command_with_no_hotspot_calls_no_tool() -> None:
+    @tool("fetch_segments")
+    def exploding_fetch_segments(source_id: str, start_ordinal: int, end_ordinal: int) -> list[dict]:
+        """Fake fetch_segments that fails the test if ever invoked."""
+        raise AssertionError("fetch_segments was invoked for a /summarize turn with no active hotspot")
+
     sessions = SessionStore()
+    graph = compile_agent_graph(ScriptedLLM([]), [exploding_fetch_segments, summarize_passage])
 
     run_chat_turn(
-        graph=_graph(script),
+        graph=graph,
+        sessions=sessions,
+        session_id="s1",
+        message="/summarize",
+        ui_selection=AgentUiSelection(),
+        max_tool_iterations=8,
+    )
+
+
+def test_summarize_command_includes_trailing_focus_text_as_the_sole_concept() -> None:
+    sessions = SessionStore()
+
+    response = run_chat_turn(
+        graph=_graph([]),
         sessions=sessions,
         session_id="s1",
         message="/summarize focus on redemption imagery",
@@ -273,8 +293,35 @@ def test_summarize_command_includes_trailing_focus_text_in_the_directive() -> No
         max_tool_iterations=8,
     )
 
-    human_messages = [m for m in sessions.get_or_create("s1").history if isinstance(m, HumanMessage)]
-    assert "redemption imagery" in human_messages[0].content
+    assert "redemption imagery" in response.reply_text
+
+
+def test_an_ordinary_turn_after_summarize_sees_the_summary_in_history() -> None:
+    """FR-AG-36 — the opposite of `/query`'s FR-AQ-16 exclusion: a
+    `/summarize` turn is ordinary conversation, not a side-effecting command,
+    so later turns can refer back to it."""
+    sessions = SessionStore()
+    graph = _graph([AIMessage(content="Noted the fire imagery.")])
+
+    run_chat_turn(
+        graph=graph,
+        sessions=sessions,
+        session_id="s1",
+        message="/summarize",
+        ui_selection=AgentUiSelection(region_id="waite::0-1", locator="The Fool"),
+        max_tool_iterations=8,
+    )
+    run_chat_turn(
+        graph=graph,
+        sessions=sessions,
+        session_id="s1",
+        message="tell me more about that",
+        ui_selection=AgentUiSelection(region_id="waite::0-1", locator="The Fool"),
+        max_tool_iterations=8,
+    )
+
+    history = sessions.get_or_create("s1").history
+    assert any("Summary of" in str(m.content) for m in history)
 
 
 class ExplodingLLM:

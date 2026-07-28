@@ -7,9 +7,9 @@ from langchain_core.messages import HumanMessage
 
 from mythrix.agent.adhoc_query import CONFIRM_COMMAND, QUERY_COMMAND, is_adhoc_command
 from mythrix.agent.capabilities import AGENT_CAPABILITIES, CLEAR_COMMAND
-from mythrix.agent.context import AgentContext
 from mythrix.agent.graph import route_input
-from mythrix.agent.turn_service import SUMMARIZE_COMMAND, _rewrite_summarize_command
+from mythrix.agent.summarize_command import SUMMARIZE_COMMAND
+from mythrix.agent.summarize_command import command_of as summarize_command_of
 
 _COMMANDS = {command.name: command for command in AGENT_CAPABILITIES.commands}
 _BINDINGS = {instruction.type: instruction.binding for instruction in AGENT_CAPABILITIES.instructions}
@@ -19,12 +19,10 @@ def test_every_server_command_is_one_the_backend_actually_recognizes() -> None:
     """The drift a type checker cannot catch: a command declared `server` that
     no backend code handles would be sent as an ordinary message and answered
     by the model as if it were prose."""
-    context = AgentContext(region_id="waite::1-1", locator="I 1")
-
     for name, command in _COMMANDS.items():
         if command.handled_by != "server":
             continue
-        recognized = is_adhoc_command(name) or _rewrite_summarize_command(name, context) is not None
+        recognized = is_adhoc_command(name) or summarize_command_of(name) is not None
         assert recognized, f"{name} is declared server-handled but no backend path recognizes it"
 
 

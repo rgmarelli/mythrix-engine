@@ -38,6 +38,8 @@ def run_turn(
     max_tool_iterations: int,
     context_summary: str = "",
     pending_query: PendingAdhocQuery | None = None,
+    region_id: str | None = None,
+    interpretant: str | None = None,
 ) -> tuple[list, TurnResult]:
     """Runs one turn: appends `user_text` to `history`, streams the graph,
     and returns the updated history plus the ordered tool-name trace
@@ -51,7 +53,12 @@ def run_turn(
     `pending_query` (default `None`) carries the session's outstanding ad-hoc
     query into the graph and back out on `TurnResult`, since the graph holds no
     state of its own between turns (specs/interfaces/agnostic-query.md
-    FR-AQ-05)."""
+    FR-AQ-05).
+
+    `region_id`/`interpretant` (default `None`) carry the session's active
+    hotspot into the graph for `agent/graph.py::summarize_node` to read
+    directly — turn-scoped inputs only, unlike `pending_query`, so nothing
+    reads them back off the final state (agent.md FR-AG-33, ADR-012)."""
     messages = [*history, HumanMessage(content=user_text)]
     tool_calls: list[str] = []
     final_state = {"messages": messages}
@@ -64,6 +71,8 @@ def run_turn(
                 "context_summary": context_summary,
                 "pending_query": pending_query,
                 "instructions": [],
+                "region_id": region_id,
+                "interpretant": interpretant,
             },
             config={"recursion_limit": max_tool_iterations},
             stream_mode="values",
