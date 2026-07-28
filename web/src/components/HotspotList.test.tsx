@@ -4,18 +4,48 @@ import { HotspotList } from './HotspotList';
 import { makeHotspot } from '../test/fixtures';
 
 it('shows the "no query yet" empty state when hasResult is false', () => {
-  render(<HotspotList headerText="Hotspots" hasResult={false} hotspots={[]} selectedRegionId={null} onSelect={vi.fn()} />);
+  render(
+    <HotspotList
+      headerText="Hotspots"
+      hasResult={false}
+      hotspots={[]}
+      selectedRegionId={null}
+      search=""
+      onSearchChange={vi.fn()}
+      onSelect={vi.fn()}
+    />,
+  );
   expect(screen.getByText('No query yet')).toBeInTheDocument();
 });
 
 it('shows the "no matches" empty state when hasResult is true but hotspots is empty', () => {
-  render(<HotspotList headerText="Hotspots" hasResult hotspots={[]} selectedRegionId={null} onSelect={vi.fn()} />);
+  render(
+    <HotspotList
+      headerText="Hotspots"
+      hasResult
+      hotspots={[]}
+      selectedRegionId={null}
+      search=""
+      onSearchChange={vi.fn()}
+      onSelect={vi.fn()}
+    />,
+  );
   expect(screen.getByText('No matches')).toBeInTheDocument();
 });
 
 it('renders the header and one card per hotspot when populated', () => {
   const hotspots = [makeHotspot({ regionId: 'r1' }), makeHotspot({ regionId: 'r2', locator: 'Ecclesiasticus 43:2' })];
-  render(<HotspotList headerText="Hotspots header" hasResult hotspots={hotspots} selectedRegionId="r1" onSelect={vi.fn()} />);
+  render(
+    <HotspotList
+      headerText="Hotspots header"
+      hasResult
+      hotspots={hotspots}
+      selectedRegionId="r1"
+      search=""
+      onSearchChange={vi.fn()}
+      onSelect={vi.fn()}
+    />,
+  );
   expect(screen.getByText('Hotspots header')).toBeInTheDocument();
   expect(screen.getAllByRole('button')).toHaveLength(2);
 });
@@ -23,7 +53,17 @@ it('renders the header and one card per hotspot when populated', () => {
 it('marks the selected hotspot active and calls onSelect with its regionId', async () => {
   const onSelect = vi.fn();
   const hotspots = [makeHotspot({ regionId: 'r1', locator: 'A' }), makeHotspot({ regionId: 'r2', locator: 'B' })];
-  render(<HotspotList headerText="h" hasResult hotspots={hotspots} selectedRegionId="r1" onSelect={onSelect} />);
+  render(
+    <HotspotList
+      headerText="h"
+      hasResult
+      hotspots={hotspots}
+      selectedRegionId="r1"
+      search=""
+      onSearchChange={vi.fn()}
+      onSelect={onSelect}
+    />,
+  );
 
   const buttons = screen.getAllByRole('button');
   expect(buttons[0]).toHaveClass('active');
@@ -31,4 +71,35 @@ it('marks the selected hotspot active and calls onSelect with its regionId', asy
 
   await userEvent.click(buttons[1]);
   expect(onSelect).toHaveBeenCalledWith('r2');
+});
+
+it('renders the search box only when hasResult, and reports typed text via onSearchChange', async () => {
+  const onSearchChange = vi.fn();
+  const { rerender } = render(
+    <HotspotList
+      headerText="Hotspots"
+      hasResult={false}
+      hotspots={[]}
+      selectedRegionId={null}
+      search=""
+      onSearchChange={onSearchChange}
+      onSelect={vi.fn()}
+    />,
+  );
+  expect(screen.queryByPlaceholderText('Filter hotspots…')).not.toBeInTheDocument();
+
+  rerender(
+    <HotspotList
+      headerText="Hotspots"
+      hasResult
+      hotspots={[]}
+      selectedRegionId={null}
+      search=""
+      onSearchChange={onSearchChange}
+      onSelect={vi.fn()}
+    />,
+  );
+  const input = screen.getByPlaceholderText('Filter hotspots…');
+  await userEvent.type(input, 'x');
+  expect(onSearchChange).toHaveBeenCalledWith('x');
 });

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { fetchSigns, fetchTraditions } from './api/client';
 import type { SignSummary, Tradition } from './api/types';
@@ -8,17 +9,20 @@ import { HotspotList } from './components/HotspotList';
 import { TopBar } from './components/TopBar';
 import { DEFAULT_MIN_SCORE, useTabs } from './state/useTabs';
 
-function hotspotHeaderText(sourceLabel: string | null, interpretantValue: string | null): string {
-  if (interpretantValue !== null && sourceLabel !== null) {
-    return `Hotspots matching "${interpretantValue}" in ${sourceLabel} — ranked by total interpretants converging in each hotspot`;
+function hotspotRailHeader(count: number, search: string): ReactNode {
+  const trimmed = search.trim();
+  if (trimmed) {
+    return (
+      <>
+        <b>{count}</b> match{count === 1 ? '' : 'es'} for "{trimmed}"
+      </>
+    );
   }
-  if (interpretantValue !== null) {
-    return `Hotspots matching "${interpretantValue}" — ranked by total interpretants converging in each hotspot`;
-  }
-  if (sourceLabel !== null) {
-    return `Hotspots in ${sourceLabel} — ranked by distinct interpretants matched`;
-  }
-  return 'Hotspots — ranked by distinct interpretants matched';
+  return (
+    <>
+      <b>{count}</b> hotspot{count === 1 ? '' : 's'} — ranked by interpretants converging
+    </>
+  );
 }
 
 function App() {
@@ -50,6 +54,7 @@ function App() {
     setSourceId,
     setInterpretant,
     setInterpretantSearch,
+    setHotspotSearch,
     setRegionId,
     runQuery,
     rankedHotspots,
@@ -65,9 +70,6 @@ function App() {
     setFiltersOpen(false);
     setReaderOpen(false);
   }
-
-  const selectedSourceLabel =
-    activeTab.queryResult?.facets.sources.find((s) => s.id === activeTab.selectedSourceId)?.label ?? null;
 
   return (
     <>
@@ -115,10 +117,12 @@ function App() {
       />
 
       <HotspotList
-        headerText={hotspotHeaderText(selectedSourceLabel, activeTab.selectedInterpretant)}
+        headerText={hotspotRailHeader(rankedHotspots.length, activeTab.hotspotSearch)}
         hasResult={activeTab.queryResult !== null}
         hotspots={rankedHotspots}
         selectedRegionId={activeTab.selectedRegionId}
+        search={activeTab.hotspotSearch}
+        onSearchChange={setHotspotSearch}
         onSelect={(regionId) => {
           setRegionId(regionId);
           setReaderOpen(true);

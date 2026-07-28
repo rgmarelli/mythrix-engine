@@ -36,6 +36,7 @@ export interface Tab {
   selectedInterpretant: string | null;
   selectedRegionId: string | null;
   interpretantSearch: string;
+  hotspotSearch: string;
   agentSessionId: string;
   agentItems: ThreadItem[];
   agentSending: boolean;
@@ -57,6 +58,7 @@ function makeTab(): Tab {
     selectedInterpretant: null,
     selectedRegionId: null,
     interpretantSearch: '',
+    hotspotSearch: '',
     agentSessionId: crypto.randomUUID(),
     agentItems: [],
     agentSending: false,
@@ -129,6 +131,7 @@ export function useTabs() {
   const setSourceId = (value: string | null) => updateActiveTab({ selectedSourceId: value });
   const setInterpretant = (value: string | null) => updateActiveTab({ selectedInterpretant: value });
   const setInterpretantSearch = (value: string) => updateActiveTab({ interpretantSearch: value });
+  const setHotspotSearch = (value: string) => updateActiveTab({ hotspotSearch: value });
   const setRegionId = (value: string | null) => updateActiveTab({ selectedRegionId: value });
 
   async function runQuery() {
@@ -153,17 +156,22 @@ export function useTabs() {
 
   const rankedHotspots = useMemo(() => {
     if (!activeTab.queryResult) return [];
+    const search = activeTab.hotspotSearch.trim().toLowerCase();
     const filtered = activeTab.queryResult.hotspots.filter(
       (hotspot) =>
         (activeTab.selectedSourceId === null || hotspot.source.id === activeTab.selectedSourceId) &&
         (activeTab.selectedInterpretant === null ||
-          hotspot.matches.some((m) => m.interpretant === activeTab.selectedInterpretant)),
+          hotspot.matches.some((m) => m.interpretant === activeTab.selectedInterpretant)) &&
+        (search === '' ||
+          hotspotTitle(hotspot).toLowerCase().includes(search) ||
+          (hotspot.source.citation_label || hotspot.source.title).toLowerCase().includes(search) ||
+          hotspot.matches.some((m) => m.interpretant.toLowerCase().includes(search))),
     );
     return [...filtered].sort((a, b) => {
       if (a.convergenceCount !== b.convergenceCount) return b.convergenceCount - a.convergenceCount;
       return tieBreakScore(b, activeTab.selectedInterpretant) - tieBreakScore(a, activeTab.selectedInterpretant);
     });
-  }, [activeTab.queryResult, activeTab.selectedSourceId, activeTab.selectedInterpretant]);
+  }, [activeTab.queryResult, activeTab.selectedSourceId, activeTab.selectedInterpretant, activeTab.hotspotSearch]);
 
   // Each facet row's counts are scoped to the *other* facet's current selection
   // (never its own), so selecting a Source narrows the Interpretants counts and
@@ -289,6 +297,7 @@ export function useTabs() {
     setSourceId,
     setInterpretant,
     setInterpretantSearch,
+    setHotspotSearch,
     setRegionId,
     runQuery,
     rankedHotspots,

@@ -502,6 +502,11 @@ button {
   border-bottom: 1px solid var(--line-soft);
 }
 
+.rail-header b {
+  color: var(--ink-h);
+  font-weight: 600;
+}
+
 .hotspot-card {
   width: 100%;
   display: flex;
