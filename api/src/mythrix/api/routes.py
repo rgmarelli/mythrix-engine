@@ -18,15 +18,13 @@ from mythrix.agent.capabilities import AGENT_CAPABILITIES, AgentCapabilities
 from mythrix.agent.context import AgentUiSelection
 from mythrix.agent.sessions import SessionStore
 from mythrix.agent.turn_service import AgentTurnResponse, run_chat_turn
-from mythrix.api.dependencies import get_agent_graph, get_agent_sessions, get_chat_client, get_stores
+from mythrix.api.dependencies import get_agent_graph, get_agent_sessions, get_stores
 from mythrix.core.bootstrap import Stores
 from mythrix.core.config import Settings
 from mythrix.core.errors import MythrixError
 from mythrix.core.loaders.sign_loader import load_directory, summarize_plan
 from mythrix.core.models import AdhocTerm, RegionQueryResult, Segment, SignSummary, Tradition
 from mythrix.core.query_service import execute_adhoc_query, fetch_source_segments, query_regions
-from mythrix.core.synthesis.chain import ChatClient
-from mythrix.core.synthesis.prompts import render_passage_summary_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -222,29 +220,6 @@ def reload_signs(path: str | None = None, stores: Stores = Depends(get_stores)) 
     root = Path(path) if path else settings.signs_data_path
     plan = load_directory(root, stores.graph_store)
     return ReloadSignsResponse(**summarize_plan(plan))
-
-
-class SummarizeRequest(BaseModel):
-    passage_text: str
-    concepts: list[str]
-
-
-class SummarizeResponse(BaseModel):
-    summary: str
-
-
-@router.post("/summarize", response_model=SummarizeResponse)
-def summarize_passage(
-    payload: SummarizeRequest, chat_client: ChatClient = Depends(get_chat_client)
-) -> SummarizeResponse:
-    """One ad-hoc generation call for a single already-retrieved passage,
-    triggered by the web UI's AI Summary button — distinct from `/api/query`,
-    which invokes no generation model (FR-RT-10). `ModelUnavailableError`/
-    `ModelRequestError` raised by `get_chat_client`/`chat_client.invoke` are
-    handled by the same registered `MythrixError` exception handler as every
-    other route (502)."""
-    prompt = render_passage_summary_prompt(payload.passage_text, tuple(payload.concepts))
-    return SummarizeResponse(summary=chat_client.invoke(prompt))
 
 
 @router.get("/agent/capabilities", response_model=AgentCapabilities)

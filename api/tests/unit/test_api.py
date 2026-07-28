@@ -18,7 +18,7 @@ from mythrix.agent.adhoc_query import execute_query_instruction
 from mythrix.agent.graph import compile_agent_graph
 from mythrix.agent.sessions import SessionStore
 from mythrix.api.app import create_app
-from mythrix.api.dependencies import get_agent_graph, get_agent_sessions, get_chat_client, get_stores
+from mythrix.api.dependencies import get_agent_graph, get_agent_sessions, get_stores
 from mythrix.core.bootstrap import Stores
 from mythrix.core.errors import ModelUnavailableError, SignNotFoundError
 from mythrix.core.graph.store import KuzuGraphStore
@@ -27,25 +27,6 @@ from mythrix.core.vector.chunking import Chunk
 from mythrix.core.vector.store import ChromaVectorStore, ChunkMetadata
 
 RIDER_WAITE = Tradition(id="rider-waite", slug="rider-waite", name="Rider-Waite-Smith", domain="tarot")
-
-
-class FakeChatClient:
-    generation_model = "fake-chat"
-
-    def __init__(self, response: str = "a summary") -> None:
-        self.response = response
-        self.last_prompt: str | None = None
-
-    def invoke(self, prompt: str) -> str:
-        self.last_prompt = prompt
-        return self.response
-
-
-class UnavailableChatClient:
-    generation_model = "fake-chat"
-
-    def invoke(self, prompt: str) -> str:  # noqa: ARG002
-        raise ModelUnavailableError(self.generation_model)
 
 
 class FakeEmbedder:
@@ -490,33 +471,6 @@ sign:
     assert "detail" in response.json()
     with pytest.raises(SignNotFoundError):
         graph_store.get_manifestation("the-fool", "rider-waite")
-
-
-def test_summarize_passage_returns_chat_client_response(
-    graph_store: KuzuGraphStore, vector_store: ChromaVectorStore
-) -> None:
-    client = _client(graph_store, vector_store)
-    fake_chat_client = FakeChatClient(response="Sudden upheaval, focused on collapse.")
-    client.app.dependency_overrides[get_chat_client] = lambda: fake_chat_client
-
-    response = client.post("/api/summarize", json={"passage_text": "The tower falls.", "concepts": ["collapse"]})
-
-    assert response.status_code == 200
-    assert response.json() == {"summary": "Sudden upheaval, focused on collapse."}
-    assert "collapse" in fake_chat_client.last_prompt
-    assert "The tower falls." in fake_chat_client.last_prompt
-
-
-def test_summarize_passage_unavailable_model_is_502(
-    graph_store: KuzuGraphStore, vector_store: ChromaVectorStore
-) -> None:
-    client = _client(graph_store, vector_store)
-    client.app.dependency_overrides[get_chat_client] = lambda: UnavailableChatClient()
-
-    response = client.post("/api/summarize", json={"passage_text": "The tower falls.", "concepts": ["collapse"]})
-
-    assert response.status_code == 502
-    assert "detail" in response.json()
 
 
 @tool("get_sign")

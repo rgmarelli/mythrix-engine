@@ -30,8 +30,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.stores = build_stores(Settings())
     app.state.agent_sessions = SessionStore()
     # Not built eagerly, unlike `stores`: it needs a live, configured Ollama
-    # daemon, which is not the common deployment case (`get_chat_client`'s
-    # docstring) — `get_agent_graph` builds it lazily on first chat turn.
+    # daemon, which is not the common deployment case — `get_agent_graph`
+    # builds it lazily on first chat turn.
     app.state.agent_graph = None
     yield
 
