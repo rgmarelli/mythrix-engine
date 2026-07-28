@@ -121,13 +121,19 @@ export function SignTraditionPicker({
           min={0}
           max={1}
           step={0.01}
-          placeholder={minScoreDefault.toFixed(2)}
-          value={minScore ?? ''}
+          value={minScore ?? minScoreDefault}
           onChange={(event) => {
             const raw = event.target.value;
-            onMinScoreChange(raw === '' ? null : Number(raw));
+            if (raw === '') {
+              onMinScoreChange(null);
+              return;
+            }
+            const parsed = Number(raw);
+            if (!Number.isNaN(parsed)) {
+              onMinScoreChange(parsed);
+            }
           }}
-          title="Minimum similarity score an interpretant match must clear to appear in results. Leave blank for the server default."
+          title="Minimum similarity score an interpretant match must clear to appear in results. Clear the field to use the server default."
         />
       </label>
 
