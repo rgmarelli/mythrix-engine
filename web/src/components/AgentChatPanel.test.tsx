@@ -47,7 +47,7 @@ it('shows the hotspot title and its matched interpretants in the context strip',
 it('renders user, ai, reset, and error items by kind', () => {
   const items: ThreadItem[] = [
     { kind: 'user', id: '1', text: 'What does the sun mean?' },
-    { kind: 'ai', id: '2', text: 'It signifies vitality.', cards: [], instructions: [] },
+    { kind: 'ai', id: '2', text: 'It signifies vitality.', instructions: [] },
     { kind: 'reset', id: '3', label: 'now reading The Moon' },
     { kind: 'error', id: '4', text: 'Something went wrong.' },
   ];
@@ -58,28 +58,8 @@ it('renders user, ai, reset, and error items by kind', () => {
   expect(screen.getByText('Something went wrong.')).toBeInTheDocument();
 });
 
-it('renders citation and interpretant_chips cards on an ai item', () => {
-  const items: ThreadItem[] = [
-    {
-      kind: 'ai',
-      id: '1',
-      text: 'Here is the passage.',
-      cards: [
-        { type: 'citation', sourceLabel: 'Eccl.', locator: '43:1', text: 'the pride of the height' },
-        { type: 'interpretant_chips', chips: [{ interpretant: 'sun', kind: 'concept', score: 0.8, segmentOrdinal: 1 }] },
-      ],
-      instructions: [],
-    },
-  ];
-  renderPanel({ items });
-  expect(screen.getByText('"the pride of the height"', { exact: false })).toBeInTheDocument();
-  expect(screen.getByText('sun · 0.80')).toBeInTheDocument();
-});
-
 it('renders markdown formatting in an ai item as elements, not literal syntax', () => {
-  const items: ThreadItem[] = [
-    { kind: 'ai', id: '1', text: 'This is **bold**.\n\n- first\n- second', cards: [], instructions: [] },
-  ];
+  const items: ThreadItem[] = [{ kind: 'ai', id: '1', text: 'This is **bold**.\n\n- first\n- second', instructions: [] }];
   const { container } = render(
     <AgentChatPanel items={items} isSending={false} onSend={vi.fn()} onClear={vi.fn()} selectedHotspot={null} capabilities={CAPABILITIES} />,
   );
@@ -89,7 +69,7 @@ it('renders markdown formatting in an ai item as elements, not literal syntax', 
 });
 
 it('renders HTML-like text in an ai item as inert text, not a live element', () => {
-  const items: ThreadItem[] = [{ kind: 'ai', id: '1', text: '<img src=x onerror="window.__pwned = true">', cards: [], instructions: [] }];
+  const items: ThreadItem[] = [{ kind: 'ai', id: '1', text: '<img src=x onerror="window.__pwned = true">', instructions: [] }];
   const { container } = render(
     <AgentChatPanel items={items} isSending={false} onSend={vi.fn()} onClear={vi.fn()} selectedHotspot={null} capabilities={CAPABILITIES} />,
   );
@@ -258,7 +238,6 @@ it('the confirm affordance sends the instruction command verbatim', async () => 
       kind: 'ai',
       id: '1',
       text: 'Parsed query: laughter',
-      cards: [],
       instructions: [{ type: 'confirm_query', payload: { confirm_command: '/query-confirm 7f3a1c9e' } }],
     },
   ];
@@ -270,7 +249,7 @@ it('the confirm affordance sends the instruction command verbatim', async () => 
 });
 
 it('shows no confirm affordance on an ordinary reply', () => {
-  const items: ThreadItem[] = [{ kind: 'ai', id: '1', text: 'It signifies vitality.', cards: [], instructions: [] }];
+  const items: ThreadItem[] = [{ kind: 'ai', id: '1', text: 'It signifies vitality.', instructions: [] }];
   renderPanel({ items });
   expect(screen.queryByRole('button', { name: 'Run this query' })).not.toBeInTheDocument();
 });

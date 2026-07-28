@@ -16,8 +16,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from mythrix.agent.adhoc_query import CONFIRM_COMMAND, QUERY_COMMAND
-from mythrix.agent.summarize_command import SUMMARIZE_COMMAND
+from mythrix.agent.commands.adhoc import CONFIRM_COMMAND, QUERY_COMMAND
+from mythrix.agent.commands.summarize import SUMMARIZE_COMMAND
 
 CLEAR_COMMAND = "/clear"
 

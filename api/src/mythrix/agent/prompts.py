@@ -1,7 +1,6 @@
-"""The operator system prompt (specs/interfaces/agent.md FR-AG-05, FR-AG-06, FR-AG-09) — distinct from
-`core/synthesis/prompts.py`, which renders passage-summary prompts and
-`[G#]`/`[S#]` citation blocks for the `summarize_passage` tool; that module is
-reused unchanged here, not duplicated."""
+"""The operator system prompt (specs/interfaces/agent.md FR-AG-05, FR-AG-06,
+FR-AG-09), which defines the `[G#]`/`[S#]` marker vocabulary `citations.py`
+validates against, plus the one ad-hoc prompt a tool renders."""
 
 from __future__ import annotations
 
@@ -22,3 +21,13 @@ Response rules:
 - ALWAYS include these exact citation markers (e.g., [S1], [S2]) whenever referencing, quoting, or analyzing a segment.
 - Be concise and direct.
 """
+
+
+def render_passage_summary_prompt(text: str, concepts: tuple[str, ...]) -> str:
+    """A single ad-hoc summarization prompt for one already-retrieved passage,
+    focused on the concept(s) it was retrieved for — the `summarize_passage`
+    tool. No markers, no GRAPH FACTS/PASSAGES framing: one passage at a time,
+    on demand rather than on every query (FR-RT-10 still governs the query
+    path itself)."""
+    concept_list = ", ".join(concepts)
+    return f'Summarize the following passage, focusing on the concepts: {concept_list}.\n\nPassage:\n"{text}"'

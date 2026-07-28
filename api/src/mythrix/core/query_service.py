@@ -1,7 +1,7 @@
-"""One query, run through the retrieval pipeline — the logic shared by the
-CLI (`cli/commands/query.py::run_query`, via `execute_query`) and the API
-(`api/routes.py`, via `query_regions`). Neither catches `MythrixError` here;
-each caller handles it in whatever way suits its own transport."""
+"""One query, run through the retrieval pipeline — the logic behind
+`api/routes.py`'s query routes and the agent's `query_sign` tool. Every entry
+point here returns the region shape (ADR-013). `MythrixError` is never caught
+here; each caller handles it in whatever way suits its own transport."""
 
 from __future__ import annotations
 
@@ -17,7 +17,6 @@ from mythrix.core.models import (
     Manifestation,
     QueryDirective,
     RegionQueryResult,
-    RetrievalContext,
     Segment,
     Sign,
     Tradition,
@@ -29,31 +28,6 @@ _ADHOC_TRADITION = Tradition(id="adhoc", slug="adhoc", name="Ad-hoc", domain="ad
 _ADHOC_SIGN = Sign(id="adhoc", slug="adhoc", canonical_name="Ad-hoc query", sign_type="adhoc", semiotic_system="adhoc")
 
 
-def execute_query(
-    *,
-    sign: str,
-    tradition: str,
-    graph_store: KuzuGraphStore,
-    vector_store: ChromaVectorStore,
-    embedder: Embedder,
-    top_k: int,
-    match_pool_size: int,
-    merge_top_k: int,
-    min_score: float,
-) -> RetrievalContext:
-    graph_facts = graph_store.get_manifestation(sign, tradition)
-    pipeline = RetrievalPipeline(
-        graph_store=graph_store,
-        vector_store=vector_store,
-        embedder=embedder,
-        top_k=top_k,
-        match_pool_size=match_pool_size,
-        merge_top_k=merge_top_k,
-        min_score=min_score,
-    )
-    return pipeline.retrieve(graph_facts)
-
-
 def query_regions(
     *,
     sign: str,
@@ -61,9 +35,7 @@ def query_regions(
     graph_store: KuzuGraphStore,
     vector_store: ChromaVectorStore,
     embedder: Embedder,
-    top_k: int,
     match_pool_size: int,
-    merge_top_k: int,
     min_score: float,
     region_window_size: int,
     region_min_interpretants: int,
@@ -75,9 +47,7 @@ def query_regions(
         graph_store=graph_store,
         vector_store=vector_store,
         embedder=embedder,
-        top_k=top_k,
         match_pool_size=match_pool_size,
-        merge_top_k=merge_top_k,
         min_score=min_score,
         region_window_size=region_window_size,
         region_min_interpretants=region_min_interpretants,
@@ -96,9 +66,7 @@ def execute_adhoc_query(
     graph_store: KuzuGraphStore,
     vector_store: ChromaVectorStore,
     embedder: Embedder,
-    top_k: int,
     match_pool_size: int,
-    merge_top_k: int,
     min_score: float,
     region_window_size: int,
     region_min_interpretants: int,
@@ -132,9 +100,7 @@ def execute_adhoc_query(
         graph_store=graph_store,
         vector_store=vector_store,
         embedder=embedder,
-        top_k=top_k,
         match_pool_size=match_pool_size,
-        merge_top_k=merge_top_k,
         min_score=min_score,
         region_window_size=region_window_size,
         region_min_interpretants=region_min_interpretants,

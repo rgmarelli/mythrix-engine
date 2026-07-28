@@ -118,7 +118,7 @@ class PropertyEntry(LoaderModel):
 
 
 class QueryDirectiveEntry(LoaderModel):
-    """An interpretant's `query:` annotation (FR-CO-03, FR-RT-09, FR-RT-11, FR-EX-01–05).
+    """An interpretant's `query:` annotation (FR-CO-03, FR-RT-11, FR-RT-15, FR-EX-01–05).
     `directive` is free text; v1 code interprets `"filter"` (requires `as_token`,
     excluded from the plain query), `"exact"` (kept in the plain query, `as_token`
     optional and defaults to `value`), and `"skip"` (excludes the interpretant from
@@ -131,8 +131,8 @@ class QueryDirectiveEntry(LoaderModel):
 class InterpretantEntry(LoaderModel):
     """One `interpretants:` list entry (FR-SD-05). `type` is a free-text,
     descriptive-only label (e.g. "concept", "foundation", "numeric_value") —
-    it does not gate retrieval eligibility or participate in concept-pair
-    grouping (FR-RT-08)."""
+    it does not gate retrieval eligibility and is never part of matching
+    identity, which is keyed by `value` alone."""
 
     type: str = "concept"
     value: str

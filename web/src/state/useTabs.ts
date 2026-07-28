@@ -1,14 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fetchQuery, postAgentTurn } from '../api/client';
 import { executeInstruction } from '../api/instructions';
-import type {
-  AgentCapabilities,
-  AgentCard,
-  AgentInstruction,
-  AgentUiSelection,
-  Hotspot,
-  HotspotQueryResult,
-} from '../api/types';
+import type { AgentCapabilities, AgentInstruction, AgentUiSelection, Hotspot, HotspotQueryResult } from '../api/types';
 import { hotspotTitle } from '../utils/hotspot';
 
 // Mirrors `Settings.retrieval_min_score`'s default (`src/mythrix/core/config.py`)
@@ -18,7 +11,7 @@ export const DEFAULT_MIN_SCORE = 0.6;
 
 export type ThreadItem =
   | { kind: 'user'; id: string; text: string }
-  | { kind: 'ai'; id: string; text: string; cards: AgentCard[]; instructions: AgentInstruction[] }
+  | { kind: 'ai'; id: string; text: string; instructions: AgentInstruction[] }
   | { kind: 'reset'; id: string; label: string }
   | { kind: 'error'; id: string; text: string };
 
@@ -303,7 +296,6 @@ export function useTabs(capabilities: AgentCapabilities | null = null) {
         kind: 'ai',
         id: itemId(),
         text: result.replyText,
-        cards: result.cards,
         instructions: result.instructions,
       };
       updateTab(tabId, (t) => {

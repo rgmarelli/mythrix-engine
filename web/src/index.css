@@ -1258,44 +1258,6 @@ button {
   background: var(--agent-line);
 }
 
-.agent-dock .verse {
-  grid-column: 2;
-  font-family: var(--f-read);
-  font-size: 12.5px;
-  color: var(--agent-ink-soft);
-  background: var(--agent-panel);
-  border: 1px solid var(--agent-line-soft);
-  border-left: 3px solid var(--agent-gold);
-  border-radius: 0 8px 8px 0;
-  padding: 8px 12px;
-  line-height: 1.5;
-}
-
-.agent-dock .verse .cite {
-  display: block;
-  font-family: var(--f-mono);
-  font-size: 10.5px;
-  color: var(--agent-muted);
-  margin-bottom: 3px;
-}
-
-.agent-dock .chips {
-  grid-column: 2;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.agent-dock .chip {
-  font-family: var(--f-mono);
-  font-size: 10.5px;
-  padding: 3px 8px;
-  border-radius: 100px;
-  border: 1px solid var(--agent-line);
-  color: var(--agent-ink-soft);
-  background: var(--agent-panel);
-}
-
 .agent-dock .confirm-query {
   font-family: var(--f-mono);
   font-size: 10.5px;

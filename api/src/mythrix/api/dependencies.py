@@ -6,12 +6,18 @@ from __future__ import annotations
 from fastapi import Request
 from langgraph.graph.state import CompiledStateGraph
 
-from mythrix.agent.graph import build_agent_graph
+from mythrix.agent.graph import compile_agent_graph
 from mythrix.agent.sessions import SessionStore
 from mythrix.agent.tools import build_tools
 from mythrix.core.bootstrap import Stores
+from mythrix.core.chat import OllamaChatClient
 from mythrix.core.config import Settings
-from mythrix.core.synthesis.chain import OllamaChatClient
+from mythrix.core.ollama import create_chat_model, derive_chat_model
+
+# A tool-calling turn needs more output headroom than a summarize call, whose
+# reply is a paragraph. Scoped to the agent's own model so raising it never
+# silently changes what `summarize_passage` returns.
+_AGENT_NUM_PREDICT = 2048
 
 
 def get_stores(request: Request) -> Stores:
@@ -30,21 +36,22 @@ def get_agent_graph(request: Request) -> CompiledStateGraph:
     (`core/config.py`) and most v1 deployments never set one. A build
     failure raises a `MythrixError` subclass for an unreachable/unconfigured
     model, handled by the registered exception handler (502) — just
-    surfacing on the first chat turn instead of at server startup."""
+    surfacing on the first chat turn instead of at server startup.
+
+    One chat model is constructed and both roles are derived from it: the
+    narrow `ChatClient` the `summarize_passage` tool calls, and the tool-bound
+    model the graph's agent node calls. The agent's variant is a copy carrying
+    its own output budget (`derive_chat_model`), sharing the original's already
+    validated client — so the daemon is validated once per process."""
     if request.app.state.agent_graph is None:
         settings = Settings()
         stores = request.app.state.stores
-        generation_model = settings.agent_model or settings.generation_model or ""
-        chat_client = OllamaChatClient(
-            generation_model=generation_model,
+        llm = create_chat_model(
+            model=settings.agent_model or settings.generation_model or "",
             base_url=settings.ollama_base_url,
             num_ctx=settings.generation_num_ctx,
         )
-        tools = build_tools(stores, settings, chat_client)
-        request.app.state.agent_graph = build_agent_graph(
-            generation_model=generation_model,
-            base_url=settings.ollama_base_url,
-            num_ctx=settings.generation_num_ctx,
-            tools=tools,
-        )
+        tools = build_tools(stores, settings, OllamaChatClient(llm))
+        agent_llm = derive_chat_model(llm, num_predict=_AGENT_NUM_PREDICT)
+        request.app.state.agent_graph = compile_agent_graph(agent_llm.bind_tools(tools), tools)
     return request.app.state.agent_graph

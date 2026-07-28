@@ -1,19 +1,17 @@
-"""Unit tests for RetrievalPipeline (T15, restructured T26): multi-query text
-construction from graph facts only — one query per *individual atomic
-concept*, no identity query and no `type:` label (one per interpretant value —
-split further on commas, since a value can list several distinct concepts
-under one type — then per intersemiotic interpretant one per atomic concept
-about the target's own `target_interpretants`, but not the target's bare
-name, disabled for now), never grouping concepts into a combined query, see
-pipeline.py's docstring for why — plus corpus-wide retrieval with no
-tradition to scope by (FR-CO-02), grouped and merged per concept (FR-RT-07) via
-Reciprocal Rank Fusion *within* that concept's own queries only, never
-across a different concept's queries (see pipeline.py's docstring for the
-real crowding-out case that motivated this), and hydration of raw vector
-hits into full RetrievedPassages from an independent corpus source (FR-CO-02:
-e.g. Genesis, discoverable when querying a tarot sign, carrying no
-interpretive tradition of its own). Uses a fake vector store/embedder — no
-Ollama needed."""
+"""Unit tests for RetrievalPipeline: multi-query text construction from graph
+facts only — one query per *individual atomic concept*, no identity query and
+no `type:` label (one per interpretant value — split further on commas, since a
+value can list several distinct concepts under one type — then per
+intersemiotic interpretant one per atomic concept about the target's own
+`target_interpretants`, but not the target's bare name, disabled for now),
+never grouping concepts into a combined query, see pipeline.py's docstring for
+why — plus corpus-wide retrieval with no tradition to scope by (FR-CO-02),
+merged per concept via Reciprocal Rank Fusion *within* that concept's own
+queries only, never across a different concept's queries (ADR-007), and rollup
+of the surviving matches into ranked regions (ADR-013, FR-RK-01–FR-RK-10),
+attributed to an independent corpus source (FR-CO-02: e.g. Genesis,
+discoverable when querying a tarot sign, carrying no interpretive tradition of
+its own). Uses a fake vector store/embedder — no Ollama needed."""
 
 import logging
 import math
@@ -24,22 +22,18 @@ import pytest
 
 from mythrix.core.graph.store import KuzuGraphStore
 from mythrix.core.models import (
-    ConceptCandidates,
-    ConceptPairCandidates,
     GraphFacts,
     Interpretant,
     IntersemioticInterpretant,
     Manifestation,
     Property,
     QueryDirective,
-    RetrievalContext,
     Sign,
     Source,
     Tradition,
 )
 from mythrix.core.retrieval.pipeline import (
     RetrievalPipeline,
-    _combined_score,
     build_query_texts,
     collect_exact_tokens,
     parse_region_id,
@@ -489,18 +483,17 @@ def test_collect_exact_tokens_never_touches_an_unrelated_concepts_query() -> Non
     assert token.value == "2"
 
 
-def test_retrieve_searches_the_full_corpus_with_no_scoping_filter(graph_store: KuzuGraphStore) -> None:
+def test_retrieval_searches_the_full_corpus_with_no_scoping_filter(graph_store: KuzuGraphStore) -> None:
     """FR-CO-02: retrieval is never scoped by tradition — there is no tradition
-    parameter left on `similarity_search` to pass one through."""
+    parameter left on `similarity_search` to pass one through. `match_pool_size`
+    is what reaches `similarity_search`."""
     embedder = FakeEmbedder()
     vector_store = FakeVectorStore(hits=[])
-    # match_pool_size, not top_k, is what reaches `similarity_search` (FR-RT-08 —
-    # pair convergence is detected against a pool deeper than what's displayed).
     pipeline = RetrievalPipeline(
-        graph_store=graph_store, vector_store=vector_store, embedder=embedder, top_k=3, match_pool_size=3
+        graph_store=graph_store, vector_store=vector_store, embedder=embedder, match_pool_size=3
     )
 
-    pipeline.retrieve(GRAPH_FACTS)
+    pipeline.retrieve_regions(GRAPH_FACTS)
 
     assert embedder.embedded_texts == [q.text for q in build_query_texts(GRAPH_FACTS)]
     assert vector_store.last_call == {
@@ -510,10 +503,10 @@ def test_retrieve_searches_the_full_corpus_with_no_scoping_filter(graph_store: K
     }
 
 
-def test_retrieve_hydrates_a_hit_from_an_independent_corpus_source(graph_store: KuzuGraphStore) -> None:
+def test_a_region_is_attributed_to_an_independent_corpus_source(graph_store: KuzuGraphStore) -> None:
     """The concrete scenario FR-CO-02 exists for: a query about a tarot sign
     surfacing a passage from an independent corpus document, which carries no
-    tradition of its own at all (FR-CO-02)."""
+    tradition of its own at all."""
     graph_store.upsert_source(
         Source(
             id="douay-rheims-bible",
@@ -534,73 +527,17 @@ def test_retrieve_hydrates_a_hit_from_an_independent_corpus_source(graph_store: 
         embedding_model="fake-embed",
         distance=0.3,
     )
-    pipeline = RetrievalPipeline(
-        graph_store=graph_store, vector_store=FakeVectorStore(hits=[hit]), embedder=FakeEmbedder()
-    )
+    vector_store = DocumentFrequencyVectorStore(hits=[hit], corpus_size=100, document_frequencies={"Fire": 10})
+    pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
 
-    context = pipeline.retrieve(GRAPH_FACTS)
+    result = pipeline.retrieve_regions(GRAPH_FACTS)
 
-    assert len(context.all_passages) == 1
-    passage = context.all_passages[0]
-    assert passage.source.title == "The Holy Bible, Douay-Rheims, Complete"
-    assert passage.source.citation_label == "Douay-Rheims"
-    assert "tower" in passage.text.lower()
-
-
-def test_retrieve_hydrates_hits_into_full_retrieved_passages(graph_store: KuzuGraphStore) -> None:
-    hit = VectorHit(
-        chunk_id="waite-pictorial-key::0",
-        source_id="waite-pictorial-key",
-        domain="tarot",
-        text="The Tower represents sudden and unavoidable upheaval.",
-        chunk_index=0,
-        char_start=100,
-        char_end=155,
-        embedding_model="fake-embed",
-        distance=0.2,
-    )
-    pipeline = RetrievalPipeline(
-        graph_store=graph_store, vector_store=FakeVectorStore(hits=[hit]), embedder=FakeEmbedder()
-    )
-
-    context = pipeline.retrieve(GRAPH_FACTS)
-
-    assert context.graph_facts == GRAPH_FACTS
-    assert len(context.concept_candidates) == 1
-    assert context.concept_candidates[0].concept == "Fire"
-    assert len(context.all_passages) == 1
-    passage = context.all_passages[0]
-    assert passage.text == "The Tower represents sudden and unavoidable upheaval."
-    assert passage.source.title == "The Pictorial Key to the Tarot"
-    assert passage.chunk_index == 0
-    assert passage.char_start == 100
-    assert passage.char_end == 155
-    assert passage.score == pytest.approx(0.8)
-
-
-def test_retrieve_filters_out_hits_below_min_score(graph_store: KuzuGraphStore) -> None:
-    low_score_hit = VectorHit(
-        chunk_id="waite-pictorial-key::1",
-        source_id="waite-pictorial-key",
-        domain="tarot",
-        text="Unrelated passage.",
-        chunk_index=1,
-        char_start=0,
-        char_end=19,
-        embedding_model="fake-embed",
-        distance=1.9,
-    )
-    pipeline = RetrievalPipeline(
-        graph_store=graph_store,
-        vector_store=FakeVectorStore(hits=[low_score_hit]),
-        embedder=FakeEmbedder(),
-        min_score=0.5,
-    )
-
-    context = pipeline.retrieve(GRAPH_FACTS)
-
-    assert context.concept_candidates == ()
-    assert context.all_passages == ()
+    (region,) = result.regions
+    assert region.source.title == "The Holy Bible, Douay-Rheims, Complete"
+    assert region.source.citation_label == "Douay-Rheims"
+    assert "tower" in region.segments[0].text.lower()
+    assert [match.interpretant for match in region.matches] == ["Fire"]
+    assert region.matches[0].score == pytest.approx(0.7)
 
 
 def _intersemiotic_graph_facts() -> GraphFacts:
@@ -670,7 +607,7 @@ def _gematria_intersemiotic_graph_facts() -> GraphFacts:
     return GraphFacts(sign=the_sun, manifestation=manifestation_with_one_interpretant)
 
 
-def _make_hit(chunk_id: str, distance: float) -> VectorHit:
+def _make_hit(chunk_id: str, distance: float, ordinal: int = 0) -> VectorHit:
     return VectorHit(
         chunk_id=chunk_id,
         source_id="waite-pictorial-key",
@@ -681,123 +618,101 @@ def _make_hit(chunk_id: str, distance: float) -> VectorHit:
         char_end=10,
         embedding_model="fake-embed",
         distance=distance,
+        ordinal=ordinal,
     )
 
 
-def test_retrieve_never_fuses_across_different_concepts(graph_store: KuzuGraphStore) -> None:
+def test_matching_never_fuses_across_different_concepts(graph_store: KuzuGraphStore) -> None:
     """Two concepts ("Fire", the sign's own interpretant; "Fish", the
     intersemiotic target's meaning) must never be merged into one shared pool
-    (FR-RT-07) — each comes back as its own separate `ConceptCandidates`, even
-    though the old flat-merge design would have combined them into a single
-    ranked list."""
+    (ADR-007) — each is searched on its own and contributes its own `Match`,
+    even though the old flat-merge design would have combined them into a
+    single ranked list."""
     graph_facts = _intersemiotic_graph_facts()
-    hit_fire = _make_hit("waite-pictorial-key::fire-hit", distance=0.2)
-    hit_fish = _make_hit("waite-pictorial-key::fish-hit", distance=0.3)
-    vector_store = SequencedVectorStore([[hit_fire], [hit_fish]])
+    hit_fire = _make_hit("waite-pictorial-key::fire-hit", distance=0.2, ordinal=0)
+    hit_fish = _make_hit("waite-pictorial-key::fish-hit", distance=0.3, ordinal=1)
+    vector_store = SequencedVectorStore(
+        [[hit_fire], [hit_fish]], corpus_size=100, document_frequencies={"Fire": 10, "Fish": 10}
+    )
     pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
 
-    context = pipeline.retrieve(graph_facts)
+    result = pipeline.retrieve_regions(graph_facts)
 
     assert vector_store.call_count == 2
-    by_concept = {c.concept: [p.chunk_id for p in c.passages] for c in context.concept_candidates}
-    assert by_concept == {
-        "Fire": ["waite-pictorial-key::fire-hit"],
-        "Fish": ["waite-pictorial-key::fish-hit"],
-    }
+    (region,) = result.regions
+    by_interpretant = {match.interpretant: match.segment_ordinal for match in region.matches}
+    assert by_interpretant == {"Fire": 0, "Fish": 1}
 
 
-def test_retrieve_fuses_multiple_queries_of_the_same_concept_by_reciprocal_rank(
+def test_reciprocal_rank_fusion_decides_which_hits_survive_one_concepts_pool(
     graph_store: KuzuGraphStore,
 ) -> None:
     """*Within* one concept (the gematria pair: "Fish" plain + "Fish"+hundred
-    filtered), Reciprocal Rank Fusion can still rank a chunk found by both of
-    that concept's queries above one found by only one of them, even when the
+    filtered), Reciprocal Rank Fusion can rank a chunk found by both of that
+    concept's queries above one found by only one of them, even when the
     latter's individual best distance is better — the whole point of ranking
-    by rank rather than comparing raw scores (pipeline.py's module
-    docstring). This is unrelated to, and must not be confused with, fusion
-    *across* concepts, which no longer happens at all (see the sibling
-    'never fuses across different concepts' test)."""
+    by rank rather than comparing raw scores (ADR-007). With the pool trimmed
+    to one entry, the fused winner is the hit that reaches region rollup at
+    all. This is unrelated to, and must not be confused with, fusion *across*
+    concepts, which never happens (see the sibling 'never fuses across
+    different concepts' test)."""
     graph_facts = _gematria_intersemiotic_graph_facts()
-    hit_x = _make_hit("waite-pictorial-key::X", distance=0.05)  # best raw match, but only in one query
-    hit_y = _make_hit("waite-pictorial-key::Y", distance=0.5)
-    hit_y_filtered = _make_hit("waite-pictorial-key::Y", distance=0.4)  # Y found by both of Fish's queries
+    hit_x = _make_hit("waite-pictorial-key::X", distance=0.05, ordinal=7)  # best raw match, only in one query
+    hit_y = _make_hit("waite-pictorial-key::Y", distance=0.5, ordinal=1)
+    hit_y_filtered = _make_hit("waite-pictorial-key::Y", distance=0.4, ordinal=1)  # found by both Fish queries
     # 4 calls now that the gematria filter is global (Fire also gets a filtered variant):
     # Fire(None), Fire(hundred), Fish(None), Fish(hundred).
-    vector_store = SequencedVectorStore([[], [], [hit_x, hit_y], [hit_y_filtered]])
-    pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
+    vector_store = SequencedVectorStore(
+        [[], [], [hit_x, hit_y], [hit_y_filtered]], corpus_size=100, document_frequencies={"Fish": 10}
+    )
+    pipeline = RetrievalPipeline(
+        graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder(), match_pool_size=1
+    )
 
-    context = pipeline.retrieve(graph_facts)
+    result = pipeline.retrieve_regions(graph_facts)
 
-    fish = next(c for c in context.concept_candidates if c.concept == "Fish")
-    assert [p.chunk_id for p in fish.passages] == ["waite-pictorial-key::Y", "waite-pictorial-key::X"]
-    # Y's displayed score is still its own best (lowest-distance) individual match.
-    assert fish.passages[0].score == pytest.approx(0.6)
+    (region,) = result.regions
+    assert [segment.ordinal for segment in region.segments] == [1]
+    # Y's match score is still its own best (lowest-distance) individual match.
+    assert region.matches[0].score == pytest.approx(0.6)
 
 
-def test_retrieve_deduplicates_a_chunk_matched_by_multiple_queries_of_the_same_concept(
+def test_a_chunk_matched_by_two_queries_of_one_concept_keeps_its_best_score(
     graph_store: KuzuGraphStore,
 ) -> None:
-    """The same passage can legitimately match both of one concept's queries
-    (its plain form and its gematria-filtered variant) — it must appear once
-    in that concept's results, with its best (lowest-distance) displayed
-    score, not once per matching query."""
+    """The same segment can legitimately match both of one concept's queries
+    (its plain form and its gematria-filtered variant) — it must contribute
+    one `Match`, carrying its best (lowest-distance) score, not one per
+    matching query."""
     graph_facts = _gematria_intersemiotic_graph_facts()
     weaker_match = _make_hit("waite-pictorial-key::0", distance=0.6)
     stronger_match = _make_hit("waite-pictorial-key::0", distance=0.3)
     # 4 calls now that the gematria filter is global: Fire(None), Fire(hundred), Fish(None), Fish(hundred).
-    vector_store = SequencedVectorStore([[], [], [weaker_match], [stronger_match]])
+    vector_store = SequencedVectorStore(
+        [[], [], [weaker_match], [stronger_match]], corpus_size=100, document_frequencies={"Fish": 10}
+    )
     pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
 
-    context = pipeline.retrieve(graph_facts)
+    result = pipeline.retrieve_regions(graph_facts)
 
-    fish = next(c for c in context.concept_candidates if c.concept == "Fish")
-    assert len(fish.passages) == 1
-    assert fish.passages[0].score == pytest.approx(0.7)
-
-
-def test_retrieve_truncates_each_concepts_own_hits_to_top_k(graph_store: KuzuGraphStore) -> None:
-    """`top_k` caps each concept's *own* candidates independently (FR-RT-07) — not
-    one shared budget split across every concept in the query. Chunk 2
-    appears in both of "Fish"'s queries (rank 2 in the first, rank 1 in the
-    second), giving it the highest fused score within that concept; chunk 0
-    (rank 1 in one query only) comes next; chunk 3 (rank 2 in one query only)
-    is excluded by the `top_k=2` cap — all entirely within the "Fish"
-    concept, unaffected by "Fire" (which returns nothing here)."""
-    graph_facts = _gematria_intersemiotic_graph_facts()
-    plain_hits = [
-        _make_hit("waite-pictorial-key::0", distance=0.1),
-        _make_hit("waite-pictorial-key::2", distance=0.2),
-    ]
-    filtered_hits = [
-        _make_hit("waite-pictorial-key::2", distance=0.1),
-        _make_hit("waite-pictorial-key::3", distance=0.9),
-    ]
-    # 4 calls now that the gematria filter is global: Fire(None), Fire(hundred), Fish(None), Fish(hundred).
-    vector_store = SequencedVectorStore([[], [], plain_hits, filtered_hits])
-    pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder(), top_k=2)
-
-    context = pipeline.retrieve(graph_facts)
-
-    fish = next(c for c in context.concept_candidates if c.concept == "Fish")
-    assert len(fish.passages) == 2
-    assert [p.chunk_id for p in fish.passages] == ["waite-pictorial-key::2", "waite-pictorial-key::0"]
+    (region,) = result.regions
+    fish_matches = [match for match in region.matches if match.interpretant == "Fish"]
+    assert len(fish_matches) == 1
+    assert fish_matches[0].score == pytest.approx(0.7)
 
 
-def test_retrieve_keeps_every_concepts_own_top_hit_even_when_globally_outranked(
+def test_every_concepts_own_best_match_survives_even_when_globally_outranked(
     graph_store: KuzuGraphStore,
 ) -> None:
-    """The concrete regression this restructuring fixes (plan.md's
-    "Concept-scoped synthesis"): a well-supported concept's own best passage
-    must survive even when several *other* concepts' hits would all
-    individually outscore it on raw distance. The real case: for The Sun,
-    'laughter' (Qoph's Sepher Yetzirah foundation) ranked #1 within its own
-    query, but lost the old shared `top_k` cutoff to unrelated, lower-signal
-    concepts like 'naked child'/'white horse'/'red standard' that simply had
-    better raw scores. Reproduced directly here: 'laughter' has the *worst*
-    raw distance of the four concepts below — under the old flat-merge design
-    with `top_k=1`, it would have been the only one excluded. Each concept
-    now gets its own `top_k` budget, so it survives regardless of how many
-    other concepts exist alongside it."""
+    """The concrete regression concept-scoped matching fixes: a well-supported
+    concept's own best segment must survive even when several *other*
+    concepts' hits would all individually outscore it on raw distance. The
+    real case: for The Sun, 'laughter' (Qoph's Sepher Yetzirah foundation)
+    ranked #1 within its own query, but lost a shared cutoff to unrelated,
+    lower-signal concepts like 'naked child'/'white horse'/'red standard' that
+    simply had better raw scores. Reproduced directly here: 'laughter' has the
+    *worst* raw distance of the four concepts below, and still contributes its
+    own match — there is no shared budget for it to be crowded out of."""
     manifestation = THE_TOWER_MANIFESTATION.model_copy(
         update={
             "interpretants": (
@@ -810,23 +725,28 @@ def test_retrieve_keeps_every_concepts_own_top_hit_even_when_globally_outranked(
     )
     graph_facts = GraphFacts(sign=THE_TOWER, manifestation=manifestation)
     hits_per_call = [
-        [_make_hit("naked-child-hit", distance=0.1)],
-        [_make_hit("white-horse-hit", distance=0.15)],
-        [_make_hit("red-standard-hit", distance=0.2)],
-        [_make_hit("laughter-hit", distance=0.9)],  # worst raw match of the four
+        [_make_hit("naked-child-hit", distance=0.1, ordinal=0)],
+        [_make_hit("white-horse-hit", distance=0.15, ordinal=1)],
+        [_make_hit("red-standard-hit", distance=0.2, ordinal=2)],
+        [_make_hit("laughter-hit", distance=0.9, ordinal=3)],  # worst raw match of the four
     ]
-    vector_store = SequencedVectorStore(hits_per_call)
-    pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder(), top_k=1)
+    vector_store = SequencedVectorStore(hits_per_call, corpus_size=100, document_frequencies={})
+    pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
 
-    context = pipeline.retrieve(graph_facts)
+    result = pipeline.retrieve_regions(graph_facts)
 
-    concepts_with_a_passage = {c.concept for c in context.concept_candidates}
-    assert concepts_with_a_passage == {"naked child", "white horse", "red standard", "laughter"}
-    laughter = next(c for c in context.concept_candidates if c.concept == "laughter")
-    assert [p.chunk_id for p in laughter.passages] == ["laughter-hit"]
+    (region,) = result.regions
+    assert {match.interpretant for match in region.matches} == {
+        "naked child",
+        "white horse",
+        "red standard",
+        "laughter",
+    }
+    laughter = next(match for match in region.matches if match.interpretant == "laughter")
+    assert laughter.segment_ordinal == 3
 
 
-def test_retrieve_passes_the_gematria_filter_through_to_the_vector_store(graph_store: KuzuGraphStore) -> None:
+def test_the_gematria_filter_reaches_the_vector_store_globally(graph_store: KuzuGraphStore) -> None:
     """End-to-end: an intersemiotic target's gematria value reaches the vector
     store as an actual `document_contains` filter *globally* — not just on
     its own sibling concept ("Fish"), but also on the sign's own unrelated
@@ -835,10 +755,14 @@ def test_retrieve_passes_the_gematria_filter_through_to_the_vector_store(graph_s
     hard filter would silently kill results for most cards, and on why the
     filter is global rather than scoped to the group the number came from)."""
     graph_facts = _gematria_intersemiotic_graph_facts()
-    vector_store = SequencedVectorStore([[_make_hit("waite-pictorial-key::0", distance=0.1)], [], [], []])
+    vector_store = SequencedVectorStore(
+        [[_make_hit("waite-pictorial-key::0", distance=0.1)], [], [], []],
+        corpus_size=100,
+        document_frequencies={"Fire": 10},
+    )
     pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
 
-    pipeline.retrieve(graph_facts)
+    pipeline.retrieve_regions(graph_facts)
 
     # Query 1 ("Fire" plain) carries no filter; query 2 ("Fire" + gematria)
     # carries the filter too, even though "Fire" has nothing to do with Qoph
@@ -848,135 +772,11 @@ def test_retrieve_passes_the_gematria_filter_through_to_the_vector_store(graph_s
     assert vector_store.document_contains_per_call == [None, "hundred", None, "hundred"]
 
 
-# --- Concept-pair convergence (FR-RT-08, FR-RT-09) ---
-
-
-def test_pair_candidates_emitted_for_a_chunk_shared_by_two_concepts(graph_store: KuzuGraphStore) -> None:
-    """FR-RT-08: a passage retrieved by two different concepts is surfaced as an
-    additional `ConceptPairCandidates` group, *alongside* — never instead of
-    — each concept's own group. Additive, not a restructuring: a strong
-    single-concept match never has to compete with a convergent one."""
-    graph_facts = _intersemiotic_graph_facts()
-    shared_hit_for_fire = _make_hit("shared", distance=0.2)
-    shared_hit_for_fish = _make_hit("shared", distance=0.3)
-    vector_store = SequencedVectorStore([[shared_hit_for_fire], [shared_hit_for_fish]])
-    pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
-
-    context = pipeline.retrieve(graph_facts)
-
-    assert {c.concept for c in context.concept_candidates} == {"Fire", "Fish"}
-    assert len(context.pair_candidates) == 1
-    pair = context.pair_candidates[0]
-    assert set(pair.concepts) == {"Fire", "Fish"}
-    assert len(pair.candidates) == 1
-    assert pair.candidates[0].passage.chunk_id == "shared"
-    assert {m.concept for m in pair.candidates[0].matches} == {"Fire", "Fish"}
-
-
-def test_iter_candidates_yields_concept_candidates_before_pair_candidates(graph_store: KuzuGraphStore) -> None:
-    """`iter_candidates` is the incremental form `retrieve()` collects in
-    full — every concept's `ConceptCandidates` comes out before any
-    `ConceptPairCandidates`, and collecting the whole generator reproduces
-    exactly what `retrieve()` returns."""
-    graph_facts = _intersemiotic_graph_facts()
-    shared_hit_for_fire = _make_hit("shared", distance=0.2)
-    shared_hit_for_fish = _make_hit("shared", distance=0.3)
-    vector_store = SequencedVectorStore([[shared_hit_for_fire], [shared_hit_for_fish]])
-    pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
-
-    items = list(pipeline.iter_candidates(graph_facts))
-
-    kinds = [type(item) for item in items]
-    assert kinds.count(ConceptCandidates) == 2
-    assert kinds.count(ConceptPairCandidates) == 1
-    assert kinds.index(ConceptPairCandidates) > kinds.index(ConceptCandidates)
-
-    reconstructed = RetrievalContext(
-        graph_facts=graph_facts,
-        concept_candidates=tuple(i for i in items if isinstance(i, ConceptCandidates)),
-        pair_candidates=tuple(i for i in items if isinstance(i, ConceptPairCandidates)),
-    )
-    vector_store_2 = SequencedVectorStore([[shared_hit_for_fire], [shared_hit_for_fish]])
-    pipeline_2 = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store_2, embedder=FakeEmbedder())
-    assert reconstructed == pipeline_2.retrieve(graph_facts)
-
-
-def test_no_pair_candidates_when_no_chunk_is_shared(graph_store: KuzuGraphStore) -> None:
-    """A passage retrieved by only one concept produces no pair group at all
-    — convergence is only surfaced when it genuinely occurs."""
-    graph_facts = _intersemiotic_graph_facts()
-    vector_store = SequencedVectorStore(
-        [[_make_hit("fire-only", distance=0.2)], [_make_hit("fish-only", distance=0.2)]]
-    )
-    pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
-
-    context = pipeline.retrieve(graph_facts)
-
-    assert context.pair_candidates == ()
-
-
-def test_pair_candidates_found_even_when_below_one_concepts_displayed_top_k(graph_store: KuzuGraphStore) -> None:
-    """The motivating case for searching a deeper pool than what's displayed
-    (FR-RT-08): a passage ranked #1 for one concept but only #9 for another is a
-    real convergence, yet it never enters the second concept's *displayed*
-    top-6 list. Pairs must be detected against `match_pool_size`, not
-    `top_k`, or this case is invisible."""
-    graph_facts = _intersemiotic_graph_facts()
-    converge_hit_for_fire = _make_hit("converge", distance=0.1)  # rank 1 for "Fire"
-    fish_hits = [_make_hit(f"fish-filler-{i}", distance=0.05 + i * 0.01) for i in range(8)]
-    fish_hits.append(_make_hit("converge", distance=0.5))  # ranked 9th for "Fish"
-    vector_store = SequencedVectorStore([[converge_hit_for_fire], fish_hits])
-    pipeline = RetrievalPipeline(
-        graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder(), top_k=6, match_pool_size=30
-    )
-
-    context = pipeline.retrieve(graph_facts)
-
-    fish = next(c for c in context.concept_candidates if c.concept == "Fish")
-    assert "converge" not in [p.chunk_id for p in fish.passages]  # absent from Fish's displayed top 6
-    assert len(context.pair_candidates) == 1
-    assert context.pair_candidates[0].candidates[0].passage.chunk_id == "converge"
-
-
-def test_exact_value_pairs_with_the_concept_sharing_its_chunk(graph_store: KuzuGraphStore) -> None:
-    """FR-RT-09: a recognized exact value (Qoph's gematria, "100"/"hundred") pairs
-    with whichever concept shares a chunk with it, scored by that concept's
-    own similarity alone — the value itself carries no score, only a
-    guarantee of containment, since it arrived via `document_contains` (a
-    hard filter) rather than embedding similarity."""
-    graph_facts = _gematria_intersemiotic_graph_facts()
-    fish_and_hundred_hit = _make_hit("fish-and-hundred", distance=0.3)
-    # 4 calls: Fire(None), Fire(hundred), Fish(None), Fish(hundred) — the hit
-    # is only returned by Fish's *filtered* query, proving membership comes
-    # from the filter, not from the plain concept search.
-    vector_store = SequencedVectorStore([[], [], [], [fish_and_hundred_hit]])
-    pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
-
-    context = pipeline.retrieve(graph_facts)
-
-    assert len(context.pair_candidates) == 1
-    pair = context.pair_candidates[0]
-    assert set(pair.concepts) == {"Fish", "100"}
-    candidate = pair.candidates[0]
-    assert candidate.combined_score == pytest.approx(0.7)  # Fish's own score alone, per FR-RT-09
-    matches_by_concept = {m.concept: m for m in candidate.matches}
-    assert matches_by_concept["100"].exact_value is True
-    assert matches_by_concept["100"].score == 0.0
-    assert matches_by_concept["Fish"].exact_value is False
-    assert matches_by_concept["Fish"].score == pytest.approx(0.7)
-
-
-def test_exact_directive_never_contributes_a_pair_candidate(
-    graph_store: KuzuGraphStore,
-) -> None:
-    """FR-EX-03: an `"exact"`-directive interpretant's value is never
-    embedded (FR-EX-01), so it never shares a deep pool with another concept
-    and never appears in `_build_pair_candidates` at all — not as a real-
-    score concept pairing, and not as a synthetic membership pairing the way
-    a `"filter"`-directive token does
-    (`test_exact_value_pairs_with_the_concept_sharing_its_chunk` above) —
-    even when its literal scan and another concept's query surface the same
-    chunk."""
+def test_an_exact_directive_value_is_never_embedded(graph_store: KuzuGraphStore) -> None:
+    """FR-EX-01/FR-EX-03: an `"exact"`-directive interpretant's value never
+    becomes an ANN query — it is found only through the separate, non-ANN
+    `document_matches` scan, even when that scan and another concept's query
+    surface the same chunk."""
     manifestation = THE_TOWER_MANIFESTATION.model_copy(
         update={
             "interpretants": (
@@ -992,36 +792,20 @@ def test_exact_directive_never_contributes_a_pair_candidate(
     )
     graph_facts = GraphFacts(sign=THE_TOWER, manifestation=manifestation)
     shared_hit = _make_hit("shared", distance=0.2)
-    # 1 ANN call: Fire(plain) — "2" is never embedded (FR-EX-01), it's found
-    # only through the separate, non-ANN `document_matches` scan.
-    vector_store = SequencedVectorStore([[shared_hit]], document_matches_by_term={"2": [shared_hit]})
+    vector_store = SequencedVectorStore(
+        [[shared_hit]],
+        corpus_size=100,
+        document_frequencies={"Fire": 10, "2": 5},
+        document_matches_by_term={"2": [shared_hit]},
+    )
     pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
 
-    context = pipeline.retrieve(graph_facts)
+    result = pipeline.retrieve_regions(graph_facts)
 
-    assert context.pair_candidates == ()
+    assert vector_store.call_count == 1
     assert vector_store.document_matches_calls == ["2"]
-
-
-def test_combined_score_ranks_a_balanced_pair_above_a_lopsided_one_with_the_same_sum() -> None:
-    """Sum and arithmetic mean can't tell these apart: (0.90+0.20) ==
-    (0.57+0.53) == 1.10, and both average to 0.55. But only the second
-    genuinely sits at the intersection of both concepts — the first is a
-    strong match on one concept that merely reached the other's deep
-    matching pool. The geometric mean is what distinguishes them (see this
-    module's docstring and `pipeline.py`'s)."""
-    lopsided = _combined_score((0.90, 0.20))
-    balanced = _combined_score((0.57, 0.53))
-
-    assert balanced > lopsided
-
-
-def test_combined_score_clamps_negative_components_instead_of_raising() -> None:
-    """`_similarity_score` is `1 - cosine_distance`, spanning [-1, 1] — a
-    negative component must not raise a math-domain error on the square
-    root, and contributes no conjunctive strength."""
-    assert _combined_score((-0.4, 0.6)) == pytest.approx(0.0)
-    assert _combined_score((-0.4, -0.6)) == pytest.approx(0.0)
+    (region,) = result.regions
+    assert {match.interpretant: match.kind for match in region.matches} == {"Fire": "concept", "2": "exact"}
 
 
 # --- Specificity weighting (FR-RK-04–FR-RK-06) ---
@@ -1389,11 +1173,11 @@ def test_search_deep_pools_logs_each_concepts_plain_and_filtered_query_variants(
     graph_facts = _gematria_intersemiotic_graph_facts()
     fish_hit = _make_hit("waite-pictorial-key::0", distance=0.2)
     # 4 calls: Fire(None), Fire(hundred), Fish(None), Fish(hundred).
-    vector_store = SequencedVectorStore([[], [], [fish_hit], []])
+    vector_store = SequencedVectorStore([[], [], [fish_hit], []], corpus_size=100, document_frequencies={"Fish": 10})
     pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
 
     with caplog.at_level(logging.INFO, logger="mythrix.core.retrieval.pipeline"):
-        pipeline.retrieve(graph_facts)
+        pipeline.retrieve_regions(graph_facts)
 
     messages = [record.getMessage() for record in caplog.records]
     fish_lines = [m for m in messages if "concept='Fish'" in m]
@@ -1412,7 +1196,7 @@ def test_search_deep_pools_logs_a_filter_token_with_zero_matching_chunks(
     pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
 
     with caplog.at_level(logging.INFO, logger="mythrix.core.retrieval.pipeline"):
-        pipeline.retrieve(graph_facts)
+        pipeline.retrieve_regions(graph_facts)
 
     messages = [record.getMessage() for record in caplog.records]
     assert any("filter_token='100'" in m and "as_token='hundred'" in m and "hits=0" in m for m in messages)

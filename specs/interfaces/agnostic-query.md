@@ -1,12 +1,12 @@
 # Agnostic (Ad-hoc) Interpretant Query
 
-A conversational-agent capability, scoped by [ADR-010](../architecture-decisions/adr-010-agnostic-adhoc-interpretant-query.md), letting a user search the corpus directly on a list of their own terms — no Sign or Tradition named — reusing the existing directive vocabulary curated interpretants already carry ([retrieval.md](../retrieval/retrieval.md) FR-RT-09, FR-RT-15, FR-RT-17–19). This document specifies the agent-side path up through handing back an execution instruction, and the dedicated endpoint that actually performs the query. How a consumer learns to execute that instruction is specified in [agent-capabilities.md](agent-capabilities.md); how the web viewer renders the result is specified in [web-viewer.md](web-viewer.md).
+A conversational-agent capability, scoped by [ADR-010](../architecture-decisions/adr-010-agnostic-adhoc-interpretant-query.md), letting a user search the corpus directly on a list of their own terms — no Sign or Tradition named — reusing the existing directive vocabulary curated interpretants already carry ([retrieval.md](../retrieval/retrieval.md) FR-RT-15, FR-RT-17–19). This document specifies the agent-side path up through handing back an execution instruction, and the dedicated endpoint that actually performs the query. How a consumer learns to execute that instruction is specified in [agent-capabilities.md](agent-capabilities.md); how the web viewer renders the result is specified in [web-viewer.md](web-viewer.md).
 
 ## Vocabulary
 
 - **ad-hoc term**: A user-authored token parsed from a `/query` chat command, optionally carrying one directive suffix (`:exact`, `:filter`).
 - **directive**: The same `"exact"`/`"filter"` vocabulary [retrieval.md](../retrieval/retrieval.md)'s `QueryDirective` already defines for curator-authored interpretants — here authored by the user instead. An undecorated term is an ordinary concept.
-- **instruction**: A structured, transport-agnostic descriptor (`{"type": ..., "payload": ...}`) returned in the agent's `instructions` field, naming an action for a consumer to take — distinct from a `card` ([agent.md](agent.md) vocabulary), which presents grounded content rather than requesting an action.
+- **instruction**: A structured, transport-agnostic descriptor (`{"type": ..., "payload": ...}`) returned in the agent's `instructions` field, naming an action for a consumer to take.
 - **pending ad-hoc query**: A parsed term list held in session state under a backend-generated id, awaiting confirmation. It is not a query result and nothing has been retrieved for it.
 - **ad-hoc query**: A region query ([ranking.md](../retrieval/ranking.md)) run against a synthetic, sentinel `GraphFacts` built from ad-hoc terms, rather than one resolved from the Sign Graph.
 
@@ -34,7 +34,7 @@ A conversational-agent capability, scoped by [ADR-010](../architecture-decisions
 
 - FR-AQ-13: A confirmed ad-hoc query emits an `execute_query` instruction carrying the confirmed term/directive list. The turn itself performs no retrieval and accesses neither the graph store nor the vector store.
 - FR-AQ-14: An instruction carries no HTTP method, path, or other transport detail. How its `type` maps to an actual endpoint call is declared once by the backend in the capabilities document ([agent-capabilities.md](agent-capabilities.md) FR-CAP-07–FR-CAP-12), not restated per instruction and not decided by the consumer.
-- FR-AQ-15: Instructions are populated by the backend directly from the deterministic command handling that produced them, never parsed or inferred from a model-authored reply (consistent with [agent.md](agent.md) FR-AG-19).
+- FR-AQ-15: Instructions are populated by the backend directly from the deterministic command handling that produced them, never parsed or inferred from a model-authored reply.
 - FR-AQ-22: An `execute_query` instruction's payload is a valid request body for the ad-hoc query endpoint (FR-AQ-18) as sent, requiring no reshaping by the consumer.
 
 ### Isolation from the conversation
@@ -46,7 +46,7 @@ A conversational-agent capability, scoped by [ADR-010](../architecture-decisions
 
 - FR-AQ-18: A dedicated, non-agent endpoint accepts a term/directive list and performs the actual ad-hoc query, independent of the agent — directly callable (e.g. by a frontend, or by a test) without going through a chat turn. It is a read: the request carries its term list as content because the list is structured, not because anything is created or modified, and repeating the request changes nothing.
 - FR-AQ-19: An ad-hoc query builds a synthetic `GraphFacts` from the supplied terms: one interpretant per term — a plain concept interpretant for an undirected term, or one carrying the term's directive (with the term's own text as its literal token) for a directive term — attached to a sentinel sign/tradition/manifestation that names no real semiotic system, sign, or tradition.
-- FR-AQ-20: That synthetic `GraphFacts` is passed unmodified into the existing region-query pipeline ([retrieval.md](../retrieval/retrieval.md), [ranking.md](../retrieval/ranking.md)); every existing region-matching, ranking, and directive-handling requirement (FR-RT-07–20) applies, with no new matching or ranking behavior introduced by this path.
+- FR-AQ-20: That synthetic `GraphFacts` is passed unmodified into the existing region-query pipeline ([retrieval.md](../retrieval/retrieval.md), [ranking.md](../retrieval/ranking.md)); every existing region-matching, ranking, and directive-handling requirement (FR-RT-10–20) applies, with no new matching or ranking behavior introduced by this path.
 - FR-AQ-21: An ad-hoc query result is unambiguously distinguishable from a graph-native one — its sentinel sign/tradition identifiers name no entry in the Sign Graph — so a consumer can never mistake it for curated content.
 
 ## Non-goals
@@ -56,5 +56,5 @@ A conversational-agent capability, scoped by [ADR-010](../architecture-decisions
 - Any agent awareness of ad-hoc queries: the agent cannot discuss, refer back to, or answer questions about a query run through this path, and does not narrate its results.
 - Expiring a pending ad-hoc query on a timer. It lives until replaced, confirmed, or discarded by a thread reset.
 - Any directive beyond `"exact"`/`"filter"` — a `"skip"`-equivalent has no meaningful use for a term the user is explicitly, deliberately including.
-- Any change to the CLI `query` command, `query_regions`, or graph-native retrieval/ranking behavior.
+- Any change to `query_regions` or graph-native retrieval/ranking behavior.
 - Persisting a pending ad-hoc query, its terms, or its result across a backend process restart, consistent with the rest of agent session/context state ([agent.md](agent.md) FR-AG-20).

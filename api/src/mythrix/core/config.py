@@ -16,22 +16,14 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """Local-only runtime configuration: storage locations and Ollama model selection.
 
-    `retrieval_top_k` is how many candidates each concept *displays* (FR-RT-07 — a
-    per-concept budget, not a shared one).
-
-    `retrieval_match_pool_size` is how deep each concept's pool goes when detecting
-    which passages two concepts both retrieved (FR-RT-08), independent of what's
-    displayed. Deliberately much larger than `retrieval_top_k`: intersecting only
-    the displayed candidates would miss a passage ranking #1 for one concept and #9
-    for another, a real convergence that never appears in the second concept's
-    displayed list. The cost is extra Chroma searches only; query embeddings are
-    computed once regardless and no generation model is involved (FR-RT-10). Also
-    the knob to reach for if output grows unwieldy with low-value lopsided pairs.
-    Default of `100` calibrated per ADR-008, not derived from a formula — re-sweep
-    if the embedding model or corpus scale changes materially.
-
-    `merge_top_k` caps candidates *within* one concept-pair group, the pair-side
-    analogue of `retrieval_top_k`.
+    `retrieval_match_pool_size` is how deep each concept's own Reciprocal-Rank-Fused
+    pool goes before region rollup (FR-RK-01). Kept large so a segment ranking #1
+    for one interpretant and #90 for another still contributes both matches to the
+    region they share — trimming earlier would discard exactly the convergence
+    ranking exists to reward (ADR-004). The cost is extra Chroma searches only;
+    query embeddings are computed once regardless and no generation model is
+    involved (FR-RT-10). Default of `100` calibrated per ADR-008, not derived from
+    a formula — re-sweep if the embedding model or corpus scale changes materially.
 
     `generation_model`/`generation_num_ctx` are read by the conversational agent
     layer only; nothing on the query path reads them (FR-RT-10). `generation_model`
@@ -43,12 +35,11 @@ class Settings(BaseSettings):
     unset.
 
     `retrieval_min_score` is the absolute match floor a concept's raw similarity
-    must clear (ADR-004) and the minimum combined score a concept-pair candidate
-    must clear (FR-RT-08). Default of `0.6` calibrated per ADR-008: match scores
-    have no natural gap between "real" and "noise", so an explicit floor above the
-    noise band favors precision over recall — override per-request via
-    `/api/query`'s `min_score` param or `mythrix query --min-score` if this default
-    doesn't suit a particular corpus.
+    must clear (ADR-004, FR-RT-14). Default of `0.6` calibrated per ADR-008: match
+    scores have no natural gap between "real" and "noise", so an explicit floor
+    above the noise band favors precision over recall — override per-request via
+    `/api/query`'s `min_score` param if this default doesn't suit a particular
+    corpus.
 
     `signs_data_path` is where `POST /api/reload-signs` reads from when the
     request omits a path — the same directory the local dev workflow already
@@ -79,9 +70,7 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     embedding_model: str = "nomic-embed-text"
     generation_model: str | None = None
-    retrieval_top_k: int = 6
     retrieval_match_pool_size: int = 100
-    merge_top_k: int = 6
     retrieval_min_score: float = 0.6
     generation_num_ctx: int = 8192
     signs_data_path: Path = Path("data/semiotic_systems")

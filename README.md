@@ -329,7 +329,7 @@ Mythrix supports two complementary paths.
 ```text
 User
   ↓
-Query UI / API / CLI
+Query UI / API
   ↓
 Deterministic Query Engine
   ↓
