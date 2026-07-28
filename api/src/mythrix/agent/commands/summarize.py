@@ -1,8 +1,8 @@
 """Deterministic handling of the `/summarize` chat command
 (specs/interfaces/agent.md FR-AG-33–FR-AG-36): command detection, focus/concept
 resolution, and hotspot-coordinate parsing — no generation model or LangGraph
-import here, so this is testable on its own (ADR-012). `agent/graph.py` wires
-these into `summarize_node`."""
+import here, so this is testable on its own (ADR-012).
+`agent/graph/nodes/summary.py` wires these into `summarize_node`."""
 
 from __future__ import annotations
 

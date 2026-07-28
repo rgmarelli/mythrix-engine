@@ -87,8 +87,6 @@ def test_normal_turn_grounds_the_reply_and_backfills_context() -> None:
     assert response.context.sign == "The Magician"
     assert response.context.tradition == "rider-waite"
     assert response.context.semiotic_system == "tarot"
-    # Card output is currently disabled (turn_service.py's FIXME).
-    assert response.cards == []
     assert response.thread_reset is False
 
 
@@ -197,7 +195,6 @@ def test_ambiguous_tradition_short_circuits_with_no_second_model_call() -> None:
     assert llm.calls == 1
     assert "rider-waite" in response.reply_text
     assert "marseille" in response.reply_text
-    assert response.cards == []
     assert response.context.sign is None
 
 
@@ -256,7 +253,6 @@ def test_summarize_command_with_no_hotspot_asks_the_user_to_select_one_without_c
         max_tool_iterations=8,
     )
 
-    assert response.cards == []
     assert "select" in response.reply_text.lower()
     human_messages = [m for m in sessions.get_or_create("s1").history if isinstance(m, HumanMessage)]
     assert [m.content for m in human_messages] == ["/summarize"]

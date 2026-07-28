@@ -119,7 +119,7 @@ export interface HotspotQueryResult {
 
 // --- Agent chat (specs/interfaces/agent.md FR-AG-14–FR-AG-22) ---
 // Wire shapes mirror `api/routes.py`'s `AgentUiSelection`/`AgentTurnRequest`/
-// `AgentContext`/`AgentCard`/`AgentTurnResponse` — snake_case, as
+// `AgentContext`/`AgentTurnResponse` — snake_case, as
 // `.model_dump(mode="json")` sends them. `client.ts` is the single seam
 // translating them onto the camelCase view-model types below.
 
@@ -141,16 +141,6 @@ export interface AgentTurnRequestWire {
 }
 
 export type AgentContextWire = AgentUiSelectionWire;
-
-export interface AgentCardWire {
-  type: 'citation' | 'interpretant_chips';
-  source_label?: string | null;
-  locator?: string | null;
-  text?: string | null;
-  chips?:
-    | { interpretant: string; kind: 'concept' | 'exact' | 'filter'; score: number; segment_ordinal: number }[]
-    | null;
-}
 
 // An agent instruction (specs/interfaces/agnostic-query.md FR-AQ-07,
 // FR-AQ-13–14): `type` names the action, `payload` carries whatever it needs,
@@ -232,7 +222,6 @@ export interface AgentCapabilities {
 export interface AgentTurnResponseWire {
   context: AgentContextWire;
   reply_text: string;
-  cards: AgentCardWire[];
   instructions: AgentInstructionWire[];
   thread_reset: boolean;
 }
@@ -252,26 +241,11 @@ export interface AgentUiSelection {
 
 export type AgentContext = AgentUiSelection;
 
-export interface AgentCitationCard {
-  type: 'citation';
-  sourceLabel: string;
-  locator: string;
-  text: string;
-}
-
-export interface AgentInterpretantChipsCard {
-  type: 'interpretant_chips';
-  chips: { interpretant: string; kind: 'concept' | 'exact' | 'filter'; score: number; segmentOrdinal: number }[];
-}
-
-export type AgentCard = AgentCitationCard | AgentInterpretantChipsCard;
-
 export type AgentInstruction = AgentInstructionWire;
 
 export interface AgentTurnResult {
   context: AgentContext;
   replyText: string;
-  cards: AgentCard[];
   instructions: AgentInstruction[];
   threadReset: boolean;
 }

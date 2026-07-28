@@ -236,8 +236,8 @@ def agent_turn(
     """One turn of the in-app chat panel (`specs/interfaces/agent.md` FR-AG-14–FR-AG-22):
     the browser sends its message plus its current UI selection, as-is, each
     turn; the backend detects a thread reset, runs the agent loop, and
-    returns the three-part response (updated context, grounded reply text,
-    structured cards) plus `thread_reset`. `ModelUnavailableError`/
+    returns the updated context and grounded reply text plus `thread_reset`.
+    `ModelUnavailableError`/
     `ModelRequestError` raised by `get_agent_graph`'s lazy build are handled
     by the same registered `MythrixError` exception handler as every other
     route (502)."""

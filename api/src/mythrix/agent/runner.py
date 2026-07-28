@@ -12,7 +12,7 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.errors import GraphRecursionError
 from langgraph.graph.state import CompiledStateGraph
 
-from mythrix.agent.adhoc_query import PendingAdhocQuery
+from mythrix.agent.commands.adhoc import PendingAdhocQuery
 from mythrix.core.logging_config import truncate
 
 logger = logging.getLogger(__name__)

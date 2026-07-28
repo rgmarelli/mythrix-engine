@@ -1,11 +1,11 @@
-"""Unit tests for `agent/adhoc_query.py`: the deterministic `/query` and
+"""Unit tests for `agent/commands/adhoc.py`: the deterministic `/query` and
 `/query-confirm` parsing, rendering, and instruction building
 (specs/interfaces/agnostic-query.md FR-AQ-02, FR-AQ-03, FR-AQ-06, FR-AQ-07,
 FR-AQ-14). Pure functions — nothing here touches a store, a graph, or a model."""
 
 import pytest
 
-from mythrix.agent.adhoc_query import (
+from mythrix.agent.commands.adhoc import (
     CONFIRM_COMMAND,
     QUERY_COMMAND,
     command_of,

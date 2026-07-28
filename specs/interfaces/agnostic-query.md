@@ -6,7 +6,7 @@ A conversational-agent capability, scoped by [ADR-010](../architecture-decisions
 
 - **ad-hoc term**: A user-authored token parsed from a `/query` chat command, optionally carrying one directive suffix (`:exact`, `:filter`).
 - **directive**: The same `"exact"`/`"filter"` vocabulary [retrieval.md](../retrieval/retrieval.md)'s `QueryDirective` already defines for curator-authored interpretants — here authored by the user instead. An undecorated term is an ordinary concept.
-- **instruction**: A structured, transport-agnostic descriptor (`{"type": ..., "payload": ...}`) returned in the agent's `instructions` field, naming an action for a consumer to take — distinct from a `card` ([agent.md](agent.md) vocabulary), which presents grounded content rather than requesting an action.
+- **instruction**: A structured, transport-agnostic descriptor (`{"type": ..., "payload": ...}`) returned in the agent's `instructions` field, naming an action for a consumer to take.
 - **pending ad-hoc query**: A parsed term list held in session state under a backend-generated id, awaiting confirmation. It is not a query result and nothing has been retrieved for it.
 - **ad-hoc query**: A region query ([ranking.md](../retrieval/ranking.md)) run against a synthetic, sentinel `GraphFacts` built from ad-hoc terms, rather than one resolved from the Sign Graph.
 
@@ -34,7 +34,7 @@ A conversational-agent capability, scoped by [ADR-010](../architecture-decisions
 
 - FR-AQ-13: A confirmed ad-hoc query emits an `execute_query` instruction carrying the confirmed term/directive list. The turn itself performs no retrieval and accesses neither the graph store nor the vector store.
 - FR-AQ-14: An instruction carries no HTTP method, path, or other transport detail. How its `type` maps to an actual endpoint call is declared once by the backend in the capabilities document ([agent-capabilities.md](agent-capabilities.md) FR-CAP-07–FR-CAP-12), not restated per instruction and not decided by the consumer.
-- FR-AQ-15: Instructions are populated by the backend directly from the deterministic command handling that produced them, never parsed or inferred from a model-authored reply (consistent with [agent.md](agent.md) FR-AG-19).
+- FR-AQ-15: Instructions are populated by the backend directly from the deterministic command handling that produced them, never parsed or inferred from a model-authored reply.
 - FR-AQ-22: An `execute_query` instruction's payload is a valid request body for the ad-hoc query endpoint (FR-AQ-18) as sent, requiring no reshaping by the consumer.
 
 ### Isolation from the conversation

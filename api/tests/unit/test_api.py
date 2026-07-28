@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 from langchain_core.messages import AIMessage
 from langchain_core.tools import tool
 
-from mythrix.agent.adhoc_query import execute_query_instruction
+from mythrix.agent.commands.adhoc import execute_query_instruction
 from mythrix.agent.graph import compile_agent_graph
 from mythrix.agent.sessions import SessionStore
 from mythrix.api.app import create_app
@@ -533,8 +533,6 @@ def test_agent_turn_returns_grounded_reply_and_context(
     assert "willpower" in body["reply_text"]
     assert body["context"]["sign"] == "The Magician"
     assert body["context"]["tradition"] == "rider-waite"
-    # Card output is currently disabled (turn_service.py's FIXME).
-    assert body["cards"] == []
     assert body["instructions"] == []
 
 
@@ -580,7 +578,6 @@ def test_agent_turn_ambiguous_tradition_asks_with_no_second_model_call(
     body = response.json()
     assert "rider-waite" in body["reply_text"]
     assert "marseille" in body["reply_text"]
-    assert body["cards"] == []
     assert llm.calls == 1
 
 

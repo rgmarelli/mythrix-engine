@@ -1,11 +1,11 @@
-"""Unit tests for `agent/summarize_command.py`: `/summarize` detection, focus/
+"""Unit tests for `agent/commands/summarize.py`: `/summarize` detection, focus/
 concept resolution, and hotspot-coordinate parsing (specs/interfaces/agent.md
 FR-AG-33–FR-AG-36). Pure functions — nothing here touches a store, a graph, or
 a model."""
 
 import pytest
 
-from mythrix.agent.summarize_command import (
+from mythrix.agent.commands.summarize import (
     SUMMARIZE_COMMAND,
     command_of,
     concepts_for,

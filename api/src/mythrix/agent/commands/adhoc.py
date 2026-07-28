@@ -4,9 +4,9 @@ confirmation rendering, and instruction building — no generation model is
 involved at any point, so the confirmation gate is a property of this code
 rather than of model compliance (ADR-010).
 
-Pure functions and dataclasses only. `agent/graph.py` wires these into nodes;
-nothing here imports LangGraph, so the parsing and rendering rules are
-testable on their own."""
+Pure functions and dataclasses only. `agent/graph/nodes/adhoc.py` wires these
+into nodes; nothing here imports LangGraph, so the parsing and rendering
+rules are testable on their own."""
 
 from __future__ import annotations
 

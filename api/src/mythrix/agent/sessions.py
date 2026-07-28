@@ -6,7 +6,7 @@ from __future__ import annotations
 import threading
 from dataclasses import dataclass, field
 
-from mythrix.agent.adhoc_query import PendingAdhocQuery
+from mythrix.agent.commands.adhoc import PendingAdhocQuery
 from mythrix.agent.context import AgentContext
 
 

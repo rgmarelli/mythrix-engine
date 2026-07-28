@@ -1,7 +1,6 @@
 """Composes one full `POST /api/agent` turn out of the existing agent primitives: thread-reset detection
-(`agent/context.py`), the LangGraph turn driver (`agent/runner.py`), card
-building (`agent/cards.py`), and citation validation
-(`agent/citations.py`). `api/routes.py`'s handler is a
+(`agent/context.py`), the LangGraph turn driver (`agent/runner.py`), and
+citation validation (`agent/citations.py`). `api/routes.py`'s handler is a
 thin wrapper around `run_chat_turn`, matching every existing route's
 thinness."""
 
@@ -15,9 +14,8 @@ from langchain_core.messages import ToolMessage
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel
 
-from mythrix.agent.adhoc_query import is_adhoc_command
-from mythrix.agent.cards import build_cards
 from mythrix.agent.citations import find_invalid_markers, strip_markers
+from mythrix.agent.commands.adhoc import is_adhoc_command
 from mythrix.agent.context import (
     AgentContext,
     AgentUiSelection,
@@ -43,14 +41,6 @@ _CITATION_FAILURE_MESSAGE = (
 )
 
 
-class AgentCard(BaseModel):
-    type: Literal["citation", "interpretant_chips"]
-    source_label: str | None = None
-    locator: str | None = None
-    text: str | None = None
-    chips: list[dict] | None = None
-
-
 class AgentInstruction(BaseModel):
     """A transport-agnostic action for the application to take
     (`specs/interfaces/agnostic-query.md` FR-AQ-07, FR-AQ-13–14) — `payload`
@@ -64,7 +54,6 @@ class AgentInstruction(BaseModel):
 class AgentTurnResponse(BaseModel):
     context: AgentContext
     reply_text: str
-    cards: list[AgentCard]
     instructions: list[AgentInstruction] = []
     thread_reset: bool
 
@@ -113,14 +102,6 @@ def _build_valid_marker_ids(tool_messages: list[ToolMessage]) -> set[str]:
     return valid_ids
 
 
-def _build_cards(tool_messages: list[ToolMessage]) -> list[AgentCard]:
-    cards: list[dict] = []
-    for message in tool_messages:
-        payload = _safe_json_loads(message.content)
-        cards.extend(build_cards(message.name, payload))
-    return [AgentCard(**card) for card in cards]
-
-
 def run_chat_turn(
     *,
     graph: CompiledStateGraph,
@@ -167,7 +148,7 @@ def run_chat_turn(
             session.context = context
             _log_outcome(_TOOL_FAILURE_MESSAGE, [], thread_reset)
             return AgentTurnResponse(
-                context=context, reply_text=_TOOL_FAILURE_MESSAGE, cards=[], instructions=[], thread_reset=thread_reset
+                context=context, reply_text=_TOOL_FAILURE_MESSAGE, instructions=[], thread_reset=thread_reset
             )
 
         session.pending_query = result.pending_query
@@ -183,7 +164,6 @@ def run_chat_turn(
             return AgentTurnResponse(
                 context=context,
                 reply_text=result.reply,
-                cards=[],
                 instructions=instructions,
                 thread_reset=thread_reset,
             )
@@ -200,9 +180,6 @@ def run_chat_turn(
         if model_driven_reset:
             thread_reset = True
 
-        # FIXME: cards disabled — check if we remove Cards from API and Web entirely.
-        # cards = _build_cards(tool_messages)
-        cards: list[AgentCard] = []
         visible_reply = result.reply.strip()
 
         valid_ids = _build_valid_marker_ids(tool_messages)
@@ -217,7 +194,6 @@ def run_chat_turn(
             return AgentTurnResponse(
                 context=context,
                 reply_text=_CITATION_FAILURE_MESSAGE,
-                cards=[],
                 instructions=[],
                 thread_reset=thread_reset,
             )
@@ -230,7 +206,6 @@ def run_chat_turn(
         return AgentTurnResponse(
             context=context,
             reply_text=reply_text,
-            cards=cards,
             instructions=instructions,
             thread_reset=thread_reset,
         )

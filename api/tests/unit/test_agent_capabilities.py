@@ -5,11 +5,11 @@ copy of the same literals."""
 
 from langchain_core.messages import HumanMessage
 
-from mythrix.agent.adhoc_query import CONFIRM_COMMAND, QUERY_COMMAND, is_adhoc_command
 from mythrix.agent.capabilities import AGENT_CAPABILITIES, CLEAR_COMMAND
-from mythrix.agent.graph import route_input
-from mythrix.agent.summarize_command import SUMMARIZE_COMMAND
-from mythrix.agent.summarize_command import command_of as summarize_command_of
+from mythrix.agent.commands.adhoc import CONFIRM_COMMAND, QUERY_COMMAND, is_adhoc_command
+from mythrix.agent.commands.summarize import SUMMARIZE_COMMAND
+from mythrix.agent.commands.summarize import command_of as summarize_command_of
+from mythrix.agent.graph.builder import route_input
 
 _COMMANDS = {command.name: command for command in AGENT_CAPABILITIES.commands}
 _BINDINGS = {instruction.type: instruction.binding for instruction in AGENT_CAPABILITIES.instructions}

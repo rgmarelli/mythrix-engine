@@ -300,7 +300,6 @@ describe('sendAgentMessage', () => {
         locator: null,
       },
       replyText: 'The sun signifies vitality.',
-      cards: [],
       instructions: [],
       threadReset: false,
     });
@@ -350,7 +349,6 @@ describe('sendAgentMessage', () => {
         locator: null,
       },
       replyText: 'Starting fresh.',
-      cards: [],
       instructions: [],
       threadReset: true,
     });
@@ -400,7 +398,6 @@ describe('sendAgentMessage', () => {
           locator: null,
         },
         replyText: 'ok',
-        cards: [],
         instructions: [],
         threadReset: false,
       });
@@ -423,7 +420,6 @@ describe('clearAgentThread', () => {
         locator: null,
       },
       replyText: 'hi',
-      cards: [],
       instructions: [],
       threadReset: false,
     });
@@ -462,7 +458,7 @@ describe('agent instructions', () => {
   };
 
   function turnWith(instructions: AgentInstruction[]) {
-    return { context: EMPTY_CONTEXT, replyText: 'ok', cards: [], instructions, threadReset: false };
+    return { context: EMPTY_CONTEXT, replyText: 'ok', instructions, threadReset: false };
   }
 
   const EXECUTE_QUERY: AgentInstruction = { type: 'execute_query', payload: { terms: [{ value: 'laughter' }] } };
