@@ -1,117 +1,479 @@
 # Mythrix Engine
 
-> 🚧 **Work in Progress** — Mythrix is an actively developed project. The architecture, APIs, data model, and user experience are still evolving.
+**A deterministic symbolic retrieval engine with an LLM-powered interpretation and knowledge-discovery assistant.**
 
-**An explainable symbolic-interpretation engine where every retrieved result is grounded in cited primary sources — never presented as an unsupported model guess.**
+> 🚧 **Work in Progress**
+>
+> Mythrix is an experimental system under active development. Its architecture, domain model, APIs, and user experience are evolving.
 
-Symbol-interpretation systems typically face a trade-off between explainability and flexibility. Traditional systems can provide explicit sources but are often limited to predefined interpretations, while LLM-based systems can produce fluent explanations without a verifiable reasoning trail.
+Mythrix explores how AI-assisted interpretation can work over **large, structured knowledge systems and source corpora** without making an LLM responsible for retrieving or inventing the underlying evidence.
 
-Mythrix takes a different approach. It combines a domain-agnostic Sign Graph with an independent document corpus and a deterministic retrieval and ranking pipeline. The symbolic system defines the concepts associated with a sign; those concepts are then used to retrieve evidence from a separate corpus, and passages where multiple concepts converge are ranked as candidate interpretive hotspots. The LLM does not decide what a result is or generate the underlying evidence. It only orchestrates read-only tools and composes retrieved, cited evidence into a conversational response.
+The core architectural principle is simple:
 
-Everything runs locally — no hosted API dependency and no data leaving your machine.
+> **The deterministic engine finds the evidence. The LLM helps the user interpret and explore it.**
 
-## The core idea
-
-Mythrix separates symbolic knowledge from textual evidence.
-
-A symbolic system defines a sign and its interpretants. Those interpretants are then used as retrieval queries against an independent document corpus. The system does not search for a pre-written interpretation of the sign. Instead, it looks for passages where multiple independent concepts associated with the sign converge, and ranks those passages according to the specificity and strength of their matches.
-
-This separation makes the retrieval pipeline reusable across symbolic domains and document corpora. The same engine can operate on a different symbolic system or a different collection of source documents without changing the underlying retrieval and ranking architecture.
-
-## What it does
-
-Query a symbol — for example, the Tower card in the Rider-Waite tradition — and Mythrix returns ranked, cited evidence rather than a generated paragraph of symbolic meaning. The system combines structured symbolic knowledge with independent textual sources and exposes the retrieval process all the way from the original sign to the passages that support the resulting convergence.
-
-- **Graph facts** — the sign's properties, interpretants, and cross-domain correspondences, such as the Tower's Hebrew-letter correspondence through a Golden Dawn attribution, retrieved from the structured Sign Graph.
-
-- **Concept and concept-pair retrieval** — each of the sign's interpretants (`"fire"`, `"falling figures"`, `"lightning"`, ...) independently retrieves matching passages from an unrelated reference corpus such as the Douay-Rheims Bible or Sefer HaBahir. Passages matched by multiple interpretants are grouped as convergence hotspots.
-
-- **Ranked convergence hotspots** — contiguous passages are scored using a specificity-weighted convergence formula. Rarer surface forms contribute more weight than common terms, so a passage matched by several distinct concepts can outrank one matched by a single common word. Every result includes the verbatim source text and an exact citation rather than only a document locator.
-
-- **A grounded chat agent** — a docked conversational panel allows a local model to answer questions about retrieved results by calling the same read-only tools exposed by the API: symbol lookup, region query, segment fetch, and summarization. The agent is constrained to the evidence returned by those tools.
-
-The reference dataset demonstrates the domain-agnostic design: it includes all 22 Tarot Major Arcana, all 22 Hebrew letters with Sepher Yetzirah correspondences, and cross-links between the two symbolic systems. Both are retrieved against an independent corpus of Biblical and Kabbalistic texts, demonstrating that the retrieval pipeline operates on the structure of the symbolic system and the declared document corpus rather than on tarot-specific logic.
+---
 
 ## See it in action
 
 ![Mythrix Engine](docs/images/mythrix.png)
 
-A query against a symbol produces ranked convergence hotspots with verbatim source passages and exact citations. The conversational agent can then inspect the same result through read-only tools, with its tool trace visible for every turn.
+A query against a symbol produces ranked **convergence hotspots** with verbatim source passages and exact citations. A conversational assistant can then inspect and explore the same evidence through read-only tools, while its tool trace remains visible to the user.
+
+---
+
+## What is Mythrix?
+
+Mythrix is a symbolic knowledge retrieval system that connects a structured symbolic model with a corpus of primary reference sources.
+
+It currently explores symbolic interpretation through domains such as Tarot and semiotics, modeling relationships between:
+
+* **Semiotic systems**
+* **Signs**
+* **Traditions**
+* **Manifestations**
+* **Interpretants**
+* **Source documents and passages**
+
+Given a symbolic context, Mythrix derives retrieval signals from the structured model and searches an independent corpus of reference material.
+
+The deterministic query engine then:
+
+1. Resolves the symbolic context.
+2. Derives relevant retrieval signals.
+3. Searches the source corpus.
+4. Identifies converging evidence.
+5. Ranks the resulting regions.
+6. Returns traceable source passages and citations.
+
+An LLM-powered conversational assistant sits above this engine.
+
+It helps users:
+
+* understand difficult or archaic passages;
+* explore retrieved evidence;
+* compare passages and concepts;
+* ask follow-up questions;
+* discover connections across sources;
+* formulate new questions;
+* request additional queries when exploration leads beyond the current evidence.
+
+The LLM therefore acts as an **interpretation and knowledge-discovery assistant**, not as the primary retrieval engine.
+
+---
+
+## The Architectural Decision
+
+The central design decision in Mythrix is to deliberately separate **retrieval** from **interpretation**.
+
+```text
+┌───────────────────────────────────────────────┐
+│             INTERPRETATION LAYER              │
+│                                               │
+│  LLM Assistant                                │
+│  • Explain difficult passages                 │
+│  • Explore retrieved evidence                 │
+│  • Compare concepts and sources               │
+│  • Answer follow-up questions                 │
+│  • Discover connections                       │
+│  • Request additional queries                 │
+│  • Maintain natural-language conversation     │
+└───────────────────────┬───────────────────────┘
+                        │
+                 Evidence / Commands
+                        │
+                 ───────┼───────
+                  TRUST BOUNDARY
+                 ───────┼───────
+                        │
+┌───────────────────────▼───────────────────────┐
+│              RETRIEVAL LAYER                  │
+│                                               │
+│  Deterministic Query Engine                   │
+│  • Symbolic resolution                        │
+│  • Retrieval                                  │
+│  • Convergence                                │
+│  • Ranking                                    │
+│  • Provenance                                 │
+│  • Citations                                  │
+└───────────────────────┬───────────────────────┘
+                        │
+              ┌─────────┴─────────┐
+              │                   │
+              ▼                   ▼
+       ┌──────────────┐    ┌───────────────┐
+       │  SIGN GRAPH  │    │ SOURCE CORPUS │
+       │              │    │               │
+       │ Signs        │    │ Documents     │
+       │ Traditions   │    │ Sections      │
+       │ Interpretants│    │ Passages      │
+       │ Relations    │    │ References    │
+       └──────────────┘    └───────────────┘
+```
+
+This boundary is intentional.
+
+The retrieval engine owns the question:
+
+> **What evidence is relevant?**
+
+The LLM helps with the question:
+
+> **What can we understand or discover from that evidence?**
+
+This separation allows the system to use each component where it provides the most value:
+
+| Deterministic engine | LLM assistant          |
+| -------------------- | ---------------------- |
+| Symbolic resolution  | Language understanding |
+| Retrieval            | Explanation            |
+| Convergence          | Contextualization      |
+| Ranking              | Comparison             |
+| Provenance           | Exploration            |
+| Citations            | Knowledge discovery    |
+
+The goal is not to eliminate LLMs.
+
+It is to avoid making them responsible for determining what evidence exists.
+
+---
+
+## Why Not Put the LLM in Charge of Retrieval?
+
+Mythrix is designed to work with potentially large corpora of reference material.
+
+A conventional LLM-centered RAG pipeline typically couples the user's natural-language question, query formulation, retrieval, and final generation:
+
+```text
+User question
+      ↓
+LLM
+      ↓
+Query formulation
+      ↓
+Vector retrieval
+      ↓
+Top-K chunks
+      ↓
+LLM context
+      ↓
+Generated answer
+```
+
+This approach can be useful, but it gives the model significant influence over which evidence enters the context.
+
+Mythrix explores a different architecture:
+
+```text
+Structured symbolic model
+          ↓
+Deterministic retrieval signals
+          ↓
+Corpus search
+          ↓
+Convergence
+          ↓
+Ranking
+          ↓
+Evidence surface
+          ↓
+LLM interpretation and exploration
+```
+
+The deterministic engine reduces a potentially large corpus to a manageable and explainable **evidence surface**.
+
+The LLM then operates over that surface.
+
+This creates a clear trust boundary:
+
+> **The LLM can interpret the evidence, but it does not define the evidence.**
+
+---
+
+## Symbolic Retrieval and Convergence
+
+Mythrix does not treat the source corpus as a flat collection of documents.
+
+The symbolic model provides structured context for retrieval.
+
+Conceptually:
+
+```text
+Semiotic System
+      │
+      ▼
+     Sign
+      │
+      ├── Tradition
+      │
+      ├── Manifestation
+      │
+      └── Interpretants
+             │
+             ▼
+      Retrieval Signals
+             │
+             ▼
+        Source Corpus
+```
+
+The symbolic model actively defines the retrieval space.
+
+A query can produce multiple retrieval signals. For example:
+
+```text
+                 The Sun
+                     │
+       ┌─────────────┼─────────────┐
+       │             │             │
+  Laughter         Child          100
+       │             │             │
+       └─────────────┼─────────────┘
+                     │
+                     ▼
+              Corpus retrieval
+                     │
+          ┌──────────┼──────────┐
+          ▼          ▼          ▼
+       Passage A  Passage B  Passage C
+          │          │          │
+          └──────────┼──────────┘
+                     ▼
+                Convergence
+                     │
+                     ▼
+                  Ranking
+                     │
+                     ▼
+                  Evidence
+```
+
+Rather than relying only on the similarity between a single query and a single document chunk, Mythrix can identify regions where multiple symbolic concepts converge.
+
+This convergence contributes to ranking and provides a more explicit explanation of why a region surfaced.
+
+The symbolic graph is therefore not merely metadata around the documents.
+
+> **The symbolic model actively defines the retrieval space.**
+
+---
+
+## The LLM as an Interpretation and Discovery Layer
+
+The LLM's role begins once evidence is available.
+
+A query may surface passages written in:
+
+* archaic language;
+* complex prose;
+* unfamiliar terminology;
+* culturally specific references;
+* dense philosophical or symbolic language.
+
+The user can then ask:
+
+> "What is this author actually saying here?"
+
+The assistant can help explain the passage, clarify terminology, compare sources, and connect concepts across retrieved evidence.
+
+But the evidence itself remains grounded in the underlying source corpus.
+
+The interaction can then become iterative:
+
+```text
+Retrieve
+   ↓
+Interpret
+   ↓
+Explore
+   ↓
+Ask
+   ↓
+Retrieve more
+   ↓
+Interpret again
+```
+
+This creates a knowledge-discovery loop in which the LLM acts as a bridge between **retrieval and human inquiry**.
+
+The assistant can also request a new structured query:
+
+```text
+User request
+     ↓
+LLM Assistant
+     ↓
+Structured query intent
+     ↓
+Application command
+     ↓
+Deterministic Query Engine
+     ↓
+New evidence
+```
+
+The LLM does not execute retrieval itself.
+
+It requests an application action, and the normal query execution path remains responsible for producing the results.
+
+This keeps conversational interaction separate from the deterministic query engine while allowing the two layers to work together.
+
+---
 
 ## Architecture
 
-Mythrix is structured around a deterministic core library that is shared by the CLI, HTTP API, and web application. The conversational agent sits at the boundary of this system and interacts with the same core capabilities through a fixed set of read-only tools.
+Mythrix supports two complementary paths.
 
-The resulting architecture keeps the retrieval and ranking path deterministic while allowing an LLM to provide a flexible conversational interface over the resulting evidence.
+### Direct query
 
-```
-┌──────────-───┐     ┌──────────────────────────┐     ┌────────────────────┐
-│ CLI (Typer)  │     │  Backend API (FastAPI)   │     │ Web viewer (React) │
-└──────┬───────┘     └────────────┬─────────────┘     └─────────┬──────────┘
-       │                          │                             │
-       └───────────-───┬──────────┴─────────────────────────────┘
-                       │
-              ┌────────▼──────────--┐
-              │   Core library      │   deterministic retrieval & ranking —
-              │  (retrieval, graph, │   no model in the decision path
-              │  synthesis, loaders)│
-              └────────┬─────────--─┘
-                       │
-         ┌─────────────┼────────────--──┐
-         │                              │
-   ┌─────▼───-───┐              ┌───────▼────────┐
-   │ Kuzu graph  │              │ Chroma vector  │
-   │(Sign Graph) │              │ store (corpus) │
-   └──────────-──┘              └────────────────┘
-
-              ┌────────────────────────────┐
-              │  Conversational agent      │  local Ollama model,
-              │  (tool-calling loop)       │  read-only tools only,
-              │  served by the backend API │  citation-validated
-              └────────────────────────────┘
+```text
+User
+  ↓
+Query UI / API / CLI
+  ↓
+Deterministic Query Engine
+  ↓
+Symbolic Model
+  ↓
+Corpus Retrieval
+  ↓
+Convergence & Ranking
+  ↓
+Evidence
 ```
 
-- **Sign Graph** ([Kuzu](https://kuzudb.com)) — a domain-agnostic knowledge graph representing signs, traditions, tradition-scoped manifestations, interpretants, and typed, attributable cross-domain correspondences. The schema contains no fields specific to tarot, religion, or any other symbolic domain; this constraint is enforced by an automated lint check rather than by convention.
-- **Document corpus** ([Chroma](https://www.trychroma.com)) — source documents segmented along their *own* declared structure (verse, numbered section) rather than fixed-size windows, so a citation always resolves to a real structural unit.
-- **Retrieval** — two complementary matching channels, dense embedding similarity and exact-token containment, are evaluated live for each interpretant at query time. There is no precomputed match matrix: changing the Sign Graph immediately changes the retrieval results on the next query.
-- **Ranking** — candidate regions are scored using a from-scratch lexical-IDF scheme that combines convergence across multiple concepts with lexical specificity. The algorithm deliberately does not use BM25; the rationale is documented in [ADR-002](specs/architecture-decisions/adr-002-dense-plus-exact-token-no-bm25.md) and [ADR-004](specs/architecture-decisions/adr-004-absolute-floor-and-lexical-specificity-ranking.md).
-- **Agent** — a bounded tool-calling loop over a fixed, read-only tool set. The agent can inspect and summarize retrieved evidence, but it cannot modify the Sign Graph or document corpus, bypass the retrieval pipeline, or introduce unsupported facts into the result. This keeps deterministic retrieval separate from probabilistic language generation ([ADR-006](specs/architecture-decisions/adr-006-conversational-agent-orchestration-boundary.md)).
+### Conversational exploration
 
-Full rationale for every non-obvious call — why no BM25, why live matching over precomputation, why Chroma over a hosted vector DB — is written up in [`specs/architecture-decisions/`](specs/architecture-decisions/).
-
-## Tech stack
-
-| Layer | Tech |
-|---|---|
-| Core / retrieval | Python 3.12, LangChain, LangGraph |
-| Graph store | Kuzu |
-| Vector store | Chroma |
-| Local LLM runtime | Ollama (embedding + generation, fully offline) |
-| API | FastAPI |
-| CLI | Typer |
-| Frontend | React 19, TypeScript, Vite |
-| Testing | pytest, Vitest + React Testing Library |
-
-## Try it
-
-```bash
-cd api && uv sync
-# install Ollama, pull nomic-embed-text — see docs/SETUP.md for the full walkthrough
-cd ..
-
-uv run --project api mythrix load-signs data --json
-uv run --project api mythrix load-documents data/corpus/scripture/en_drb/douay-rheims-bible.txt \
-  --tradition douay-rheims --source-slug douay-rheims-bible --json
-
-uv run --project api mythrix query --sign the-tower --tradition rider-waite
+```text
+User
+  ↓
+Chat
+  ↓
+LLM Assistant
+  │
+  ├───────────────┐
+  │               │
+  ▼               ▼
+Inspect         Request
+Evidence        New Query
+  │               │
+  │               ▼
+  │         Application Command
+  │               │
+  │               ▼
+  │         Deterministic Query
+  │               │
+  └───────┬───────┘
+          ▼
+       Evidence
+          │
+          ▼
+   LLM Interpretation
+          │
+          ▼
+         User
 ```
 
-Full setup — Ollama models, configuration, and running the API + web viewer together — is in [`docs/SETUP.md`](docs/SETUP.md).
+The deterministic query engine remains the center of evidence retrieval regardless of how the user enters the system.
 
-## Docs
+---
 
-The full functional spec is in [`specs/spec.md`](specs/spec.md); the reasoning behind the non-obvious architectural calls is recorded as [ADRs](specs/architecture-decisions/).
+## Architecture Principles
+
+### Retrieval is separate from interpretation
+
+The system first establishes relevant evidence and then uses the LLM to help interpret and explore it.
+
+### The LLM is not the retrieval authority
+
+The LLM does not determine the underlying evidence or replace deterministic retrieval and ranking.
+
+### Symbolic knowledge drives retrieval
+
+The symbolic model is an active part of query construction and retrieval behavior.
+
+### Evidence remains traceable
+
+Results remain connected to their underlying source documents and passages.
+
+### Conversation does not replace the application
+
+The LLM can request application actions, but the application remains responsible for executing them.
+
+### Large corpora are explored incrementally
+
+The system narrows the corpus before asking the LLM to interpret or explore the resulting evidence.
+
+### Human inquiry remains central
+
+The LLM is an assistant for interpretation and discovery, not an autonomous authority over the knowledge domain.
+
+---
+
+## Technology
+
+Mythrix is currently built with:
+
+* **Python**
+* **LangGraph** for conversational agent orchestration
+* **Kùzu** for symbolic graph storage
+* **Chroma** for corpus and vector retrieval
+* **FastAPI** for the application API
+* **CLI** for direct interaction
+* **Web UI** for interactive exploration
+
+The deterministic query engine is designed to remain usable independently of the conversational agent.
+
+---
+
+## Current Status
+
+> 🚧 **Work in Progress**
+
+Mythrix is an active research and engineering project.
+
+Current areas of development include:
+
+* evolving the symbolic domain model;
+* improving retrieval and convergence ranking;
+* expanding source provenance;
+* refining conversational exploration;
+* improving agent/application boundaries;
+* evaluating interpretation quality;
+* improving the web experience;
+* documenting architectural decisions;
+* expanding automated tests and evaluation.
+
+The architecture and domain model are expected to evolve as the project develops.
+
+---
+
+## Project Goal
+
+Mythrix explores a broader engineering question:
+
+> **Can an LLM help people interpret and discover knowledge in large symbolic corpora without becoming responsible for retrieving or inventing the underlying evidence?**
+
+The current architecture explores one possible answer:
+
+```text
+Structured Symbolic Knowledge
+            +
+Deterministic Retrieval
+            +
+Explicit Evidence
+            +
+LLM-Assisted Interpretation
+            +
+Human Exploration
+            =
+Explainable Knowledge Discovery
+```
+
+The Tarot domain is currently used as an experimental symbolic system, but the architecture is intended to remain independent of any single symbolic tradition.
+
+---
 
 ## License
 
-AGPL-3.0-or-later — see [LICENSE](LICENSE).
+Mythrix Engine is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
