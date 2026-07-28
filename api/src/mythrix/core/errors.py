@@ -95,6 +95,15 @@ class ModelRequestError(MythrixError):
         super().__init__(f"Request to model {model!r} failed: {cause}")
 
 
+class AdhocQueryValidationError(MythrixError):
+    """Raised when an ad-hoc query's term list fails validation — empty, or a
+    term naming a directive other than `"exact"`/`"filter"` (`specs/interfaces/agnostic-query.md`
+    FR-AQ-03)."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+
+
 class EmbeddingModelMismatchError(MythrixError):
     """Raised when the embedding model in use at query time differs from the one a
     retrieved chunk was embedded with at ingestion time — similarity scores would be

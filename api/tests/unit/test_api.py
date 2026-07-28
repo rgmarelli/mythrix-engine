@@ -152,6 +152,42 @@ def test_query_unreachable_embedder_returns_502(graph_store: KuzuGraphStore, vec
     assert "detail" in response.json()
 
 
+def test_adhoc_query_returns_facets_and_regions(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore) -> None:
+    client = _client(graph_store, vector_store)
+    response = client.post("/api/query/adhoc", json={"terms": [{"value": "laughter", "directive": None}]})
+    assert response.status_code == 200
+    body = response.json()
+    assert body == {"facets": {"sources": [], "interpretants": []}, "regions": []}
+
+
+def test_adhoc_query_matches_a_segment_via_exact_directive(
+    graph_store: KuzuGraphStore, vector_store: ChromaVectorStore
+) -> None:
+    chunks = [
+        Chunk(index=0, text="A hundred fish swim beneath Pisces.", char_start=0, char_end=10, ordinal=0, section="")
+    ]
+    vector_store.add_chunks(
+        chunks,
+        embeddings=[[1.0, 0.0]],
+        metadata=ChunkMetadata(
+            source_id="waite", domain="tarot", embedding_model="fake-embed", ingested_at="2026-01-01T00:00:00+00:00"
+        ),
+    )
+    client = _client(graph_store, vector_store)
+    response = client.post("/api/query/adhoc", json={"terms": [{"value": "hundred", "directive": "exact"}]})
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body["regions"]) == 1
+    assert body["regions"][0]["matches"][0]["kind"] == "exact"
+
+
+def test_adhoc_query_empty_terms_returns_422(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore) -> None:
+    client = _client(graph_store, vector_store)
+    response = client.post("/api/query/adhoc", json={"terms": []})
+    assert response.status_code == 422
+    assert "detail" in response.json()
+
+
 def test_query_returns_a_region_converging_on_every_matching_interpretant(
     graph_store: KuzuGraphStore, vector_store: ChromaVectorStore
 ) -> None:

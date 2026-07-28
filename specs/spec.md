@@ -24,7 +24,7 @@ A domain-agnostic knowledge graph of signs, cross-referenced against real docume
 ## 4. Non-Goals
 
 - Multi-sign or spread-style queries (e.g. interpreting several signs together in one request).
-- Conversational or free-text natural-language request parsing on the `query` path — v1 uses structured CLI arguments only. The conversational agent ([interfaces/agent.md](interfaces/agent.md)) is a separate, additive layer and does not change this.
+- Conversational or free-text natural-language request parsing on the `query` path — v1 uses structured CLI arguments only. The conversational agent ([interfaces/agent.md](interfaces/agent.md)) is a separate, additive layer and does not change this, with one narrow, explicitly-scoped exception: the ad-hoc interpretant query path ([interfaces/agnostic-query.md](interfaces/agnostic-query.md), [ADR-010](architecture-decisions/adr-010-agnostic-adhoc-interpretant-query.md)), reachable only via an explicit `/query` command and a matching confirmation command, parsed deterministically rather than by the generation model, and never from incidental conversation.
 - Hardening against adversarial input / prompt injection beyond baseline mitigations (data-not-instructions framing, citation-id validation). v1 assumes curator-supplied, not arbitrary, source documents.
 - Verifying that LLM paraphrases are faithful to their cited source, beyond confirming the citation marker refers to real, in-context material. Faithfulness/entailment checking is future work.
 - Concurrent multi-process write access to the graph store or vector store (see [interfaces/api.md](interfaces/api.md) for the specific CLI/API exclusion).
@@ -115,6 +115,9 @@ See [Web Viewer](interfaces/web-viewer.md)
 ### 6.9 Conversational Agent
 See [Agent](interfaces/agent.md)
 
+### 6.10 Agnostic (Ad-hoc) Interpretant Query
+See [Agnostic Query](interfaces/agnostic-query.md)
+
 ## 7. Architectural Constraints and Invariants
 
 - CON-SYS-01: The codebase enforces, via an automated check, that no domain-specific literal (e.g. tarot-specific terms) appears in the core library or CLI modules — domain content lives only in data files and test fixtures.
@@ -173,9 +176,10 @@ The corpus document is not Waite's own text (see [corpus.md](retrieval/corpus.md
 | `FR-API` | Backend API | [interfaces/api.md](interfaces/api.md) | FR-API-01–FR-API-04 |
 | `FR-WEB` | Web Viewer | [interfaces/web-viewer.md](interfaces/web-viewer.md) | FR-WEB-01–FR-WEB-16 |
 | `FR-AG` | Conversational Agent | [interfaces/agent.md](interfaces/agent.md) | FR-AG-01–FR-AG-32 |
+| `FR-AQ` | Agnostic (Ad-hoc) Interpretant Query | [interfaces/agnostic-query.md](interfaces/agnostic-query.md) | FR-AQ-01–FR-AQ-21 |
 | `CON-SYS` | System-wide constraints | this document, §7 | CON-SYS-01 |
 
-112 active requirements in total. A prior flat-numbered scheme (`FR1`–`FR102`) was superseded by the identifiers above; six items from that scheme (`FR14`, `FR15`, `FR25`, `FR26`, `FR54`, `FR78`) were retired outright — superseded by concept/pair retrieval and the conversational agent's summarize tool replacing an earlier synthesized-summary design — and carry no identifier in the current scheme.
+133 active requirements in total. A prior flat-numbered scheme (`FR1`–`FR102`) was superseded by the identifiers above; six items from that scheme (`FR14`, `FR15`, `FR25`, `FR26`, `FR54`, `FR78`) were retired outright — superseded by concept/pair retrieval and the conversational agent's summarize tool replacing an earlier synthesized-summary design — and carry no identifier in the current scheme.
 
 ## 11. Architectural Decisions
 

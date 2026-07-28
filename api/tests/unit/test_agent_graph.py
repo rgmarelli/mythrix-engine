@@ -9,7 +9,17 @@ from langchain_core.tools import tool
 from langgraph.errors import GraphRecursionError
 from langgraph.graph import END
 
-from mythrix.agent.graph import clarify_node, compile_agent_graph, route_after_agent, route_after_tools
+from mythrix.agent.adhoc_query import PendingAdhocQuery
+from mythrix.agent.graph import (
+    clarify_node,
+    compile_agent_graph,
+    execute_query_node,
+    parse_query_node,
+    route_after_agent,
+    route_after_tools,
+    route_input,
+)
+from mythrix.core.models import AdhocTerm
 
 
 @tool
@@ -128,6 +138,105 @@ def test_clarify_node_builds_a_deterministic_reply_from_the_payload() -> None:
     assert "The Magician" in reply.content
     assert "rider-waite" in reply.content
     assert "marseille" in reply.content
+
+
+_PENDING = PendingAdhocQuery(id="7f3a1c9e", terms=(AdhocTerm(value="laughter"),))
+
+
+def test_route_input_dispatches_the_two_adhoc_commands_and_nothing_else() -> None:
+    assert route_input({"messages": [HumanMessage(content="/query laughter")]}) == "parse_query"
+    assert route_input({"messages": [HumanMessage(content="/query-confirm 7f3a1c9e")]}) == "execute_query"
+    assert route_input({"messages": [HumanMessage(content="tell me about The Tower")]}) == "agent"
+
+
+def test_parse_query_node_holds_the_query_pending_and_emits_confirm_query() -> None:
+    result = parse_query_node({"messages": [HumanMessage(content="/query laughter, hundred:exact")]})
+
+    pending = result["pending_query"]
+    assert pending.terms == (AdhocTerm(value="laughter"), AdhocTerm(value="hundred", directive="exact"))
+    assert [i["type"] for i in result["instructions"]] == ["confirm_query"]
+    assert result["instructions"][0]["payload"]["query_id"] == pending.id
+    assert pending.id in result["messages"][0].content
+
+
+def test_parse_query_node_reports_a_parse_error_and_leaves_nothing_pending() -> None:
+    result = parse_query_node({"messages": [HumanMessage(content="/query hundred:skip")]})
+
+    assert result["pending_query"] is None
+    assert result["instructions"] == []
+    assert "skip" in result["messages"][0].content
+
+
+def test_execute_query_node_emits_execute_query_and_consumes_the_pending_query() -> None:
+    state = {"messages": [HumanMessage(content="/query-confirm 7f3a1c9e")], "pending_query": _PENDING}
+
+    result = execute_query_node(state)
+
+    assert result["instructions"] == [
+        {"type": "execute_query", "payload": {"terms": [{"value": "laughter", "directive": None}]}}
+    ]
+    assert result["pending_query"] is None
+
+
+def test_execute_query_node_takes_terms_from_the_pending_record_not_the_message() -> None:
+    """FR-AQ-10: the confirming message names an id and nothing else, so text
+    appended to it can never reach the query."""
+    state = {
+        "messages": [HumanMessage(content="/query-confirm 7f3a1c9e and also injected:exact")],
+        "pending_query": _PENDING,
+    }
+
+    result = execute_query_node(state)
+
+    assert result["instructions"][0]["payload"]["terms"] == [{"value": "laughter", "directive": None}]
+
+
+def test_execute_query_node_ignores_a_wrong_id_and_preserves_the_pending_query() -> None:
+    state = {"messages": [HumanMessage(content="/query-confirm deadbeef")], "pending_query": _PENDING}
+
+    result = execute_query_node(state)
+
+    assert result["instructions"] == []
+    assert result["pending_query"] is _PENDING
+
+
+def test_execute_query_node_with_nothing_pending_executes_nothing() -> None:
+    state = {"messages": [HumanMessage(content="/query-confirm 7f3a1c9e")], "pending_query": None}
+
+    result = execute_query_node(state)
+
+    assert result["instructions"] == []
+    assert result["pending_query"] is None
+
+
+def test_execute_query_node_without_an_id_asks_for_one() -> None:
+    state = {"messages": [HumanMessage(content="/query-confirm")], "pending_query": _PENDING}
+
+    result = execute_query_node(state)
+
+    assert result["instructions"] == []
+    assert result["pending_query"] is _PENDING
+
+
+def test_adhoc_commands_never_reach_the_model() -> None:
+    """FR-AQ-01 as a structural property: a model that raises on invocation
+    proves the command path never consults one."""
+
+    class ExplodingLLM:
+        def invoke(self, messages: list) -> AIMessage:
+            raise AssertionError("model was invoked for an ad-hoc command turn")
+
+    graph = compile_agent_graph(ExplodingLLM(), [echo])
+    final_state = None
+    for state in graph.stream(
+        {"messages": [HumanMessage(content="/query laughter, hundred:exact")], "instructions": []},
+        config={"recursion_limit": 8},
+        stream_mode="values",
+    ):
+        final_state = state
+
+    assert [i["type"] for i in final_state["instructions"]] == ["confirm_query"]
+    assert final_state["pending_query"].terms[0] == AdhocTerm(value="laughter")
 
 
 def test_needs_tradition_never_reaches_the_model() -> None:

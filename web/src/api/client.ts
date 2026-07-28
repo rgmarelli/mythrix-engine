@@ -163,6 +163,7 @@ export async function postAgentTurn(
     context: toAgentContext(result.context),
     replyText: result.reply_text,
     cards: result.cards.map(toAgentCard),
+    instructions: result.instructions,
     threadReset: result.thread_reset,
   };
 }

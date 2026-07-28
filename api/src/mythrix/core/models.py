@@ -135,6 +135,17 @@ class Interpretant(MythrixModel):
     query: QueryDirective | None = None
 
 
+class AdhocTerm(MythrixModel):
+    """One user-authored term for an ad-hoc, graph-independent query
+    (`specs/interfaces/agnostic-query.md` FR-AQ-02, ADR-010) —
+    the raw-input counterpart to a curator-authored `Interpretant`. `directive`
+    reuses `QueryDirective`'s `"exact"`/`"filter"` vocabulary; `None` is an
+    ordinary concept term."""
+
+    value: str
+    directive: Literal["exact", "filter"] | None = None
+
+
 class Citation(MythrixModel):
     """A citation to a source, from either a manifestation or an intersemiotic
     interpretant."""

@@ -300,6 +300,7 @@ describe('sendAgentMessage', () => {
       },
       replyText: 'The sun signifies vitality.',
       cards: [],
+      instructions: [],
       threadReset: false,
     });
 
@@ -349,6 +350,7 @@ describe('sendAgentMessage', () => {
       },
       replyText: 'Starting fresh.',
       cards: [],
+      instructions: [],
       threadReset: true,
     });
 
@@ -398,6 +400,7 @@ describe('sendAgentMessage', () => {
         },
         replyText: 'ok',
         cards: [],
+        instructions: [],
         threadReset: false,
       });
       await firstSend;
@@ -420,6 +423,7 @@ describe('clearAgentThread', () => {
       },
       replyText: 'hi',
       cards: [],
+      instructions: [],
       threadReset: false,
     });
 

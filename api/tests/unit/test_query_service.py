@@ -8,9 +8,10 @@ from pathlib import Path
 
 import pytest
 
-from mythrix.core.errors import SignNotFoundError, SourceNotFoundError
+from mythrix.core.errors import AdhocQueryValidationError, SignNotFoundError, SourceNotFoundError
 from mythrix.core.graph.store import KuzuGraphStore
 from mythrix.core.models import (
+    AdhocTerm,
     Interpretant,
     Manifestation,
     RegionQueryResult,
@@ -19,7 +20,7 @@ from mythrix.core.models import (
     Source,
     Tradition,
 )
-from mythrix.core.query_service import execute_query, fetch_source_segments, query_regions
+from mythrix.core.query_service import execute_adhoc_query, execute_query, fetch_source_segments, query_regions
 from mythrix.core.vector.chunking import Chunk
 from mythrix.core.vector.store import ChromaVectorStore, ChunkMetadata
 
@@ -127,6 +128,70 @@ def test_query_regions_propagates_mythrix_error(graph_store: KuzuGraphStore, vec
             sign="nonexistent",
             tradition="rider-waite",
             graph_store=graph_store,
+            vector_store=vector_store,
+            embedder=FakeEmbedder(),
+            **_region_kwargs(),
+        )
+
+
+@pytest.fixture
+def bare_graph_store(tmp_path: Path) -> KuzuGraphStore:
+    """A graph store with a `Source` (for citation hydration) but no `Sign`
+    or `Manifestation` at all — proves `execute_adhoc_query` never touches
+    the Sign Graph (`specs/interfaces/agnostic-query.md` FR-AQ-10)."""
+    store = KuzuGraphStore(tmp_path / "graph.kuzu")
+    store.upsert_source(
+        Source(id="waite", domain="tarot", title="The Pictorial Key to the Tarot", author="A. E. Waite")
+    )
+    return store
+
+
+def test_execute_adhoc_query_needs_no_sign_in_the_graph_store(
+    bare_graph_store: KuzuGraphStore, vector_store: ChromaVectorStore
+) -> None:
+    chunks = [
+        Chunk(
+            index=0,
+            text="There were a hundred fish under pisces, full of laughter.",
+            char_start=0,
+            char_end=10,
+            ordinal=0,
+            section="",
+        )
+    ]
+    vector_store.add_chunks(
+        chunks,
+        embeddings=[[1.0, 0.0]],
+        metadata=ChunkMetadata(
+            source_id="waite", domain="tarot", embedding_model="fake-embed", ingested_at="2026-01-01T00:00:00+00:00"
+        ),
+    )
+
+    result = execute_adhoc_query(
+        terms=[
+            AdhocTerm(value="laughter"),
+            AdhocTerm(value="hundred", directive="exact"),
+            AdhocTerm(value="pisces", directive="filter"),
+        ],
+        graph_store=bare_graph_store,
+        vector_store=vector_store,
+        embedder=FakeEmbedder(),
+        **_region_kwargs(),
+    )
+
+    assert isinstance(result, RegionQueryResult)
+    assert len(result.regions) == 1
+    kinds = {match.interpretant: match.kind for match in result.regions[0].matches}
+    assert kinds == {"laughter": "concept", "hundred": "exact", "pisces": "filter"}
+
+
+def test_execute_adhoc_query_empty_terms_raises(
+    bare_graph_store: KuzuGraphStore, vector_store: ChromaVectorStore
+) -> None:
+    with pytest.raises(AdhocQueryValidationError):
+        execute_adhoc_query(
+            terms=[],
+            graph_store=bare_graph_store,
             vector_store=vector_store,
             embedder=FakeEmbedder(),
             **_region_kwargs(),

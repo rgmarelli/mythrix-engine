@@ -10,7 +10,7 @@ from langchain_core.tools import tool
 from mythrix.agent.context import AgentUiSelection
 from mythrix.agent.graph import compile_agent_graph
 from mythrix.agent.sessions import SessionStore
-from mythrix.agent.turn_service import run_chat_turn
+from mythrix.agent.turn_service import AgentInstruction, run_chat_turn
 from mythrix.core.errors import ModelRequestError
 
 
@@ -275,6 +275,142 @@ def test_summarize_command_includes_trailing_focus_text_in_the_directive() -> No
 
     human_messages = [m for m in sessions.get_or_create("s1").history if isinstance(m, HumanMessage)]
     assert "redemption imagery" in human_messages[0].content
+
+
+class ExplodingLLM:
+    """Fails the test if the model is consulted at all — how the ad-hoc
+    command path's "no generation model" guarantee (agnostic-query.md
+    FR-AQ-01) is asserted structurally rather than by output shape."""
+
+    def invoke(self, messages: list) -> AIMessage:
+        raise AssertionError("model was invoked for an ad-hoc command turn")
+
+
+def _adhoc_graph():  # noqa: ANN202 - CompiledStateGraph, matching `_graph` above
+    return compile_agent_graph(ExplodingLLM(), _TOOLS)
+
+
+def _turn(graph, sessions: SessionStore, message: str, **overrides):  # noqa: ANN001, ANN003, ANN202
+    return run_chat_turn(
+        graph=graph,
+        sessions=sessions,
+        session_id="s1",
+        message=message,
+        ui_selection=overrides.pop("ui_selection", AgentUiSelection()),
+        max_tool_iterations=8,
+    )
+
+
+def _confirm_command(response) -> str:  # noqa: ANN001 - AgentTurnResponse
+    return response.instructions[0].payload["confirm_command"]
+
+
+def test_query_command_parses_deterministically_and_asks_for_confirmation() -> None:
+    sessions = SessionStore()
+
+    response = _turn(_adhoc_graph(), sessions, "/query laughter, hundred:exact")
+
+    assert "- laughter" in response.reply_text
+    assert "- hundred [exact]" in response.reply_text
+    assert [i.type for i in response.instructions] == ["confirm_query"]
+    assert response.instructions[0].payload["terms"] == [
+        {"value": "laughter", "directive": None},
+        {"value": "hundred", "directive": "exact"},
+    ]
+    assert _confirm_command(response) in response.reply_text
+
+
+def test_query_command_turn_adds_nothing_to_conversation_history() -> None:
+    """FR-AQ-16 — the model must never see these turns, so a later reply
+    cannot imitate the confirm command or claim a query was run."""
+    sessions = SessionStore()
+
+    _turn(_adhoc_graph(), sessions, "/query laughter")
+
+    assert sessions.get_or_create("s1").history == []
+
+
+def test_an_ordinary_turn_after_a_query_command_sees_history_as_if_it_never_happened() -> None:
+    sessions = SessionStore()
+    _turn(_adhoc_graph(), sessions, "/query laughter")
+
+    script = [AIMessage(content="Hello there.")]
+    llm = ScriptedLLM(script)
+    _turn(compile_agent_graph(llm, _TOOLS), sessions, "hello")
+
+    history = sessions.get_or_create("s1").history
+    assert [m.content for m in history if isinstance(m, HumanMessage)] == ["hello"]
+
+
+def test_confirming_emits_execute_query_and_consumes_the_pending_query() -> None:
+    sessions = SessionStore()
+    graph = _adhoc_graph()
+    parsed = _turn(graph, sessions, "/query laughter, hundred:exact")
+
+    confirmed = _turn(graph, sessions, _confirm_command(parsed))
+
+    assert confirmed.instructions == [
+        AgentInstruction(
+            type="execute_query",
+            payload={"terms": [{"value": "laughter", "directive": None}, {"value": "hundred", "directive": "exact"}]},
+        )
+    ]
+    assert _turn(graph, sessions, _confirm_command(parsed)).instructions == []
+
+
+def test_a_wrong_id_executes_nothing_and_keeps_the_pending_query_alive() -> None:
+    sessions = SessionStore()
+    graph = _adhoc_graph()
+    parsed = _turn(graph, sessions, "/query laughter")
+
+    assert _turn(graph, sessions, "/query-confirm deadbeef").instructions == []
+    assert [i.type for i in _turn(graph, sessions, _confirm_command(parsed)).instructions] == ["execute_query"]
+
+
+def test_a_second_query_command_supersedes_the_first() -> None:
+    sessions = SessionStore()
+    graph = _adhoc_graph()
+    first = _turn(graph, sessions, "/query laughter")
+    second = _turn(graph, sessions, "/query child")
+
+    assert _turn(graph, sessions, _confirm_command(first)).instructions == []
+    assert _turn(graph, sessions, _confirm_command(second)).instructions == [
+        AgentInstruction(type="execute_query", payload={"terms": [{"value": "child", "directive": None}]})
+    ]
+
+
+def test_a_thread_reset_discards_the_pending_query() -> None:
+    sessions = SessionStore()
+    graph = _adhoc_graph()
+    parsed = _turn(graph, sessions, "/query laughter", ui_selection=AgentUiSelection(region_id="waite::0-2"))
+
+    confirmed = _turn(graph, sessions, _confirm_command(parsed), ui_selection=AgentUiSelection(region_id="waite::9-11"))
+
+    assert confirmed.thread_reset is True
+    assert confirmed.instructions == []
+
+
+def test_a_malformed_query_command_creates_no_pending_query() -> None:
+    sessions = SessionStore()
+    graph = _adhoc_graph()
+
+    response = _turn(graph, sessions, "/query hundred:skip")
+
+    assert response.instructions == []
+    assert "skip" in response.reply_text
+    assert _turn(graph, sessions, "/query-confirm deadbeef").instructions == []
+
+
+def test_a_term_shaped_like_a_citation_marker_does_not_fail_the_turn() -> None:
+    """The reply restates the user's own terms and is backend-authored, so
+    citation validation — which polices model text (FR-AG-06) — must not run
+    on it, or `[S1]` would replace the whole turn with the failure message."""
+    sessions = SessionStore()
+
+    response = _turn(_adhoc_graph(), sessions, "/query [S1]")
+
+    assert "[S1]" in response.reply_text
+    assert [i.type for i in response.instructions] == ["confirm_query"]
 
 
 class RaisingLLM:

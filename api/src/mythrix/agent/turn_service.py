@@ -15,6 +15,7 @@ from langchain_core.messages import ToolMessage
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel
 
+from mythrix.agent.adhoc_query import is_adhoc_command
 from mythrix.agent.cards import build_cards
 from mythrix.agent.context import (
     AgentContext,
@@ -80,11 +81,21 @@ class AgentCard(BaseModel):
     chips: list[dict] | None = None
 
 
+class AgentInstruction(BaseModel):
+    """A transport-agnostic action for the application to take
+    (`specs/interfaces/agnostic-query.md` FR-AQ-07, FR-AQ-13–14) — `payload`
+    carries whatever `type` needs; mapping `type` to an actual endpoint call is
+    the consumer's job, not this model's or the node's that produced it."""
+
+    type: Literal["confirm_query", "execute_query"]
+    payload: dict
+
+
 class AgentTurnResponse(BaseModel):
     context: AgentContext
     reply_text: str
     cards: list[AgentCard]
-    instructions: list[dict] = []
+    instructions: list[AgentInstruction] = []
     thread_reset: bool
 
 
@@ -156,6 +167,7 @@ def run_chat_turn(
         thread_reset = detect_thread_reset(previous_context, ui_selection)
         if thread_reset:
             session.history = []
+            session.pending_query = None
 
         context = apply_ui_selection(previous_context, ui_selection)
         full_context_summary = render_context_summary(context)
@@ -178,13 +190,32 @@ def run_chat_turn(
                 effective_message,
                 max_tool_iterations=max_tool_iterations,
                 context_summary=full_context_summary,
+                pending_query=session.pending_query,
             )
         except MythrixError as exc:
             logger.info("turn failed: tool error: %s", exc)
             session.context = context
             _log_outcome(_TOOL_FAILURE_MESSAGE, [], thread_reset)
             return AgentTurnResponse(
-                context=context, reply_text=_TOOL_FAILURE_MESSAGE, cards=[], thread_reset=thread_reset
+                context=context, reply_text=_TOOL_FAILURE_MESSAGE, cards=[], instructions=[], thread_reset=thread_reset
+            )
+
+        session.pending_query = result.pending_query
+        instructions = [AgentInstruction(**instruction) for instruction in result.instructions]
+
+        if is_adhoc_command(message):
+            # An ad-hoc-query command turn adds nothing to conversation history
+            # (agnostic-query.md FR-AQ-16), and its reply is backend-authored, so
+            # citation validation — which polices model-authored text (FR-AG-06) —
+            # does not apply: a term like "[S1]" would otherwise fail the turn.
+            session.context = context
+            _log_outcome(result.reply, [], thread_reset)
+            return AgentTurnResponse(
+                context=context,
+                reply_text=result.reply,
+                cards=[],
+                instructions=instructions,
+                thread_reset=thread_reset,
             )
 
         new_messages = _new_messages(session.history, new_history)
@@ -214,7 +245,11 @@ def run_chat_turn(
             session.context = context
             _log_outcome(_CITATION_FAILURE_MESSAGE, result.tool_calls, thread_reset)
             return AgentTurnResponse(
-                context=context, reply_text=_CITATION_FAILURE_MESSAGE, cards=[], thread_reset=thread_reset
+                context=context,
+                reply_text=_CITATION_FAILURE_MESSAGE,
+                cards=[],
+                instructions=[],
+                thread_reset=thread_reset,
             )
 
         session.history = new_messages if model_driven_reset else new_history
@@ -226,5 +261,6 @@ def run_chat_turn(
             context=context,
             reply_text=reply_text,
             cards=cards,
+            instructions=instructions,
             thread_reset=thread_reset,
         )

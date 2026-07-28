@@ -27,8 +27,21 @@ from langgraph.graph.message import add_messages
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode
 
+from mythrix.agent.adhoc_query import (
+    CONFIRM_COMMAND,
+    QUERY_COMMAND,
+    PendingAdhocQuery,
+    command_of,
+    confirm_id_of,
+    confirm_query_instruction,
+    execute_query_instruction,
+    new_query_id,
+    parse_query_command,
+    render_confirmation,
+    render_dispatch,
+)
 from mythrix.agent.prompts import SYSTEM_PROMPT
-from mythrix.core.errors import ModelRequestError, ModelUnavailableError
+from mythrix.core.errors import AdhocQueryValidationError, ModelRequestError, ModelUnavailableError
 from mythrix.core.logging_config import truncate
 
 logger = logging.getLogger(__name__)
@@ -37,6 +50,8 @@ logger = logging.getLogger(__name__)
 class AgentState(TypedDict):
     messages: Annotated[list, add_messages]
     context_summary: str
+    pending_query: PendingAdhocQuery | None
+    instructions: list[dict]
 
 
 def _build_tool_chat_model(*, generation_model: str, base_url: str, num_ctx: int) -> ChatOllama:
@@ -61,6 +76,62 @@ def _build_tool_chat_model(*, generation_model: str, base_url: str, num_ctx: int
         if "not found in Ollama" in message or "Failed to connect to Ollama" in message:
             raise ModelUnavailableError(generation_model) from exc
         raise ModelRequestError(generation_model, cause=f"{type(exc).__name__}: {message}") from exc
+
+
+def route_input(state: AgentState) -> str:
+    """Dispatches the turn's incoming message: the two ad-hoc-query commands
+    (specs/interfaces/agnostic-query.md FR-AQ-01, FR-AQ-08) go to their own
+    deterministic nodes, everything else to the model. This is the only place
+    command dispatch happens."""
+    command = command_of(str(state["messages"][-1].content))
+    if command == CONFIRM_COMMAND:
+        return "execute_query"
+    if command == QUERY_COMMAND:
+        return "parse_query"
+    return "agent"
+
+
+def _adhoc_reply(text: str, pending: PendingAdhocQuery | None) -> dict:
+    return {"messages": [AIMessage(content=text)], "pending_query": pending, "instructions": []}
+
+
+def parse_query_node(state: AgentState) -> dict:
+    """Parses a `/query` command and holds the result pending confirmation
+    (FR-AQ-04), replying with the parsed list and the command that runs it.
+    Calls no model — like `clarify_node` below, the reply is built entirely
+    from what the user supplied. A parse error drops any prior pending query
+    so "at most one pending" stays unambiguous (FR-AQ-03, FR-AQ-05)."""
+    try:
+        terms = parse_query_command(str(state["messages"][-1].content))
+    except AdhocQueryValidationError as exc:
+        return _adhoc_reply(f"Couldn't parse that query: {exc}", None)
+    query_id = new_query_id()
+    return {
+        "messages": [AIMessage(content=render_confirmation(terms, query_id))],
+        "pending_query": PendingAdhocQuery(id=query_id, terms=terms),
+        "instructions": [confirm_query_instruction(query_id, terms)],
+    }
+
+
+def execute_query_node(state: AgentState) -> dict:
+    """Emits the execution instruction, but only for a `/query-confirm`
+    command naming the currently-pending query's id (FR-AQ-09). The terms come
+    from the pending record, never from the confirming message (FR-AQ-10), and
+    confirming consumes it (FR-AQ-12). An unmatched id leaves the pending
+    query in place so a typo does not destroy it (FR-AQ-11)."""
+    pending = state.get("pending_query")
+    query_id = confirm_id_of(str(state["messages"][-1].content))
+    if not query_id:
+        return _adhoc_reply(f"Name the query to confirm, e.g. `{CONFIRM_COMMAND} 7f3a1c9e`.", pending)
+    if pending is None or pending.id != query_id:
+        return _adhoc_reply(
+            f"No pending query with id {query_id!r}. Send `{QUERY_COMMAND} <terms>` to start one.", pending
+        )
+    return {
+        "messages": [AIMessage(content=render_dispatch(pending.terms))],
+        "pending_query": None,
+        "instructions": [execute_query_instruction(pending.terms)],
+    }
 
 
 def route_after_agent(state: AgentState) -> str:
@@ -116,13 +187,17 @@ def clarify_node(state: AgentState) -> dict:
 
 
 def compile_agent_graph(llm_with_tools, tools: list) -> CompiledStateGraph:  # noqa: ANN001 - Runnable, no shared base type worth importing
-    """Compiles the `agent` ↔ `tools` loop given an already tool-bound chat
-    model: `agent` (system prompt prepended fresh on every call, alongside
-    any `context_summary`) routes to `tools` (a `ToolNode` over the fixed
-    read-only tool set) whenever the model's response carries tool calls, and
-    back to `agent` afterward — except for a tool result carrying a truthy
-    `needs_*` key, which routes to `clarify` instead (agent.md FR-AG-18) and
-    straight on to `END`. Ends at `END` once the model answers without calling a tool.
+    """Compiles the turn's state machine given an already tool-bound chat
+    model. `route_input` dispatches the incoming message: an ad-hoc-query
+    command goes to `parse_query`/`execute_query` and straight on to `END`,
+    reaching neither the model nor any tool (agnostic-query.md FR-AQ-01);
+    everything else goes to `agent`. `agent` (system prompt prepended fresh on
+    every call, alongside any `context_summary`) routes to `tools` (a
+    `ToolNode` over the fixed read-only tool set) whenever the model's response
+    carries tool calls, and back to `agent` afterward — except for a tool
+    result carrying a truthy `needs_*` key, which routes to `clarify` instead
+    (agent.md FR-AG-18) and straight on to `END`. Ends at `END` once the model
+    answers without calling a tool.
 
     Kept separate from `build_agent_graph` so a test can inject a stub
     tool-calling model with no live Ollama involved — `build_agent_graph`
@@ -151,7 +226,15 @@ def compile_agent_graph(llm_with_tools, tools: list) -> CompiledStateGraph:  # n
     builder.add_node("agent", agent_node)
     builder.add_node("tools", ToolNode(tools))
     builder.add_node("clarify", clarify_node)
-    builder.add_edge(START, "agent")
+    builder.add_node("parse_query", parse_query_node)
+    builder.add_node("execute_query", execute_query_node)
+    builder.add_conditional_edges(
+        START,
+        route_input,
+        {"parse_query": "parse_query", "execute_query": "execute_query", "agent": "agent"},
+    )
+    builder.add_edge("parse_query", END)
+    builder.add_edge("execute_query", END)
     builder.add_conditional_edges("agent", route_after_agent, {"tools": "tools", END: END})
     builder.add_conditional_edges("tools", route_after_tools, {"agent": "agent", "clarify": "clarify"})
     builder.add_edge("clarify", END)

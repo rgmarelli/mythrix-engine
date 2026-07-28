@@ -152,11 +152,23 @@ export interface AgentCardWire {
     | null;
 }
 
+// An ad-hoc/agnostic-query instruction (specs/interfaces/agnostic-query.md
+// FR-AQ-07, FR-AQ-13–14) — transport-agnostic on purpose: `type` names the
+// action, `payload` carries whatever it needs. Mapping `type` to an actual
+// endpoint call (e.g. `execute_query` -> `POST /api/query/adhoc`) is this
+// frontend's job, not something the backend encodes here. `confirm_query`
+// carries the exact chat command its affordance should send back. Not
+// consumed anywhere yet — see agnostic-query.md's non-goals.
+export interface AgentInstructionWire {
+  type: 'confirm_query' | 'execute_query';
+  payload: Record<string, unknown>;
+}
+
 export interface AgentTurnResponseWire {
   context: AgentContextWire;
   reply_text: string;
   cards: AgentCardWire[];
-  instructions: unknown[];
+  instructions: AgentInstructionWire[];
   thread_reset: boolean;
 }
 
@@ -189,9 +201,12 @@ export interface AgentInterpretantChipsCard {
 
 export type AgentCard = AgentCitationCard | AgentInterpretantChipsCard;
 
+export type AgentInstruction = AgentInstructionWire;
+
 export interface AgentTurnResult {
   context: AgentContext;
   replyText: string;
   cards: AgentCard[];
+  instructions: AgentInstruction[];
   threadReset: boolean;
 }

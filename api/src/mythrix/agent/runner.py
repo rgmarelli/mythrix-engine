@@ -6,12 +6,13 @@ testable without stdin and reusable by a future non-CLI surface (e.g.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.errors import GraphRecursionError
 from langgraph.graph.state import CompiledStateGraph
 
+from mythrix.agent.adhoc_query import PendingAdhocQuery
 from mythrix.core.logging_config import truncate
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,8 @@ _RECURSION_LIMIT_MESSAGE = (
 class TurnResult:
     reply: str
     tool_calls: list[str]
+    instructions: list[dict] = field(default_factory=list)
+    pending_query: PendingAdhocQuery | None = None
 
 
 def run_turn(
@@ -34,6 +37,7 @@ def run_turn(
     *,
     max_tool_iterations: int,
     context_summary: str = "",
+    pending_query: PendingAdhocQuery | None = None,
 ) -> tuple[list, TurnResult]:
     """Runs one turn: appends `user_text` to `history`, streams the graph,
     and returns the updated history plus the ordered tool-name trace
@@ -42,7 +46,12 @@ def run_turn(
     runaway turn's messages are not kept.
 
     `context_summary` (default `""`) is folded into the model invocation by
-    `agent/graph.py::agent_node`, alongside `state["messages"]`."""
+    `agent/graph.py::agent_node`, alongside `state["messages"]`.
+
+    `pending_query` (default `None`) carries the session's outstanding ad-hoc
+    query into the graph and back out on `TurnResult`, since the graph holds no
+    state of its own between turns (specs/interfaces/agnostic-query.md
+    FR-AQ-05)."""
     messages = [*history, HumanMessage(content=user_text)]
     tool_calls: list[str] = []
     final_state = {"messages": messages}
@@ -50,7 +59,12 @@ def run_turn(
 
     try:
         for state in graph.stream(
-            {"messages": messages, "context_summary": context_summary},
+            {
+                "messages": messages,
+                "context_summary": context_summary,
+                "pending_query": pending_query,
+                "instructions": [],
+            },
             config={"recursion_limit": max_tool_iterations},
             stream_mode="values",
         ):
@@ -77,7 +91,12 @@ def run_turn(
         logger.info(
             "turn hit recursion bound: max_tool_iterations=%d tool_calls=%d", max_tool_iterations, len(tool_calls)
         )
-        return history, TurnResult(reply=_RECURSION_LIMIT_MESSAGE, tool_calls=tool_calls)
+        return history, TurnResult(reply=_RECURSION_LIMIT_MESSAGE, tool_calls=tool_calls, pending_query=pending_query)
 
     new_history = final_state["messages"]
-    return new_history, TurnResult(reply=str(new_history[-1].content), tool_calls=tool_calls)
+    return new_history, TurnResult(
+        reply=str(new_history[-1].content),
+        tool_calls=tool_calls,
+        instructions=final_state.get("instructions", []),
+        pending_query=final_state.get("pending_query"),
+    )

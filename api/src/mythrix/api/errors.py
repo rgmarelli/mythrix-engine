@@ -9,6 +9,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from mythrix.core.errors import (
+    AdhocQueryValidationError,
     EmbeddingModelMismatchError,
     IngestValidationError,
     ManifestationNotFoundError,
@@ -22,7 +23,7 @@ from mythrix.core.errors import (
 
 _NOT_FOUND = (SignNotFoundError, TraditionNotFoundError, ManifestationNotFoundError, SourceNotFoundError)
 _MODEL_UNREACHABLE = (ModelUnavailableError, ModelRequestError, EmbeddingModelMismatchError)
-_VALIDATION_ERROR = (IngestValidationError,)
+_VALIDATION_ERROR = (IngestValidationError, AdhocQueryValidationError)
 
 
 def status_code_for(exc: MythrixError) -> int:
