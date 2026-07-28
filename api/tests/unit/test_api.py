@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 from langchain_core.messages import AIMessage
 from langchain_core.tools import tool
 
+from mythrix.agent.adhoc_query import execute_query_instruction
 from mythrix.agent.graph import compile_agent_graph
 from mythrix.agent.sessions import SessionStore
 from mythrix.api.app import create_app
@@ -21,7 +22,7 @@ from mythrix.api.dependencies import get_agent_graph, get_agent_sessions, get_ch
 from mythrix.core.bootstrap import Stores
 from mythrix.core.errors import ModelUnavailableError, SignNotFoundError
 from mythrix.core.graph.store import KuzuGraphStore
-from mythrix.core.models import Interpretant, Manifestation, Sign, Source, Tradition
+from mythrix.core.models import AdhocTerm, Interpretant, Manifestation, Sign, Source, Tradition
 from mythrix.core.vector.chunking import Chunk
 from mythrix.core.vector.store import ChromaVectorStore, ChunkMetadata
 
@@ -154,7 +155,7 @@ def test_query_unreachable_embedder_returns_502(graph_store: KuzuGraphStore, vec
 
 def test_adhoc_query_returns_facets_and_regions(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore) -> None:
     client = _client(graph_store, vector_store)
-    response = client.post("/api/query/adhoc", json={"terms": [{"value": "laughter", "directive": None}]})
+    response = client.request("QUERY", "/api/query/adhoc", json={"terms": [{"value": "laughter", "directive": None}]})
     assert response.status_code == 200
     body = response.json()
     assert body == {"facets": {"sources": [], "interpretants": []}, "regions": []}
@@ -174,7 +175,7 @@ def test_adhoc_query_matches_a_segment_via_exact_directive(
         ),
     )
     client = _client(graph_store, vector_store)
-    response = client.post("/api/query/adhoc", json={"terms": [{"value": "hundred", "directive": "exact"}]})
+    response = client.request("QUERY", "/api/query/adhoc", json={"terms": [{"value": "hundred", "directive": "exact"}]})
     assert response.status_code == 200
     body = response.json()
     assert len(body["regions"]) == 1
@@ -183,9 +184,77 @@ def test_adhoc_query_matches_a_segment_via_exact_directive(
 
 def test_adhoc_query_empty_terms_returns_422(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore) -> None:
     client = _client(graph_store, vector_store)
-    response = client.post("/api/query/adhoc", json={"terms": []})
+    response = client.request("QUERY", "/api/query/adhoc", json={"terms": []})
     assert response.status_code == 422
     assert "detail" in response.json()
+
+
+def test_adhoc_query_is_a_read_not_a_post(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore) -> None:
+    """The endpoint answers QUERY (RFC 10008) and nothing else — an ad-hoc query
+    creates and modifies nothing, and the capabilities document publishes that
+    method to every consumer (agent-capabilities.md FR-CAP-16)."""
+    client = _client(graph_store, vector_store)
+    response = client.post("/api/query/adhoc", json={"terms": [{"value": "laughter", "directive": None}]})
+    assert response.status_code == 405
+
+
+def test_execute_query_instruction_payload_is_a_valid_request_body(
+    graph_store: KuzuGraphStore, vector_store: ChromaVectorStore
+) -> None:
+    """FR-AQ-22/FR-CAP-12: the `payload` body mode sends an instruction's
+    payload unmodified, so the agent's instruction and this endpoint's request
+    body are one shape. Pinned here because nothing else would fail if they
+    drifted apart."""
+    instruction = execute_query_instruction(
+        (AdhocTerm(value="laughter"), AdhocTerm(value="hundred", directive="exact"))
+    )
+    client = _client(graph_store, vector_store)
+
+    response = client.request("QUERY", "/api/query/adhoc", json=instruction["payload"])
+
+    assert response.status_code == 200
+    assert set(response.json()) == {"facets", "regions"}
+
+
+def test_agent_capabilities_declares_commands_and_bindings(
+    graph_store: KuzuGraphStore, vector_store: ChromaVectorStore
+) -> None:
+    client = _client(graph_store, vector_store)
+    body = client.get("/api/agent/capabilities").json()
+
+    commands = {command["name"]: command for command in body["commands"]}
+    assert commands["/clear"]["handled_by"] == "client"
+    assert commands["/query"]["handled_by"] == "server"
+    assert commands["/query-confirm"]["listed"] is False
+
+    bindings = {instruction["type"]: instruction["binding"] for instruction in body["instructions"]}
+    assert bindings["confirm_query"] is None
+    assert bindings["execute_query"] == {
+        "method": "QUERY",
+        "path": "/api/query/adhoc",
+        "body": "payload",
+        "result": "regions",
+    }
+
+
+def test_declared_execute_query_binding_reaches_a_real_endpoint(
+    graph_store: KuzuGraphStore, vector_store: ChromaVectorStore
+) -> None:
+    """Follows the manifest the way a consumer does — method and path taken
+    from the document, body taken from the instruction — so a binding that
+    names a route this build does not serve fails here rather than in a
+    browser."""
+    client = _client(graph_store, vector_store)
+    binding = next(
+        instruction["binding"]
+        for instruction in client.get("/api/agent/capabilities").json()["instructions"]
+        if instruction["type"] == "execute_query"
+    )
+    payload = execute_query_instruction((AdhocTerm(value="laughter"),))["payload"]
+
+    response = client.request(binding["method"], binding["path"], json=payload)
+
+    assert response.status_code == 200
 
 
 def test_query_returns_a_region_converging_on_every_matching_interpretant(

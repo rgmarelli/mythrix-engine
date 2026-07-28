@@ -1,6 +1,6 @@
 # Agnostic (Ad-hoc) Interpretant Query
 
-A conversational-agent capability, scoped by [ADR-010](../architecture-decisions/adr-010-agnostic-adhoc-interpretant-query.md), letting a user search the corpus directly on a list of their own terms — no Sign or Tradition named — reusing the existing directive vocabulary curated interpretants already carry ([retrieval.md](../retrieval/retrieval.md) FR-RT-09, FR-RT-15, FR-RT-17–19). This document specifies the agent-side path up through handing back an execution instruction, and the dedicated endpoint that actually performs the query; it does not cover frontend consumption of that instruction (see Non-goals).
+A conversational-agent capability, scoped by [ADR-010](../architecture-decisions/adr-010-agnostic-adhoc-interpretant-query.md), letting a user search the corpus directly on a list of their own terms — no Sign or Tradition named — reusing the existing directive vocabulary curated interpretants already carry ([retrieval.md](../retrieval/retrieval.md) FR-RT-09, FR-RT-15, FR-RT-17–19). This document specifies the agent-side path up through handing back an execution instruction, and the dedicated endpoint that actually performs the query. How a consumer learns to execute that instruction is specified in [agent-capabilities.md](agent-capabilities.md); how the web viewer renders the result is specified in [web-viewer.md](web-viewer.md).
 
 ## Vocabulary
 
@@ -33,8 +33,9 @@ A conversational-agent capability, scoped by [ADR-010](../architecture-decisions
 ### Execution instruction
 
 - FR-AQ-13: A confirmed ad-hoc query emits an `execute_query` instruction carrying the confirmed term/directive list. The turn itself performs no retrieval and accesses neither the graph store nor the vector store.
-- FR-AQ-14: An instruction carries no HTTP method, path, or other transport detail. Mapping its `type` to an actual endpoint call is the responsibility of whatever consumes `instructions`, not the backend that emits it.
+- FR-AQ-14: An instruction carries no HTTP method, path, or other transport detail. How its `type` maps to an actual endpoint call is declared once by the backend in the capabilities document ([agent-capabilities.md](agent-capabilities.md) FR-CAP-07–FR-CAP-12), not restated per instruction and not decided by the consumer.
 - FR-AQ-15: Instructions are populated by the backend directly from the deterministic command handling that produced them, never parsed or inferred from a model-authored reply (consistent with [agent.md](agent.md) FR-AG-19).
+- FR-AQ-22: An `execute_query` instruction's payload is a valid request body for the ad-hoc query endpoint (FR-AQ-18) as sent, requiring no reshaping by the consumer.
 
 ### Isolation from the conversation
 
@@ -43,14 +44,14 @@ A conversational-agent capability, scoped by [ADR-010](../architecture-decisions
 
 ### Ad-hoc retrieval
 
-- FR-AQ-18: A dedicated, non-agent endpoint accepts a term/directive list and performs the actual ad-hoc query, independent of the agent — directly callable (e.g. by a future frontend, or by a test) without going through a chat turn.
+- FR-AQ-18: A dedicated, non-agent endpoint accepts a term/directive list and performs the actual ad-hoc query, independent of the agent — directly callable (e.g. by a frontend, or by a test) without going through a chat turn. It is a read: the request carries its term list as content because the list is structured, not because anything is created or modified, and repeating the request changes nothing.
 - FR-AQ-19: An ad-hoc query builds a synthetic `GraphFacts` from the supplied terms: one interpretant per term — a plain concept interpretant for an undirected term, or one carrying the term's directive (with the term's own text as its literal token) for a directive term — attached to a sentinel sign/tradition/manifestation that names no real semiotic system, sign, or tradition.
 - FR-AQ-20: That synthetic `GraphFacts` is passed unmodified into the existing region-query pipeline ([retrieval.md](../retrieval/retrieval.md), [ranking.md](../retrieval/ranking.md)); every existing region-matching, ranking, and directive-handling requirement (FR-RT-07–20) applies, with no new matching or ranking behavior introduced by this path.
 - FR-AQ-21: An ad-hoc query result is unambiguously distinguishable from a graph-native one — its sentinel sign/tradition identifiers name no entry in the Sign Graph — so a consumer can never mistake it for curated content.
 
 ## Non-goals
 
-- Frontend detection of a `confirm_query` or `execute_query` instruction, the endpoint call the latter describes, or rendering ad-hoc results in the web viewer — a later increment. This spec covers only the backend/agent-side path through emitting the instructions, and the endpoint's own request/response contract.
+- Any consumer-side behavior: which instruction a consumer acts on, how it executes one, and how it renders the result belong to [agent-capabilities.md](agent-capabilities.md) and [web-viewer.md](web-viewer.md). This spec covers the backend/agent-side path through emitting the instructions, and the endpoint's own request/response contract.
 - Understanding a confirmation expressed in natural language ("yes", "go ahead"). Confirmation is the `/query-confirm` command and nothing else (see [ADR-010](../architecture-decisions/adr-010-agnostic-adhoc-interpretant-query.md) alternatives).
 - Any agent awareness of ad-hoc queries: the agent cannot discuss, refer back to, or answer questions about a query run through this path, and does not narrate its results.
 - Expiring a pending ad-hoc query on a timer. It lives until replaced, confirmed, or discarded by a thread reset.

@@ -44,7 +44,10 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[web_origin],
-        allow_methods=["GET", "POST"],
+        # QUERY (RFC 10008) is not a CORS-simple method, so the browser
+        # preflights it; without it here the cross-origin dev server is blocked
+        # on `QUERY /api/query/adhoc` while a same-origin build is not.
+        allow_methods=["GET", "POST", "QUERY"],
         allow_headers=["*"],
     )
 

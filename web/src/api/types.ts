@@ -152,16 +152,81 @@ export interface AgentCardWire {
     | null;
 }
 
-// An ad-hoc/agnostic-query instruction (specs/interfaces/agnostic-query.md
-// FR-AQ-07, FR-AQ-13–14) — transport-agnostic on purpose: `type` names the
-// action, `payload` carries whatever it needs. Mapping `type` to an actual
-// endpoint call (e.g. `execute_query` -> `POST /api/query/adhoc`) is this
-// frontend's job, not something the backend encodes here. `confirm_query`
-// carries the exact chat command its affordance should send back. Not
-// consumed anywhere yet — see agnostic-query.md's non-goals.
+// An agent instruction (specs/interfaces/agnostic-query.md FR-AQ-07,
+// FR-AQ-13–14): `type` names the action, `payload` carries whatever it needs,
+// and neither carries transport detail. How a type is executed comes from the
+// capabilities document, not from here.
+//
+// `type` is deliberately an open `string`, not a union of the types this build
+// knows: the backend is the authority on what exists, so a type this frontend
+// has never heard of has to be *representable* in order to be reported rather
+// than executed (FR-CAP-13). A closed union would make that case unwritable
+// and push the mismatch to runtime, where nothing checks it.
 export interface AgentInstructionWire {
-  type: 'confirm_query' | 'execute_query';
+  type: string;
   payload: Record<string, unknown>;
+}
+
+// --- Agent capabilities (specs/interfaces/agent-capabilities.md) ---
+// The backend declares the command vocabulary and how each instruction type is
+// executed; this app implements handlers per `result` kind, never per
+// instruction type (FR-CAP-11), so a new type reusing a known kind needs no
+// change here. Every method in `SafeMethod` is safe and idempotent, which is
+// what makes a declared binding unable to express a write (FR-CAP-16).
+
+export type SafeMethod = 'GET' | 'QUERY';
+export type BodyMode = 'payload';
+export type ResultKind = 'regions';
+
+export interface InstructionBindingWire {
+  method: string;
+  path: string;
+  body: string;
+  result: string;
+}
+
+export interface CommandSpecWire {
+  name: string;
+  args: string | null;
+  summary: string;
+  handled_by: 'server' | 'client';
+  listed: boolean;
+}
+
+export interface InstructionSpecWire {
+  type: string;
+  binding: InstructionBindingWire | null;
+}
+
+export interface AgentCapabilitiesWire {
+  commands: CommandSpecWire[];
+  instructions: InstructionSpecWire[];
+}
+
+export interface CommandSpec {
+  name: string;
+  args: string | null;
+  summary: string;
+  handledBy: 'server' | 'client';
+  listed: boolean;
+}
+
+// Narrowed at the client seam (`toCapabilities`): a binding only reaches this
+// shape if its method, path, body mode, and result kind all passed FR-CAP-09/10,
+// so anything holding one may treat it as executable.
+export interface InstructionBinding {
+  method: SafeMethod;
+  path: string;
+  body: BodyMode;
+  result: ResultKind;
+}
+
+export interface AgentCapabilities {
+  commands: CommandSpec[];
+  // A declared type with no binding maps to `null` — handled in-app, no request
+  // (FR-CAP-07). An absent key is an undeclared type, which is an error
+  // (FR-CAP-13); the two are deliberately distinguishable.
+  bindings: Record<string, InstructionBinding | null>;
 }
 
 export interface AgentTurnResponseWire {

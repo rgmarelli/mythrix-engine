@@ -1,8 +1,9 @@
 # ADR-010 — A scoped, deterministically-gated exception for ad-hoc, graph-independent interpretant queries
 
-- **Status**: Proposed
+- **Status**: Accepted
 - **Date**: 2026-07-27
 - **Realized by**: [agnostic-query.md](../interfaces/agnostic-query.md) (new); [agent.md](../interfaces/agent.md) non-goals (amended)
+- **Amended by**: [ADR-011](adr-011-backend-declared-agent-capabilities.md) — the instruction stays transport-agnostic, but the backend, not the consumer, declares how each type is executed
 
 ## Context
 
@@ -43,7 +44,7 @@ query — permitted to build query text from raw user-typed terms, bounded by
 four constraints:
 
 1. **A fully separate entry point.** A new service function
-   (`execute_adhoc_query`) and endpoint (`POST /api/query/adhoc`) carry this
+   (`execute_adhoc_query`) and endpoint (`QUERY /api/query/adhoc`) carry this
    capability; neither `query_regions`, the CLI `query` command, nor the graph
    store's `get_manifestation` are touched. FR-CO-03 continues to hold,
    unmodified, for every existing graph-native path — this is an addition
@@ -76,7 +77,9 @@ four constraints:
 Execution itself remains a hand-off: the confirmed turn emits a
 transport-agnostic `execute_query` instruction (`{"type": ..., "payload":
 ...}`) carrying no HTTP method or path, and performs no retrieval inside the
-agent turn. Every result this path can produce is unambiguously marked
+agent turn. Which endpoint that type reaches is declared separately, once, by
+[ADR-011](adr-011-backend-declared-agent-capabilities.md)'s capabilities
+document — not by the consumer, and not inside the instruction. Every result this path can produce is unambiguously marked
 non-graph-native (sentinel `sign`/`tradition` identifiers on the synthetic
 `GraphFacts`, e.g. `sign="adhoc"`), so it can never be confused with curated
 Sign Graph content downstream.
@@ -112,7 +115,7 @@ Sign Graph content downstream.
   it as an affordance that sends the very same command; the two paths share one
   implementation rather than diverging.
 - This ADR licenses only the backend/agent-side half of the feature. Actually
-  calling `POST /api/query/adhoc` from the browser and rendering its results
+  calling `QUERY /api/query/adhoc` from the browser and rendering its results
   is deliberately out of scope here and deferred to a later increment.
 
 ## Alternatives considered

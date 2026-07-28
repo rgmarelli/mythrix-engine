@@ -22,7 +22,8 @@ changed decision is a new ADR that supersedes an earlier one, not an edit.
 | [ADR-007](adr-007-rrf-fusion-and-geometric-mean-pair-scoring.md) | Merge a concept's own queries by Reciprocal Rank Fusion, never raw score; disable the intersemiotic target's bare-name query; score concept-pairs by geometric mean | Accepted |
 | [ADR-008](adr-008-retrieval-tuning-defaults.md) | `retrieval_match_pool_size=100` and `retrieval_min_score=0.6`, calibrated against a real corpus sweep rather than derived from a formula | Accepted |
 | [ADR-009](adr-009-minimal-agent-system-prompt.md) | Keep the agent's system prompt minimal for the local tool-calling model; enforce formatting and cross-turn state in code/UI, not prompt prose | Accepted |
-| [ADR-010](adr-010-agnostic-adhoc-interpretant-query.md) | A scoped, deterministically-gated exception letting one separate, explicitly-marked query path build query text from raw user-typed terms, without touching graph-native retrieval/ranking or the agent's model | Proposed |
+| [ADR-010](adr-010-agnostic-adhoc-interpretant-query.md) | A scoped, deterministically-gated exception letting one separate, explicitly-marked query path build query text from raw user-typed terms, without touching graph-native retrieval/ranking or the agent's model | Accepted |
+| [ADR-011](adr-011-backend-declared-agent-capabilities.md) | One backend-served capabilities document declares the command vocabulary and how each instruction type is executed (method, path, body mode, result kind); consumers implement result kinds, not instruction types | Accepted |
 
 Primary sources for these records: `specs/retrieval/corpus.md`, `specs/retrieval/retrieval.md`,
 and `specs/retrieval/ranking.md` (the factual requirements these decisions produced,

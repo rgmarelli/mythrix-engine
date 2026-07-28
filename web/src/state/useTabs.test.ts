@@ -1,12 +1,13 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { fetchQuery, postAgentTurn } from '../api/client';
+import { fetchBoundRegions, fetchQuery, postAgentTurn } from '../api/client';
 import { DEFAULT_MIN_SCORE, useTabs } from './useTabs';
 import { makeHotspot } from '../test/fixtures';
-import type { HotspotQueryResult } from '../api/types';
+import type { AgentCapabilities, AgentInstruction, HotspotQueryResult } from '../api/types';
 
 vi.mock('../api/client', () => ({
   fetchQuery: vi.fn(),
   postAgentTurn: vi.fn(),
+  fetchBoundRegions: vi.fn(),
 }));
 
 afterEach(() => {
@@ -437,5 +438,117 @@ describe('clearAgentThread', () => {
     act(() => result.current.clearAgentThread());
     expect(result.current.activeTab.agentItems).toHaveLength(0);
     expect(result.current.activeTab.agentSessionId).not.toBe(originalSessionId);
+  });
+});
+
+describe('agent instructions', () => {
+  const CAPABILITIES: AgentCapabilities = {
+    commands: [],
+    bindings: {
+      confirm_query: null,
+      execute_query: { method: 'QUERY', path: '/api/query/adhoc', body: 'payload', result: 'regions' },
+    },
+  };
+
+  const EMPTY_CONTEXT = {
+    semioticSystem: null,
+    sign: null,
+    tradition: null,
+    sourceId: null,
+    interpretant: null,
+    minScore: null,
+    regionId: null,
+    locator: null,
+  };
+
+  function turnWith(instructions: AgentInstruction[]) {
+    return { context: EMPTY_CONTEXT, replyText: 'ok', cards: [], instructions, threadReset: false };
+  }
+
+  const EXECUTE_QUERY: AgentInstruction = { type: 'execute_query', payload: { terms: [{ value: 'laughter' }] } };
+
+  it('loads a regions result into the tab the turn was sent from, after a tab switch', async () => {
+    const hotspot = makeHotspot({ regionId: 'waite::9-9' });
+    vi.mocked(postAgentTurn).mockResolvedValueOnce(turnWith([EXECUTE_QUERY]));
+    vi.mocked(fetchBoundRegions).mockResolvedValueOnce({
+      facets: { sources: [], interpretants: [] },
+      hotspots: [hotspot],
+    });
+
+    const { result } = renderHook(() => useTabs(CAPABILITIES));
+    const originTabId = result.current.activeTabId;
+    let send!: Promise<void>;
+    act(() => {
+      send = result.current.sendAgentMessage('/query-confirm 7f3a1c9e');
+    });
+    act(() => result.current.addTab());
+    await act(async () => {
+      await send;
+    });
+
+    const originTab = result.current.tabs.find((tab) => tab.id === originTabId)!;
+    expect(originTab.queryResult?.hotspots).toEqual([hotspot]);
+    expect(originTab.selectedRegionId).toBe('waite::9-9');
+    expect(result.current.activeTab.id).not.toBe(originTabId);
+    expect(result.current.activeTab.queryResult).toBeNull();
+  });
+
+  it('empties the query form so nothing in it appears to describe the ad-hoc result', async () => {
+    vi.mocked(postAgentTurn).mockResolvedValueOnce(turnWith([EXECUTE_QUERY]));
+    vi.mocked(fetchBoundRegions).mockResolvedValueOnce({
+      facets: { sources: [], interpretants: [] },
+      hotspots: [makeHotspot()],
+    });
+
+    const { result } = renderHook(() => useTabs(CAPABILITIES));
+    act(() => {
+      result.current.setSystem('tarot');
+      result.current.setSign('the-sun');
+      result.current.setTradition('rider-waite');
+      result.current.setMinScore(0.9);
+    });
+    await act(async () => {
+      await result.current.sendAgentMessage('/query-confirm 7f3a1c9e');
+    });
+
+    expect(result.current.activeTab.selectedSystem).toBe('');
+    expect(result.current.activeTab.selectedSign).toBe('');
+    expect(result.current.activeTab.selectedTradition).toBe('');
+    expect(result.current.activeTab.minScore).toBeNull();
+    expect(result.current.activeTab.queryResult).not.toBeNull();
+  });
+
+  it('appends an error and leaves the existing result untouched when a type is undeclared', async () => {
+    vi.mocked(fetchQuery).mockResolvedValueOnce({
+      facets: { sources: [], interpretants: [] },
+      hotspots: [makeHotspot({ regionId: 'waite::1-1' })],
+    });
+    vi.mocked(postAgentTurn).mockResolvedValueOnce(turnWith([{ type: 'render_chart', payload: {} }]));
+
+    const { result } = renderHook(() => useTabs(CAPABILITIES));
+    await act(async () => {
+      await result.current.runQuery();
+    });
+    await act(async () => {
+      await result.current.sendAgentMessage('do something');
+    });
+
+    expect(result.current.activeTab.agentItems.at(-1)).toMatchObject({ kind: 'error' });
+    expect(result.current.activeTab.queryResult?.hotspots[0].regionId).toBe('waite::1-1');
+    expect(fetchBoundRegions).not.toHaveBeenCalled();
+  });
+
+  it('runs nothing for a confirm_query instruction — its affordance sends a command instead', async () => {
+    vi.mocked(postAgentTurn).mockResolvedValueOnce(
+      turnWith([{ type: 'confirm_query', payload: { confirm_command: '/query-confirm 7f3a1c9e' } }]),
+    );
+
+    const { result } = renderHook(() => useTabs(CAPABILITIES));
+    await act(async () => {
+      await result.current.sendAgentMessage('/query laughter');
+    });
+
+    expect(fetchBoundRegions).not.toHaveBeenCalled();
+    expect(result.current.activeTab.agentItems.at(-1)).toMatchObject({ kind: 'ai' });
   });
 });

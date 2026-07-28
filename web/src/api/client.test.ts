@@ -1,4 +1,4 @@
-import { fetchQuery, fetchSegments, fetchSigns, fetchTraditions, postAgentTurn } from './client';
+import { fetchCapabilities, fetchQuery, fetchSegments, fetchSigns, fetchTraditions, postAgentTurn } from './client';
 import type { AgentTurnResponseWire, RegionQueryResult } from './types';
 import { makeRegion, makeSignSummary, makeTradition } from '../test/fixtures';
 
@@ -184,5 +184,62 @@ describe('postAgentTurn', () => {
   it('throws the response detail message on a non-ok response', async () => {
     vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ detail: 'agent unavailable' }, false, 503));
     await expect(postAgentTurn('session-1', 'hi', uiSelection)).rejects.toThrow('agent unavailable');
+  });
+});
+
+describe('fetchCapabilities', () => {
+  const wire = {
+    commands: [
+      { name: '/clear', args: null, summary: 'Clear this thread', handled_by: 'client', listed: true },
+      { name: '/query', args: 'term, …', summary: 'Search', handled_by: 'server', listed: true },
+    ],
+    instructions: [
+      { type: 'confirm_query', binding: null },
+      { type: 'execute_query', binding: { method: 'QUERY', path: '/api/query/adhoc', body: 'payload', result: 'regions' } },
+    ],
+  };
+
+  it('GETs /api/agent/capabilities and maps commands and bindings', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(wire));
+    const result = await fetchCapabilities();
+    expect(fetch).toHaveBeenCalledWith('/api/agent/capabilities');
+    expect(result.commands[0]).toEqual({
+      name: '/clear',
+      args: null,
+      summary: 'Clear this thread',
+      handledBy: 'client',
+      listed: true,
+    });
+    expect(result.bindings.execute_query).toEqual({
+      method: 'QUERY',
+      path: '/api/query/adhoc',
+      body: 'payload',
+      result: 'regions',
+    });
+  });
+
+  it('keeps a declared-but-unbound type as null, distinct from an absent one', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(wire));
+    const result = await fetchCapabilities();
+    expect(result.bindings.confirm_query).toBeNull();
+    expect('confirm_query' in result.bindings).toBe(true);
+    expect('something_else' in result.bindings).toBe(false);
+  });
+
+  it.each([
+    ['an unsafe method', { method: 'POST', path: '/api/query/adhoc', body: 'payload', result: 'regions' }],
+    ['an unknown method', { method: 'BREW', path: '/api/query/adhoc', body: 'payload', result: 'regions' }],
+    ['an absolute URL', { method: 'QUERY', path: 'https://evil.test/x', body: 'payload', result: 'regions' }],
+    ['a protocol-relative path', { method: 'QUERY', path: '//evil.test/x', body: 'payload', result: 'regions' }],
+    ['an unknown body mode', { method: 'QUERY', path: '/api/query/adhoc', body: 'template', result: 'regions' }],
+    ['an unknown result kind', { method: 'QUERY', path: '/api/query/adhoc', body: 'payload', result: 'chart' }],
+  ])('drops a binding naming %s', async (_label, binding) => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      jsonResponse({ commands: [], instructions: [{ type: 'execute_query', binding }] }),
+    );
+    const result = await fetchCapabilities();
+    // Dropped entirely, not stored as null: an unusable binding must not read
+    // as "declared with nothing to call".
+    expect('execute_query' in result.bindings).toBe(false);
   });
 });

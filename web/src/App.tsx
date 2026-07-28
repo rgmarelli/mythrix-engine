@@ -7,6 +7,7 @@ import { ControlPanel } from './components/ControlPanel';
 import { HotspotDetailPanel } from './components/HotspotDetailPanel';
 import { HotspotList } from './components/HotspotList';
 import { TopBar } from './components/TopBar';
+import { useCapabilities } from './state/useCapabilities';
 import { DEFAULT_MIN_SCORE, useTabs } from './state/useTabs';
 
 function hotspotRailHeader(count: number, search: string): ReactNode {
@@ -40,6 +41,8 @@ function App() {
     fetchSigns().then(setSigns).catch((error: Error) => setLoadError(error.message));
   }, []);
 
+  const { capabilities } = useCapabilities();
+
   const {
     tabs,
     activeTabId,
@@ -64,7 +67,7 @@ function App() {
     selectedIndex,
     sendAgentMessage,
     clearAgentThread,
-  } = useTabs();
+  } = useTabs(capabilities);
 
   function closeDrawers() {
     setFiltersOpen(false);
@@ -155,6 +158,7 @@ function App() {
       onSend={sendAgentMessage}
       onClear={clearAgentThread}
       selectedHotspot={selectedHotspot}
+      capabilities={capabilities}
     />
     </>
   );

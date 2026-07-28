@@ -174,12 +174,13 @@ The corpus document is not Waite's own text (see [corpus.md](retrieval/corpus.md
 | `FR-RK` | Ranking | [retrieval/ranking.md](retrieval/ranking.md) | FR-RK-01–FR-RK-10 |
 | `FR-CE` | Context Expansion | [retrieval/context-expansion.md](retrieval/context-expansion.md) | FR-CE-01–FR-CE-12 |
 | `FR-API` | Backend API | [interfaces/api.md](interfaces/api.md) | FR-API-01–FR-API-04 |
-| `FR-WEB` | Web Viewer | [interfaces/web-viewer.md](interfaces/web-viewer.md) | FR-WEB-01–FR-WEB-16 |
+| `FR-WEB` | Web Viewer | [interfaces/web-viewer.md](interfaces/web-viewer.md) | FR-WEB-01–FR-WEB-24 |
 | `FR-AG` | Conversational Agent | [interfaces/agent.md](interfaces/agent.md) | FR-AG-01–FR-AG-32 |
-| `FR-AQ` | Agnostic (Ad-hoc) Interpretant Query | [interfaces/agnostic-query.md](interfaces/agnostic-query.md) | FR-AQ-01–FR-AQ-21 |
+| `FR-AQ` | Agnostic (Ad-hoc) Interpretant Query | [interfaces/agnostic-query.md](interfaces/agnostic-query.md) | FR-AQ-01–FR-AQ-22 |
+| `FR-CAP` | Agent Capabilities | [interfaces/agent-capabilities.md](interfaces/agent-capabilities.md) | FR-CAP-01–FR-CAP-16 |
 | `CON-SYS` | System-wide constraints | this document, §7 | CON-SYS-01 |
 
-133 active requirements in total. A prior flat-numbered scheme (`FR1`–`FR102`) was superseded by the identifiers above; six items from that scheme (`FR14`, `FR15`, `FR25`, `FR26`, `FR54`, `FR78`) were retired outright — superseded by concept/pair retrieval and the conversational agent's summarize tool replacing an earlier synthesized-summary design — and carry no identifier in the current scheme.
+157 active requirements in total. A prior flat-numbered scheme (`FR1`–`FR102`) was superseded by the identifiers above; six items from that scheme (`FR14`, `FR15`, `FR25`, `FR26`, `FR54`, `FR78`) were retired outright — superseded by concept/pair retrieval and the conversational agent's summarize tool replacing an earlier synthesized-summary design — and carry no identifier in the current scheme.
 
 ## 11. Architectural Decisions
 

@@ -1296,6 +1296,65 @@ button {
   background: var(--agent-panel);
 }
 
+.agent-dock .confirm-query {
+  font-family: var(--f-mono);
+  font-size: 10.5px;
+  padding: 4px 12px;
+  border-radius: 100px;
+  border: 1px solid var(--agent-violet);
+  color: var(--agent-violet);
+  background: var(--agent-violet-wash);
+  cursor: pointer;
+}
+
+.agent-dock .confirm-query:hover {
+  background: var(--agent-violet);
+  color: var(--agent-paper);
+}
+
+.agent-dock .command-list {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 4px;
+  border: 1px solid var(--agent-line);
+  border-radius: 12px;
+  background: var(--agent-paper);
+}
+
+.agent-dock .command-list button,
+.agent-dock .command-list .hint {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  width: 100%;
+  padding: 6px 9px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
+}
+
+.agent-dock .command-list button {
+  cursor: pointer;
+}
+
+.agent-dock .command-list button:hover,
+.agent-dock .command-list button.is-active {
+  background: var(--agent-violet-wash);
+}
+
+.agent-dock .command-list code {
+  font-family: var(--f-mono);
+  font-size: 11px;
+  color: var(--agent-violet);
+  white-space: nowrap;
+}
+
+.agent-dock .command-list span {
+  font-size: 11.5px;
+  color: var(--agent-ink-soft);
+}
+
 .agent-dock .agent-error {
   grid-column: 2;
   font-size: 12px;
@@ -1326,14 +1385,40 @@ button {
   box-shadow: 0 0 0 3px var(--agent-violet-wash);
 }
 
+.agent-dock .input-shell {
+  position: relative;
+  flex: 1;
+  display: flex;
+  min-width: 0;
+}
+
 .agent-dock .input-row input {
   flex: 1;
+  min-width: 0;
   border: none;
   background: transparent;
   outline: none;
   font-size: 13px;
   color: var(--agent-ink);
   font: inherit;
+}
+
+/* Inline command completion (FR-WEB-23). Metrics must match the input exactly,
+   so both inherit their font from `.input-row`; the leading span reproduces the
+   typed text invisibly to push the remainder to the caret. */
+.agent-dock .ghost {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+  white-space: pre;
+  font: inherit;
+  color: var(--agent-muted);
+}
+
+.agent-dock .ghost span {
+  color: transparent;
 }
 
 .agent-dock .send {

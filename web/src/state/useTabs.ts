@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fetchQuery, postAgentTurn } from '../api/client';
-import type { AgentCard, AgentUiSelection, Hotspot, HotspotQueryResult } from '../api/types';
+import { executeInstruction } from '../api/instructions';
+import type {
+  AgentCapabilities,
+  AgentCard,
+  AgentInstruction,
+  AgentUiSelection,
+  Hotspot,
+  HotspotQueryResult,
+} from '../api/types';
 import { hotspotTitle } from '../utils/hotspot';
 
 // Mirrors `Settings.retrieval_min_score`'s default (`src/mythrix/core/config.py`)
@@ -10,7 +18,7 @@ export const DEFAULT_MIN_SCORE = 0.6;
 
 export type ThreadItem =
   | { kind: 'user'; id: string; text: string }
-  | { kind: 'ai'; id: string; text: string; cards: AgentCard[] }
+  | { kind: 'ai'; id: string; text: string; cards: AgentCard[]; instructions: AgentInstruction[] }
   | { kind: 'reset'; id: string; label: string }
   | { kind: 'error'; id: string; text: string };
 
@@ -82,7 +90,7 @@ type TabPatch = Partial<Tab> | ((tab: Tab) => Partial<Tab>);
  * (`SignTraditionPicker`, `FacetRow`, `HotspotList`, `HotspotDetailPanel`)
  * need no prop changes: this hook's setters match their existing callback
  * shapes exactly, just scoped to whichever tab is active. */
-export function useTabs() {
+export function useTabs(capabilities: AgentCapabilities | null = null) {
   const [tabs, setTabs] = useState<Tab[]>(() => [makeTab()]);
   const [activeTabId, setActiveTabId] = useState<string>(() => tabs[0].id);
 
@@ -225,6 +233,43 @@ export function useTabs() {
   const selectedHotspot = rankedHotspots.find((hotspot) => hotspot.regionId === activeTab.selectedRegionId) ?? null;
   const selectedIndex = selectedHotspot ? rankedHotspots.indexOf(selectedHotspot) : -1;
 
+  // Runs a turn's instructions against the tab the turn was sent from
+  // (specs/interfaces/web-viewer.md FR-WEB-19), which is why `tabId` is passed
+  // in rather than read from `activeTabId` — the user may have switched tabs
+  // while the turn was in flight.
+  async function runInstructions(instructions: AgentInstruction[], tabId: string) {
+    for (const instruction of instructions) {
+      // A bound instruction issues a request, so the rail shows the same
+      // pending state a form submission does.
+      if (capabilities?.bindings[instruction.type]) updateTab(tabId, { isQuerying: true });
+
+      const outcome = await executeInstruction(instruction, capabilities);
+      if (outcome === null) continue;
+
+      if (outcome.kind === 'unexecutable') {
+        const errorItem: ThreadItem = { kind: 'error', id: itemId(), text: outcome.reason };
+        updateTab(tabId, (t) => ({ agentItems: [...t.agentItems, errorItem], isQuerying: false }));
+        continue;
+      }
+
+      // A result the form did not produce must not leave the form describing
+      // it — the query selections are emptied alongside the facet reset
+      // (FR-WEB-20).
+      updateTab(tabId, {
+        queryResult: outcome.result,
+        selectedRegionId: outcome.result.hotspots[0]?.regionId ?? null,
+        queryError: null,
+        isQuerying: false,
+        selectedSourceId: null,
+        selectedInterpretant: null,
+        selectedSystem: '',
+        selectedSign: '',
+        selectedTradition: '',
+        minScore: null,
+      });
+    }
+  }
+
   // Captures the sending tab's id and UI-selection snapshot at send time
   // (FR-WEB-11): a reply is appended to the tab it was sent from, even if the
   // user has since switched to a different tab.
@@ -254,7 +299,13 @@ export function useTabs() {
 
     try {
       const result = await postAgentTurn(tab.agentSessionId, trimmed, uiSelection);
-      const aiItem: ThreadItem = { kind: 'ai', id: itemId(), text: result.replyText, cards: result.cards };
+      const aiItem: ThreadItem = {
+        kind: 'ai',
+        id: itemId(),
+        text: result.replyText,
+        cards: result.cards,
+        instructions: result.instructions,
+      };
       updateTab(tabId, (t) => {
         if (result.threadReset) {
           const hotspot = t.queryResult?.hotspots.find((h) => h.regionId === t.selectedRegionId) ?? null;
@@ -263,6 +314,7 @@ export function useTabs() {
         }
         return { agentItems: [...t.agentItems, aiItem], agentSending: false };
       });
+      await runInstructions(result.instructions, tabId);
     } catch (error) {
       const errorItem: ThreadItem = {
         kind: 'error',

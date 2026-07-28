@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel
 
+from mythrix.agent.capabilities import AGENT_CAPABILITIES, AgentCapabilities
 from mythrix.agent.context import AgentUiSelection
 from mythrix.agent.sessions import SessionStore
 from mythrix.agent.turn_service import AgentTurnResponse, run_chat_turn
@@ -113,13 +114,18 @@ class AdhocQueryRequest(BaseModel):
     min_score: float | None = None
 
 
-@router.post("/query/adhoc", response_model=RegionQueryResult)
+@router.api_route("/query/adhoc", methods=["QUERY"], response_model=RegionQueryResult)
 def query_adhoc(request: AdhocQueryRequest, stores: Stores = Depends(get_stores)) -> RegionQueryResult:
     """Runs a region query against a user-supplied, graph-independent term
     list rather than a resolved sign/tradition (`specs/interfaces/agnostic-query.md`
-    FR-AQ-09, ADR-010). Same defaulting/error-handling/logging shape as `GET /api/query`; an
+    FR-AQ-18, ADR-010). Same defaulting/error-handling/logging shape as `GET /api/query`; an
     empty `terms` list is rejected the same way an unknown sign is — via the
-    registered `MythrixError` exception handler (422)."""
+    registered `MythrixError` exception handler (422).
+
+    QUERY (RFC 10008), not POST: this is a read whose term list is carried as
+    content because it is structured, not because anything is created or
+    modified. FastAPI emits OpenAPI 3.1, which has no `query` path-item key, so
+    this route is absent from the generated docs page until 3.2."""
     settings = Settings()
     effective_top_k = request.top_k or settings.retrieval_top_k
     effective_match_pool_size = request.match_pool or settings.retrieval_match_pool_size
@@ -239,6 +245,15 @@ def summarize_passage(
     other route (502)."""
     prompt = render_passage_summary_prompt(payload.passage_text, tuple(payload.concepts))
     return SummarizeResponse(summary=chat_client.invoke(prompt))
+
+
+@router.get("/agent/capabilities", response_model=AgentCapabilities)
+def agent_capabilities() -> AgentCapabilities:
+    """The commands this build offers and how each instruction type is executed
+    (`specs/interfaces/agent-capabilities.md` FR-CAP-01, ADR-011). Describes the
+    running build, not a caller: it reads no session and takes no parameters,
+    which is why it needs neither `Stores` nor `Settings`."""
+    return AGENT_CAPABILITIES
 
 
 class AgentTurnRequest(BaseModel):

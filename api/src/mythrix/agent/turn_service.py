@@ -41,7 +41,7 @@ _CITATION_FAILURE_MESSAGE = (
     "I drafted a reply but it referenced something I couldn't actually back up with a tool result, "
     "so I'm not showing it. Could you ask again, maybe more specifically?"
 )
-_SUMMARIZE_PREFIX = "/summarize"
+SUMMARIZE_COMMAND = "/summarize"
 
 
 def _rewrite_summarize_command(message: str, context: AgentContext) -> str | None:
@@ -50,7 +50,7 @@ def _rewrite_summarize_command(message: str, context: AgentContext) -> str | Non
     below) so the model always sees an explicit instruction rather than
     inferring intent from a bare command."""
     head, _, rest = message.strip().partition(" ")
-    if head.lower() != _SUMMARIZE_PREFIX:
+    if head.lower() != SUMMARIZE_COMMAND:
         return None
     focus = rest.strip()
 
