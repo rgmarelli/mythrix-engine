@@ -73,6 +73,18 @@ def _new_messages(previous_history: list, new_history: list) -> list:
     return new_history[len(previous_history) :]
 
 
+_LISTING_TOOL_NAMES = frozenset({"list_signs", "list_traditions", "list_semiotic_systems"})
+
+
+def _only_listing_tools_called(tool_messages: list[ToolMessage]) -> bool:
+    """True when every tool call this turn was a plain enumeration with no
+    `citations` field to ever back a marker (`tools/list_signs.py` et al.) —
+    the one case where a marker the model attaches anyway is a formatting
+    slip on real, tool-derived data rather than an ungrounded claim FR-AG-06
+    requires rejecting."""
+    return bool(tool_messages) and all(message.name in _LISTING_TOOL_NAMES for message in tool_messages)
+
+
 def _build_valid_marker_ids(tool_messages: list[ToolMessage]) -> set[str]:
     """Counts citable items across this turn's tool results, in the order
     they appear, per `agent/prompts.py`'s marker convention: each
@@ -185,7 +197,7 @@ def run_chat_turn(
         valid_ids = _build_valid_marker_ids(tool_messages)
         invalid_markers = find_invalid_markers(visible_reply, valid_ids)
         try:
-            if invalid_markers:
+            if invalid_markers and not _only_listing_tools_called(tool_messages):
                 raise CitationValidationError(invalid_markers)
         except CitationValidationError as exc:
             logger.info("turn failed: citation validation: %s", exc)
