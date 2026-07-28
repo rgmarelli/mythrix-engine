@@ -26,7 +26,7 @@ A query against a symbol produces ranked **convergence hotspots** with verbatim 
 
 Mythrix is a symbolic knowledge retrieval system that connects a structured symbolic model with a corpus of primary reference sources.
 
-It currently explores symbolic interpretation through domains such as Tarot and semiotics, modeling relationships between:
+It currently explores symbolic interpretation, modeling relationships between:
 
 * **Semiotic systems**
 * **Signs**
