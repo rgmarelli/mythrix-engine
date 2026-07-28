@@ -44,12 +44,10 @@ class ChunkMetadata(BaseModel):
 
 
 class VectorHit(BaseModel):
-    """One raw similarity-search result — deliberately lighter than
-    `core.models.RetrievedPassage`: it carries only what Chroma itself knows
-    (ids, metadata, text, distance), not the hydrated `Source` object a
-    `RetrievedPassage` needs. Joining this against `KuzuGraphStore` to build a
-    full `RetrievedPassage` is `RetrievalPipeline`'s job (T15), not the vector
-    store's."""
+    """One raw similarity-search result: only what Chroma itself knows (ids,
+    metadata, text, distance), never a hydrated `Source`. Joining this against
+    `KuzuGraphStore` to attribute a segment is `RetrievalPipeline`'s job, not
+    the vector store's."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 

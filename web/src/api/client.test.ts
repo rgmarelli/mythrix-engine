@@ -42,12 +42,11 @@ describe('fetchQuery', () => {
   it('encodes sign/tradition/opts as query params', async () => {
     const wire: RegionQueryResult = { facets: { sources: [], interpretants: [] }, regions: [] };
     vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(wire));
-    await fetchQuery('the-sun', 'rider-waite', { topK: 10, matchPool: 50, minScore: 0.5 });
+    await fetchQuery('the-sun', 'rider-waite', { matchPool: 50, minScore: 0.5 });
     const calledUrl = vi.mocked(fetch).mock.calls[0][0] as string;
     expect(calledUrl).toContain('/api/query?');
     expect(calledUrl).toContain('sign=the-sun');
     expect(calledUrl).toContain('tradition=rider-waite');
-    expect(calledUrl).toContain('top_k=10');
     expect(calledUrl).toContain('match_pool=50');
     expect(calledUrl).toContain('min_score=0.5');
   });
@@ -57,7 +56,6 @@ describe('fetchQuery', () => {
     vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(wire));
     await fetchQuery('the-sun', 'rider-waite');
     const calledUrl = vi.mocked(fetch).mock.calls[0][0] as string;
-    expect(calledUrl).not.toContain('top_k');
     expect(calledUrl).not.toContain('match_pool');
     expect(calledUrl).not.toContain('min_score');
   });
@@ -124,7 +122,6 @@ describe('postAgentTurn', () => {
     const wire: AgentTurnResponseWire = {
       context: { ...uiSelection, semiotic_system: 'tarot', source_id: null, min_score: null, region_id: 'region-1' } as never,
       reply_text: 'hello',
-      cards: [],
       instructions: [],
       thread_reset: false,
     };
@@ -150,7 +147,7 @@ describe('postAgentTurn', () => {
     });
   });
 
-  it('translates citation and interpretant_chips cards', async () => {
+  it('translates the response context and thread_reset', async () => {
     const wire: AgentTurnResponseWire = {
       context: {
         semiotic_system: 'tarot',
@@ -163,21 +160,12 @@ describe('postAgentTurn', () => {
         locator: 'Ecclesiasticus 43:1',
       },
       reply_text: 'hello',
-      cards: [
-        { type: 'citation', source_label: 'Eccl.', locator: '43:1', text: 'quoted text' },
-        { type: 'interpretant_chips', chips: [{ interpretant: 'sun', kind: 'concept', score: 0.9, segment_ordinal: 1 }] },
-      ],
       instructions: [],
       thread_reset: true,
     };
     vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(wire));
     const result = await postAgentTurn('session-1', 'hi', uiSelection);
     expect(result.threadReset).toBe(true);
-    expect(result.cards[0]).toEqual({ type: 'citation', sourceLabel: 'Eccl.', locator: '43:1', text: 'quoted text' });
-    expect(result.cards[1]).toEqual({
-      type: 'interpretant_chips',
-      chips: [{ interpretant: 'sun', kind: 'concept', score: 0.9, segmentOrdinal: 1 }],
-    });
     expect(result.context.regionId).toBe('region-1');
   });
 

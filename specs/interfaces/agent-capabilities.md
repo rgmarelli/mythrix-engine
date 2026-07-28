@@ -2,8 +2,7 @@
 
 A single, backend-owned declaration of the chat commands the product offers and
 how a consumer executes the instructions the agent emits
-([agent.md](agent.md) FR-AG-19, [agnostic-query.md](agnostic-query.md)
-FR-AQ-07, FR-AQ-13), scoped by
+([agnostic-query.md](agnostic-query.md) FR-AQ-07, FR-AQ-13), scoped by
 [ADR-011](../architecture-decisions/adr-011-backend-declared-agent-capabilities.md).
 
 ## Vocabulary

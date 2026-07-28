@@ -11,9 +11,7 @@ def test_defaults() -> None:
     assert settings.embedding_model == "nomic-embed-text"
     assert settings.generation_model is None
     assert settings.ollama_base_url == "http://localhost:11434"
-    assert settings.retrieval_top_k == 6
     assert settings.retrieval_match_pool_size == 100
-    assert settings.merge_top_k == 6
     assert settings.retrieval_min_score == 0.6
     assert settings.generation_num_ctx == 8192
     assert settings.region_window_size == 3
@@ -22,12 +20,12 @@ def test_defaults() -> None:
 
 def test_env_var_overrides_default(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("MYTHRIX_EMBEDDING_MODEL", "custom-embedder")
-    monkeypatch.setenv("MYTHRIX_RETRIEVAL_TOP_K", "10")
+    monkeypatch.setenv("MYTHRIX_RETRIEVAL_MIN_SCORE", "0.75")
 
     settings = Settings(_env_file=None)  # type: ignore[call-arg]
 
     assert settings.embedding_model == "custom-embedder"
-    assert settings.retrieval_top_k == 10
+    assert settings.retrieval_min_score == 0.75
 
 
 def test_constructor_kwarg_takes_precedence_over_env_var(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -54,14 +52,12 @@ def test_generation_num_ctx_can_be_overridden(monkeypatch: pytest.MonkeyPatch) -
     assert settings.generation_num_ctx == 16384
 
 
-def test_match_pool_size_and_merge_top_k_can_be_overridden(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_match_pool_size_can_be_overridden(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("MYTHRIX_RETRIEVAL_MATCH_POOL_SIZE", "50")
-    monkeypatch.setenv("MYTHRIX_MERGE_TOP_K", "10")
 
     settings = Settings(_env_file=None)  # type: ignore[call-arg]
 
     assert settings.retrieval_match_pool_size == 50
-    assert settings.merge_top_k == 10
 
 
 def test_region_window_size_and_min_interpretants_can_be_overridden(monkeypatch: pytest.MonkeyPatch) -> None:

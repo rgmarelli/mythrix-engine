@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import type { AgentCapabilities, AgentCard, AgentInstruction, CommandSpec, Hotspot } from '../api/types';
+import type { AgentCapabilities, AgentInstruction, CommandSpec, Hotspot } from '../api/types';
 import type { ThreadItem } from '../state/useTabs';
 import { argHintFor, completionOf, matchCommands } from '../utils/commands';
 import { hotspotTitle } from '../utils/hotspot';
@@ -75,31 +75,6 @@ function contextStripText(hotspot: Hotspot | null): string {
   if (!hotspot) return 'no hotspot selected yet';
   const interpretants = hotspot.matches.map((match) => match.interpretant).join(', ');
   return interpretants ? `reading ${hotspotTitle(hotspot)} · interpretants: ${interpretants}` : `reading ${hotspotTitle(hotspot)}`;
-}
-
-function AgentCards({ cards }: { cards: AgentCard[] }) {
-  return (
-    <>
-      {cards.map((card, index) =>
-        card.type === 'citation' ? (
-          <div className="verse" key={index}>
-            {(card.sourceLabel || card.locator) && (
-              <span className="cite">{[card.sourceLabel, card.locator].filter(Boolean).join(' · ').toUpperCase()}</span>
-            )}
-            {card.text && `"${card.text}"`}
-          </div>
-        ) : (
-          <div className="chips" key={index}>
-            {card.chips.map((chip) => (
-              <span className="chip" key={`${chip.interpretant}-${chip.segmentOrdinal}`}>
-                {chip.interpretant} · {chip.kind === 'concept' ? chip.score.toFixed(2) : chip.kind}
-              </span>
-            ))}
-          </div>
-        ),
-      )}
-    </>
-  );
 }
 
 // A `confirm_query` instruction carries the exact command a human would type
@@ -256,7 +231,6 @@ export function AgentChatPanel({ items, isSending, onSend, onClear, selectedHots
               <div className="bubble">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.text}</ReactMarkdown>
               </div>
-              <AgentCards cards={item.cards} />
               <ConfirmActions instructions={item.instructions} onSend={send} />
             </div>
           );

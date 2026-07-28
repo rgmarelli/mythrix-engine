@@ -1,7 +1,6 @@
-"""Unit tests for `core/query_service.py`: `execute_query` (the CLI's
-retrieval logic, extracted) and `query_regions` (the API's region-centric
-form). Real `KuzuGraphStore`/`ChromaVectorStore` against `tmp_path`, a fake
-embedder — no running Ollama needed, mirroring `tests/unit/test_cli_query.py`."""
+"""Unit tests for `core/query_service.py`. Real
+`KuzuGraphStore`/`ChromaVectorStore` against `tmp_path`, a fake embedder — no
+running Ollama needed."""
 
 from datetime import UTC, datetime
 from pathlib import Path
@@ -15,12 +14,11 @@ from mythrix.core.models import (
     Interpretant,
     Manifestation,
     RegionQueryResult,
-    RetrievalContext,
     Sign,
     Source,
     Tradition,
 )
-from mythrix.core.query_service import execute_adhoc_query, execute_query, fetch_source_segments, query_regions
+from mythrix.core.query_service import execute_adhoc_query, fetch_source_segments, query_regions
 from mythrix.core.vector.chunking import Chunk
 from mythrix.core.vector.store import ChromaVectorStore, ChunkMetadata
 
@@ -66,43 +64,15 @@ def vector_store(tmp_path: Path) -> ChromaVectorStore:
     return ChromaVectorStore(tmp_path / "chroma")
 
 
-def _kwargs(**overrides) -> dict:  # noqa: ANN003
-    defaults = {"top_k": 6, "match_pool_size": 30, "merge_top_k": 6, "min_score": 0.0}
-    defaults.update(overrides)
-    return defaults
-
-
 def _region_kwargs(**overrides) -> dict:  # noqa: ANN003
-    defaults = {**_kwargs(), "region_window_size": 3, "region_min_interpretants": 1}
+    defaults = {
+        "match_pool_size": 30,
+        "min_score": 0.0,
+        "region_window_size": 3,
+        "region_min_interpretants": 1,
+    }
     defaults.update(overrides)
     return defaults
-
-
-def test_execute_query_returns_a_retrieval_context(
-    graph_store: KuzuGraphStore, vector_store: ChromaVectorStore
-) -> None:
-    context = execute_query(
-        sign="the-tower",
-        tradition="rider-waite",
-        graph_store=graph_store,
-        vector_store=vector_store,
-        embedder=FakeEmbedder(),
-        **_kwargs(),
-    )
-    assert isinstance(context, RetrievalContext)
-    assert context.graph_facts.sign.slug == "the-tower"
-
-
-def test_execute_query_propagates_mythrix_error(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore) -> None:
-    with pytest.raises(SignNotFoundError):
-        execute_query(
-            sign="nonexistent",
-            tradition="rider-waite",
-            graph_store=graph_store,
-            vector_store=vector_store,
-            embedder=FakeEmbedder(),
-            **_kwargs(),
-        )
 
 
 def test_query_regions_returns_a_region_query_result(

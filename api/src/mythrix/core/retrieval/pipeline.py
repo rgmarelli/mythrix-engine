@@ -10,7 +10,7 @@ concept is searched on its own (`_atomic_values`). A sign's canonical name, a
 manifestation's denotation, and `properties` at any scope are never searched —
 see `build_query_texts`.
 
-An interpretant carrying `query.directive: "filter"` (FR-RT-09) contributes an
+An interpretant carrying `query.directive: "filter"` (FR-RT-15) contributes an
 additional literal-text-filtered query (`query.as_token`) alongside — never
 instead of — its plain query. Every filter token recognized anywhere in the
 current `GraphFacts` is collected once and applied to every concept's query,
@@ -24,55 +24,39 @@ vector behind the match. An interpretant carrying `query.directive: "skip"`
 (FR-RT-11) is excluded from retrieval entirely (`_is_skipped`,
 `_extract_concepts`).
 
-Retrieval searches the full corpus by default (FR-CO-02). Each hit is hydrated
-into a `RetrievedPassage` carrying its `Source` for citation (FR-RT-05).
+Retrieval searches the full corpus by default (FR-CO-02). Every match is
+hydrated with its `Source` for citation (FR-RT-05).
 
-**Concept-scoped retrieval (FR-RT-07).** Every `_Query` sharing a concept's
-value is Reciprocal-Rank-Fused only against that concept's own queries — never
-merged into a pool shared across concepts — and kept to `top_k` per concept.
+**Concept-scoped matching.** Every `_Query` sharing a concept's value is
+Reciprocal-Rank-Fused only against that concept's own queries — never merged
+into a pool shared across concepts — and kept to `match_pool_size` per concept.
 See ADR-007 for why cross-query merging is rank-based rather than a comparison
 of raw similarity scores.
 
-**Concept-pair convergence (FR-RT-08, FR-RT-09).** `RetrievalPipeline.retrieve`
-also emits one `ConceptPairCandidates` per co-occurring concept pair, detected
-against a pool deeper than the one displayed (`match_pool_size` vs `top_k`),
-alongside — never instead of — the per-concept groups. A pair's combined score
-is the geometric mean of its two component scores (`_combined_score`; ADR-007
-on why geometric rather than arithmetic). An interpretant reached via a
-`"filter"` directive contributes membership to a pair but no score; one
-reached via an `"exact"` directive never contributes a pair candidate at all
-(FR-EX-03) — it is never embedded, so it never shares a deep pool with any
-other concept in the first place.
-
-Scores are comparable only within a pair group, where every candidate is
-scored by the same two queries; they are not comparable across groups.
+**Region rollup is the sole aggregation (ADR-013).** `retrieve_regions` is the
+one entry point over `_search_deep_pools`: matches clearing the floor are
+rolled up over contiguous segments of one source and ranked by a
+specificity-weighted convergence score (FR-RK-01–FR-RK-10). Convergence is a
+ranking signal, not a separate result group.
 """
 
 from __future__ import annotations
 
-import itertools
 import logging
 import math
-from collections.abc import Iterator
 from typing import Literal, NamedTuple
 
 from mythrix.core.embedding import Embedder
 from mythrix.core.graph.store import KuzuGraphStore
 from mythrix.core.models import (
-    ConceptCandidates,
-    ConceptMatchScore,
-    ConceptPairCandidates,
     Facets,
     GraphFacts,
     Interpretant,
     InterpretantFacet,
     IntersemioticInterpretant,
     Match,
-    MergedCandidate,
     Region,
     RegionQueryResult,
-    RetrievalContext,
-    RetrievedPassage,
     Segment,
     Source,
     SourceFacet,
@@ -96,13 +80,13 @@ _EXACT_MATCH_STRENGTH = 1.0
 
 class _FilterToken(NamedTuple):
     """A recognized exact-value filter in two forms: `value` as the curator
-    authored it (e.g. "100"), which is what appears as a pair member
-    (FR-RT-09), and `as_token` as it must be searched (e.g. "hundred"), since
-    the corpus spells numbers out and the curator authors this mapping
-    directly via `query.as_token`.
+    authored it (e.g. "100"), which is what a `Match` reports as its
+    interpretant (FR-RT-15), and `as_token` as it must be searched (e.g.
+    "hundred"), since the corpus spells numbers out and the curator authors
+    this mapping directly via `query.as_token`.
 
     `kind` records which directive produced this token — `"filter"` (global,
-    cross-joined with every concept, FR-RT-09) or `"exact"` (scoped to its own
+    cross-joined with every concept, FR-RT-15) or `"exact"` (scoped to its own
     concept only, FR-EX-02/03) — so a hit reached through it can be labeled
     back to the right `Match.kind` without re-deriving the directive."""
 
@@ -117,7 +101,7 @@ class _Query(NamedTuple):
 
     `filter_token` carries the whole `_FilterToken` rather than just the
     search text so a hit can be attributed back to the authored value
-    (FR-RT-09)."""
+    (FR-RT-15)."""
 
     text: str
     filter_token: _FilterToken | None = None
@@ -134,9 +118,7 @@ class RetrievalPipeline:
         graph_store: KuzuGraphStore,
         vector_store: ChromaVectorStore,
         embedder: Embedder,
-        top_k: int = 6,
         match_pool_size: int = 100,
-        merge_top_k: int = 6,
         min_score: float = 0.0,
         region_window_size: int = 3,
         region_min_interpretants: int = 1,
@@ -144,56 +126,10 @@ class RetrievalPipeline:
         self._graph_store = graph_store
         self._vector_store = vector_store
         self._embedder = embedder
-        self._top_k = top_k
         self._match_pool_size = match_pool_size
-        self._merge_top_k = merge_top_k
         self._min_score = min_score
         self._region_window_size = region_window_size
         self._region_min_interpretants = region_min_interpretants
-
-    def retrieve(self, graph_facts: GraphFacts) -> RetrievalContext:
-        """Deterministic Kùzu-then-Chroma retrieval (FR-RT-01): `graph_facts`
-        must already be the result of `KuzuGraphStore.get_manifestation`. Thin
-        consumer of `iter_candidates` — collects every `ConceptCandidates`/
-        `ConceptPairCandidates` it yields into one `RetrievalContext`."""
-        concept_candidates: list[ConceptCandidates] = []
-        pair_candidates: list[ConceptPairCandidates] = []
-        for item in self.iter_candidates(graph_facts):
-            if isinstance(item, ConceptCandidates):
-                concept_candidates.append(item)
-            else:
-                pair_candidates.append(item)
-
-        return RetrievalContext(
-            graph_facts=graph_facts,
-            concept_candidates=tuple(concept_candidates),
-            pair_candidates=tuple(pair_candidates),
-        )
-
-    def iter_candidates(self, graph_facts: GraphFacts) -> Iterator[ConceptCandidates | ConceptPairCandidates]:
-        """Yields each concept's `ConceptCandidates`, then every
-        `ConceptPairCandidates` group — the incremental form `retrieve()`
-        collects in full. Every concept's deep pool (`_search_deep_pools`) is
-        searched before the first item is yielded.
-
-        Each concept's fused ranking is searched to `match_pool_size` depth
-        but only its top `top_k` is displayed (FR-RT-07) — the extra depth
-        exists purely to detect concept-pair convergence (FR-RT-08) below the
-        displayed cutoff. A chunk's displayed score is its best
-        (lowest-distance) individual match, used for `min_score` filtering.
-
-        Concept pairs (FR-RT-08, FR-RT-09) are built from every concept's full
-        deep pool by `_build_pair_candidates`.
-        """
-        deep_hits_by_concept, filter_token_chunk_ids, _, token_kind_by_value = self._search_deep_pools(graph_facts)
-
-        for concept, pool in deep_hits_by_concept.items():
-            display_hits = list(pool.values())[: self._top_k]
-            passages = tuple(self._hydrate(hit) for hit in display_hits if _similarity_score(hit) >= self._min_score)
-            if passages:
-                yield ConceptCandidates(concept=concept, passages=passages)
-
-        yield from self._build_pair_candidates(deep_hits_by_concept, filter_token_chunk_ids, token_kind_by_value)
 
     def _search_deep_pools(
         self, graph_facts: GraphFacts
@@ -216,10 +152,8 @@ class RetrievalPipeline:
         own pool.
 
         Each concept's `dict[chunk_id, VectorHit]` preserves RRF-rank order
-        (insertion order), so a caller taking its first `top_k` entries gets
-        the same displayed slice `iter_candidates`'s `ConceptCandidates`
-        would. An `"exact"`-directive token never becomes a concept here —
-        see `collect_exact_tokens`."""
+        (insertion order). An `"exact"`-directive token never becomes a
+        concept here — see `collect_exact_tokens`."""
         self._lookup_cache: dict[str, Source] = {}
 
         queries = build_query_texts(graph_facts)
@@ -295,8 +229,7 @@ class RetrievalPipeline:
         floor-clearing interpretant matches over contiguous windows of one
         source's segments, ranked by a specificity-weighted score.
 
-        Uses the same underlying search as `iter_candidates`
-        (`_search_deep_pools`); only what's aggregated and returned differs: a
+        Aggregates `_search_deep_pools`'s output (ADR-013): a
         match is kept only if it clears `min_score` (FR-RT-14), then matches
         are grouped into regions by contiguous ordinal within
         `region_window_size` (FR-RK-02). Within a region, an interpretant that
@@ -408,77 +341,6 @@ class RetrievalPipeline:
         regions.sort(key=lambda region: region.score, reverse=True)
         return RegionQueryResult(facets=_build_region_facets(regions), regions=tuple(regions))
 
-    def _build_pair_candidates(
-        self,
-        deep_hits_by_concept: dict[str, dict[str, VectorHit]],
-        filter_token_chunk_ids: dict[str, set[str]],
-        token_kind_by_value: dict[str, str],
-    ) -> tuple[ConceptPairCandidates, ...]:
-        """One `ConceptPairCandidates` per co-occurring pair (FR-RT-08): every
-        unordered pair of semantic concepts sharing a chunk in their deep
-        pools, plus every semantic concept paired with every recognized
-        `"filter"`-directive token it shares a chunk with (FR-RT-09). A pair of
-        two filter tokens is never emitted — a filter token carries no score
-        of its own, so there is nothing to rank such a pair by. An
-        `"exact"`-directive token never appears here at all (FR-EX-03) — it is
-        scoped to its own concept's query, not a cross-concept convergence
-        signal. Groups are sorted strongest-first by their own top candidate;
-        this ordering is a display heuristic, not a claim that one group's
-        score is commensurable with another's."""
-        concepts = sorted(deep_hits_by_concept)
-        filter_values = sorted(value for value in filter_token_chunk_ids if token_kind_by_value.get(value) == "filter")
-        groups: list[ConceptPairCandidates] = []
-
-        for concept_a, concept_b in itertools.combinations(concepts, 2):
-            pool_a, pool_b = deep_hits_by_concept[concept_a], deep_hits_by_concept[concept_b]
-            candidates = []
-            for chunk_id in set(pool_a) & set(pool_b):
-                score_a, score_b = _similarity_score(pool_a[chunk_id]), _similarity_score(pool_b[chunk_id])
-                combined = _combined_score((score_a, score_b))
-                if combined < self._min_score:
-                    continue
-                candidates.append(
-                    MergedCandidate(
-                        passage=self._hydrate(pool_a[chunk_id]),
-                        matches=(
-                            ConceptMatchScore(concept=concept_a, score=score_a),
-                            ConceptMatchScore(concept=concept_b, score=score_b),
-                        ),
-                        combined_score=combined,
-                    )
-                )
-            self._append_group(groups, (concept_a, concept_b), candidates)
-
-        for concept, filter_value in itertools.product(concepts, filter_values):
-            pool = deep_hits_by_concept[concept]
-            candidates = []
-            for chunk_id in set(pool) & filter_token_chunk_ids[filter_value]:
-                score = _similarity_score(pool[chunk_id])
-                if score < self._min_score:
-                    continue
-                candidates.append(
-                    MergedCandidate(
-                        passage=self._hydrate(pool[chunk_id]),
-                        matches=(
-                            ConceptMatchScore(concept=concept, score=score),
-                            ConceptMatchScore(concept=filter_value, score=0.0, exact_value=True),
-                        ),
-                        combined_score=score,
-                    )
-                )
-            self._append_group(groups, (concept, filter_value), candidates)
-
-        groups.sort(key=lambda group: group.candidates[0].combined_score, reverse=True)
-        return tuple(groups)
-
-    def _append_group(
-        self, groups: list[ConceptPairCandidates], concepts: tuple[str, str], candidates: list[MergedCandidate]
-    ) -> None:
-        if not candidates:
-            return
-        candidates.sort(key=lambda candidate: candidate.combined_score, reverse=True)
-        groups.append(ConceptPairCandidates(concepts=concepts, candidates=tuple(candidates[: self._merge_top_k])))
-
     def _specificity_weight(self, surface_form: str) -> float:
         """A rarer literal surface form yields a strictly higher weight
         (FR-RK-04/FR-RK-06): `log(N / df(surface_form))`, `N` the total number
@@ -494,24 +356,10 @@ class RetrievalPipeline:
         df = max(self._vector_store.document_frequency(surface_form), 1)
         return math.log(corpus_size / df)
 
-    def _hydrate(self, hit: VectorHit) -> RetrievedPassage:
-        return RetrievedPassage(
-            chunk_id=hit.chunk_id,
-            source=self._source_for(hit),
-            text=hit.text,
-            locator=hit.locator,
-            score=_similarity_score(hit),
-            chunk_index=hit.chunk_index,
-            char_start=hit.char_start,
-            char_end=hit.char_end,
-            embedding_model=hit.embedding_model,
-        )
-
     def _source_for(self, hit: VectorHit) -> Source:
-        """Caches `KuzuGraphStore` lookups per `retrieve()` call — the same
-        chunk can be hydrated once for its own concept's display list and
-        again while building a pair candidate, and a passage's source never
-        varies by which concept or query surfaced it."""
+        """Caches `KuzuGraphStore` lookups per `retrieve_regions` call — many
+        regions typically come from the same handful of sources, and a
+        segment's source never varies by which concept or query surfaced it."""
         cached = self._lookup_cache.get(hit.source_id)
         if cached is None:
             cached = self._graph_store.get_source(hit.source_id)
@@ -531,7 +379,7 @@ def _filter_token_for(interpretant: Interpretant) -> _FilterToken | None:
     """The `_FilterToken` for an interpretant carrying a `query.directive ==
     "filter"` or `"exact"` annotation, or `None` for any other interpretant.
     For `"filter"`, the search text (`as_token`) is authored directly by the
-    curator (FR-CO-03, FR-RT-09) — there is no code-side value-to-word
+    curator (FR-CO-03, FR-RT-15) — there is no code-side value-to-word
     inference here. For `"exact"`, `as_token` defaults to the interpretant's
     own `value` when the curator leaves it blank (FR-EX-02)."""
     if interpretant.query is None:
@@ -556,7 +404,7 @@ def _is_skipped(interpretant: Interpretant) -> bool:
 def _is_filter_directive(interpretant: Interpretant) -> bool:
     """True only for `query.directive == "filter"` — one of the two
     directives whose interpretant is excluded from the unrestricted plain
-    concept query text (FR-RT-09; see also `_is_exact_directive`)."""
+    concept query text (FR-RT-15; see also `_is_exact_directive`)."""
     return interpretant.query is not None and interpretant.query.directive == "filter"
 
 
@@ -599,10 +447,10 @@ def _collect_filter_tokens(interpretant_groups: list[tuple[Interpretant, ...]]) 
     appearance. Collected globally rather than per-group, since the filter
     these become (`_fact_queries`) applies to every concept, not just the
     ones that happen to share a group with the token. The authored form is
-    kept alongside the search form so it can surface as a pair member in its
-    own right (FR-RT-09). `"exact"`-directive tokens are excluded here — they
-    never pair with an embedding query at all and are collected instead by
-    `collect_exact_tokens` (FR-EX-01/03)."""
+    kept alongside the search form so a match can be reported under the value
+    the curator wrote (FR-RT-15). `"exact"`-directive tokens are excluded here
+    — they never pair with an embedding query at all and are collected instead
+    by `collect_exact_tokens` (FR-EX-01/03)."""
     tokens: list[_FilterToken] = []
     seen_as_tokens: set[str] = set()
     for interpretants in interpretant_groups:
@@ -685,9 +533,9 @@ def build_query_texts(graph_facts: GraphFacts) -> list[_Query]:
     recognized `"filter"` token anywhere in `graph_facts` becomes a filtered
     variant of every concept, not just the ones in its own group. An
     `"exact"`-directive interpretant's value never appears here at all — see
-    `collect_exact_tokens`. `RetrievalPipeline.retrieve` embeds and searches
-    every one, then merges the results by rank (RRF; ADR-007), not raw
-    score, within each concept."""
+    `collect_exact_tokens`. `_search_deep_pools` embeds and searches every
+    one, then merges the results by rank (RRF; ADR-007), not raw score,
+    within each concept."""
     sign, manifestation = graph_facts.sign, graph_facts.manifestation
     filter_tokens = _collect_filter_tokens(_interpretant_groups(graph_facts))
 
@@ -698,9 +546,7 @@ def build_query_texts(graph_facts: GraphFacts) -> list[_Query]:
     if not queries:
         # A sign whose only fact is a bare "filter"-directive interpretant has
         # no concept to attach the token to — search each token's search form
-        # on its own rather than dropping it. Not tagged with `filter_token=`:
-        # with no concept to pair against, it can't participate in
-        # FR-RT-08/FR-RT-09 convergence anyway. A sign whose only fact is a
+        # on its own rather than dropping it. A sign whose only fact is a
         # bare "exact"-directive interpretant legitimately yields `[]` here —
         # `collect_exact_tokens`/`_search_deep_pools` handle it entirely
         # separately, with no embedding involved.
@@ -816,16 +662,3 @@ def _similarity_score(hit: VectorHit) -> float:
     better, matching `Settings.retrieval_min_score`'s "keep at or above this"
     semantics."""
     return 1.0 - hit.distance
-
-
-def _combined_score(scores: tuple[float, ...]) -> float:
-    """Geometric mean of a concept pair's semantic component scores, clamped
-    at zero per component before multiplying (FR-RT-08). `_similarity_score`
-    is `1 - cosine_distance`, which spans `[-1, 1]`, not `[0, 1]` — a negative
-    component would otherwise make the root complex.
-
-    Geometric rather than arithmetic because convergence is conjunctive, not
-    additive — see ADR-007 for why only the geometric mean distinguishes a
-    lopsided single-concept match from a genuine intersection."""
-    clamped = tuple(max(0.0, score) for score in scores)
-    return math.prod(clamped) ** (1.0 / len(clamped))

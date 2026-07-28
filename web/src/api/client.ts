@@ -1,8 +1,6 @@
 import type {
   AgentCapabilities,
   AgentCapabilitiesWire,
-  AgentCard,
-  AgentCardWire,
   AgentContext,
   AgentTurnRequestWire,
   AgentTurnResponseWire,
@@ -65,10 +63,9 @@ function toHotspot(region: Region): Hotspot {
 export async function fetchQuery(
   sign: string,
   tradition: string,
-  opts?: { topK?: number; matchPool?: number; minScore?: number },
+  opts?: { matchPool?: number; minScore?: number },
 ): Promise<HotspotQueryResult> {
   const params = new URLSearchParams({ sign, tradition });
-  if (opts?.topK !== undefined) params.set('top_k', String(opts.topK));
   if (opts?.matchPool !== undefined) params.set('match_pool', String(opts.matchPool));
   if (opts?.minScore !== undefined) params.set('min_score', String(opts.minScore));
 
@@ -197,24 +194,9 @@ function toAgentContext(wire: AgentTurnResponseWire['context']): AgentContext {
   };
 }
 
-function toAgentCard(card: AgentCardWire): AgentCard {
-  if (card.type === 'interpretant_chips') {
-    return {
-      type: 'interpretant_chips',
-      chips: (card.chips ?? []).map((chip) => ({
-        interpretant: chip.interpretant,
-        kind: chip.kind,
-        score: chip.score,
-        segmentOrdinal: chip.segment_ordinal,
-      })),
-    };
-  }
-  return { type: 'citation', sourceLabel: card.source_label ?? '', locator: card.locator ?? '', text: card.text ?? '' };
-}
-
 // The chat panel's one turn (specs/interfaces/agent.md FR-AG-14–FR-AG-22) — the browser sends
 // its message plus its current UI selection, as-is, each turn; the backend
-// returns the updated context, grounded reply text, and structured cards.
+// returns the updated context and grounded reply text.
 export async function postAgentTurn(
   sessionId: string,
   message: string,
@@ -238,7 +220,6 @@ export async function postAgentTurn(
   return {
     context: toAgentContext(result.context),
     replyText: result.reply_text,
-    cards: result.cards.map(toAgentCard),
     instructions: result.instructions,
     threadReset: result.thread_reset,
   };

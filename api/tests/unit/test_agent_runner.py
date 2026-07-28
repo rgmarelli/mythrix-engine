@@ -130,7 +130,7 @@ def test_run_turn_logs_recursion_bound_hit(caplog: pytest.LogCaptureFixture) -> 
 def test_run_turn_logs_model_input_for_every_invocation(caplog: pytest.LogCaptureFixture) -> None:
     graph = compile_agent_graph(ScriptedLLM(), [echo])
 
-    with caplog.at_level(logging.INFO, logger="mythrix.agent.graph"):
+    with caplog.at_level(logging.INFO, logger="mythrix.agent.graph.nodes.llm"):
         run_turn(graph, [], "call the tool", max_tool_iterations=8, context_summary="Current sign: The Tower.")
 
     messages = [record.getMessage() for record in caplog.records]
