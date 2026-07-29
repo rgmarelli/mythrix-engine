@@ -17,7 +17,6 @@ function baseProps(overrides: Partial<ComponentProps<typeof HotspotDetailPanel>>
   return {
     hotspot: makeHotspot(),
     hasResult: true,
-    activeInterpretant: null,
     augmentation: null,
     onPrev: vi.fn(),
     onNext: vi.fn(),
@@ -65,17 +64,17 @@ describe('rendered hotspot', () => {
     expect(chip).toHaveClass('anchored');
   });
 
-  it('dims non-active-interpretant chips and shows the dimmed note', () => {
+  it('renders every matched chip uniformly regardless of the active facet filter', () => {
     const hotspot = makeHotspot({
       matches: [
         { interpretant: 'sun', kind: 'concept', score: 0.8, exactValue: false, segmentOrdinal: 1 },
         { interpretant: 'moon', kind: 'concept', score: 0.6, exactValue: false, segmentOrdinal: 1 },
       ],
     });
-    render(<HotspotDetailPanel {...baseProps({ hotspot, activeInterpretant: 'sun' })} />);
-    expect(screen.getByText('sun · 0.80')).toHaveClass('active');
-    expect(screen.getByText('moon · 0.60')).toHaveClass('dimmed');
-    expect(screen.getByText('(dimmed = matched but outside current filter)')).toBeInTheDocument();
+    render(<HotspotDetailPanel {...baseProps({ hotspot })} />);
+    expect(screen.getByText('sun · 0.80')).toHaveClass('interpretant-chip');
+    expect(screen.getByText('moon · 0.60')).toHaveClass('interpretant-chip');
+    expect(screen.queryByText('(dimmed = matched but outside current filter)')).not.toBeInTheDocument();
   });
 
   it('prev/next buttons respect canGoPrev/canGoNext and call their callbacks', async () => {

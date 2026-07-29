@@ -743,32 +743,16 @@ button {
   font: 0.78rem var(--f-mono);
   padding: 0.32rem 0.75rem;
   border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--panel-2);
-  color: var(--ink);
+  border: 1px solid var(--violet);
+  background: var(--violet-wash);
+  color: var(--ink-h);
+  font-weight: 600;
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
 }
 
-.interpretant-chip.active {
-  border-color: var(--violet);
-  background: var(--violet-wash);
-  color: var(--ink-h);
-  font-weight: 600;
-}
-
-.interpretant-chip.dimmed {
-  opacity: 0.5;
-}
-
 .interpretant-chip.anchored {
   box-shadow: 0 0 0 2px var(--violet);
-}
-
-.dimmed-note {
-  font-size: 0.75rem;
-  opacity: 0.6;
-  margin: 0.4rem 0 0;
 }
 
 /* Generated analysis, kept visually distinct from the verbatim segments it

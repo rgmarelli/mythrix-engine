@@ -10,7 +10,6 @@ import { SparkleIcon } from './SparkleIcon';
 interface Props {
   hotspot: Hotspot | null;
   hasResult: boolean;
-  activeInterpretant: string | null;
   augmentation: Augmentation | null;
   onPrev: () => void;
   onNext: () => void;
@@ -41,7 +40,6 @@ function sortByOrdinal(segments: HotspotSegment[]): HotspotSegment[] {
 export function HotspotDetailPanel({
   hotspot,
   hasResult,
-  activeInterpretant,
   augmentation,
   onPrev,
   onNext,
@@ -74,8 +72,6 @@ export function HotspotDetailPanel({
   }
 
   const attribution = hotspot.source.citation_label || `${hotspot.source.title}, ${hotspot.source.author}`;
-  const hasDimmedMatch =
-    activeInterpretant !== null && hotspot.matches.some((match) => match.interpretant !== activeInterpretant);
   const hasGap = segments.some((segment, i) => i > 0 && segment.ordinal - segments[i - 1].ordinal > 1);
   const fullyLoaded = !hasGap && leadingBounded && trailingBounded;
 
@@ -200,21 +196,13 @@ export function HotspotDetailPanel({
             <button
               type="button"
               key={`${match.interpretant}-${match.segmentOrdinal}`}
-              className={
-                (activeInterpretant === null || match.interpretant === activeInterpretant
-                  ? 'interpretant-chip active'
-                  : 'interpretant-chip dimmed') +
-                (match.segmentOrdinal === activeSegmentOrdinal ? ' anchored' : '')
-              }
+              className={'interpretant-chip' + (match.segmentOrdinal === activeSegmentOrdinal ? ' anchored' : '')}
               onClick={() => goToSegment(match.segmentOrdinal)}
             >
               {match.interpretant} · {match.kind === 'concept' ? match.score.toFixed(2) : match.kind}
             </button>
           ))}
         </div>
-        {activeInterpretant !== null && hasDimmedMatch && (
-          <p className="dimmed-note">(dimmed = matched but outside current filter)</p>
-        )}
 
         {/* Generated, and marked as such — placed above the actions so it
             precedes the verbatim segment list and cannot read as part of the

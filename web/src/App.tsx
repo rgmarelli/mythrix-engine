@@ -139,7 +139,6 @@ function App() {
         key={`${activeTab.id}:${selectedHotspot?.regionId ?? 'empty'}`}
         hotspot={selectedHotspot}
         hasResult={activeTab.queryResult !== null}
-        activeInterpretant={activeTab.selectedInterpretant}
         augmentation={selectedHotspot ? (augmentations[selectedHotspot.regionId] ?? null) : null}
         canGoPrev={selectedIndex > 0}
         canGoNext={selectedIndex >= 0 && selectedIndex < rankedHotspots.length - 1}
