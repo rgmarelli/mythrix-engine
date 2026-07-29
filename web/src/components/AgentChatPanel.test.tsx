@@ -19,9 +19,9 @@ const CAPABILITIES: AgentCapabilities = {
       handledBy: 'server',
       listed: true,
     },
-    { name: '/discover-confirm', args: '<id>', summary: 'Run a parsed discovery', handledBy: 'server', listed: false },
+    { name: '/augment-confirm', args: '<id>', summary: 'Run a parsed discovery', handledBy: 'server', listed: false },
   ],
-  bindings: { confirm_query: null, confirm_discovery: null },
+  bindings: { confirm_query: null, confirm_augment: null },
 };
 
 function renderPanel(overrides: Partial<ComponentProps<typeof AgentChatPanel>> = {}) {
@@ -271,17 +271,17 @@ it('the discovery confirm affordance sends the instruction command verbatim', as
       text: 'Parsed discovery: where joy is',
       instructions: [
         {
-          type: 'confirm_discovery',
-          payload: { discovery_id: '7f3a1c', confirm_command: '/discover-confirm 7f3a1c' },
+          type: 'confirm_augment',
+          payload: { discovery_id: '7f3a1c', confirm_command: '/augment-confirm 7f3a1c' },
         },
       ],
     },
   ];
   renderPanel({ items, onSend });
 
-  await userEvent.click(screen.getByRole('button', { name: 'Run this discovery' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Run this augmentation' }));
 
-  expect(onSend).toHaveBeenCalledWith('/discover-confirm 7f3a1c');
+  expect(onSend).toHaveBeenCalledWith('/augment-confirm 7f3a1c');
 });
 
 it('labels each confirmation chip by its own instruction type', () => {
@@ -292,14 +292,14 @@ it('labels each confirmation chip by its own instruction type', () => {
       text: 'Two things to confirm',
       instructions: [
         { type: 'confirm_query', payload: { confirm_command: '/query-confirm aaa' } },
-        { type: 'confirm_discovery', payload: { confirm_command: '/discover-confirm bbb' } },
+        { type: 'confirm_augment', payload: { confirm_command: '/augment-confirm bbb' } },
       ],
     },
   ];
   renderPanel({ items });
 
   expect(screen.getByRole('button', { name: 'Run this query' })).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Run this discovery' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Run this augmentation' })).toBeInTheDocument();
 });
 
 it('renders no chip for an instruction type this build does not know', () => {

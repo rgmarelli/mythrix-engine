@@ -11,6 +11,8 @@ The independent HTTP process that serves [Retrieval](../retrieval/retrieval.md)/
 
 Segment-range retrieval (`GET /api/segments`) is specified in [context-expansion.md](../retrieval/context-expansion.md) FR-CE-11; ad-hoc region queries (`QUERY /api/query/adhoc`, [RFC 10008](https://www.rfc-editor.org/rfc/rfc10008.html)) are specified in [agnostic-query.md](agnostic-query.md) FR-AQ-18; the agent capabilities document (`GET /api/agent/capabilities`) is specified in [agent-capabilities.md](agent-capabilities.md) FR-CAP-01.
 
+- FR-API-05: The chat-turn endpoint delivers a turn as a sequence of newline-delimited JSON events ending in exactly one terminal event carrying the turn's context, reply text, instructions and thread-reset flag ([augmentation.md](augmentation.md) FR-AU-22). Every turn uses this shape, so there is one turn transport rather than a streaming one and a non-streaming one whose bodies must be kept equal ([ADR-015](../architecture-decisions/adr-015-deterministic-augmentation-over-viewer-regions.md)). A failure arising before the response body begins is an HTTP error as for every other route; a failure after that is reported within the event sequence.
+
 ## Non-goals
 
 - Authentication, multi-user access, or any access control on the web viewer or backend API.

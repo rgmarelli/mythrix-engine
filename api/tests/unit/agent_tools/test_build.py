@@ -16,7 +16,7 @@ _MODEL_TOOLS = {
     "fetch_segments",
     "summarize_passage",
 }
-_NODE_TOOLS = {"query_adhoc", "analyze_passage", "consolidate_findings"}
+_NODE_TOOLS = {"read_region", "augment_passage", "consolidate_augmentations"}
 
 
 def test_build_tools_returns_exactly_the_seven_read_only_model_tools(
@@ -26,12 +26,12 @@ def test_build_tools_returns_exactly_the_seven_read_only_model_tools(
     assert set(tools) == _MODEL_TOOLS | _NODE_TOOLS
 
 
-def test_adhoc_retrieval_and_its_analysis_steps_are_unreachable_from_the_model(
+def test_region_reading_and_its_generation_steps_are_unreachable_from_the_model(
     stores: Stores, settings: Settings
 ) -> None:
-    """FR-DS-10 as a structural property: the orchestration model is bound to
-    `model_tools` alone, so these three are absent from its tool schema —
-    it cannot run an ad-hoc query on its own initiative."""
+    """FR-AU-11 as a structural property: the orchestration model is bound to
+    `model_tools` alone, so these three are absent from its tool schema — it
+    cannot augment regions on its own initiative."""
     toolset = build_tools(stores, settings, FakeChatClient())
 
     assert {t.name for t in toolset.model_tools} == _MODEL_TOOLS

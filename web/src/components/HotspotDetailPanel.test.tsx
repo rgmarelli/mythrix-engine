@@ -18,6 +18,7 @@ function baseProps(overrides: Partial<ComponentProps<typeof HotspotDetailPanel>>
     hotspot: makeHotspot(),
     hasResult: true,
     activeInterpretant: null,
+    augmentation: null,
     onPrev: vi.fn(),
     onNext: vi.fn(),
     canGoPrev: false,
@@ -175,4 +176,42 @@ describe('Add Context', () => {
     expect(await screen.findByText('segments unavailable')).toBeInTheDocument();
     expect(screen.getByText('middle')).toBeInTheDocument();
   });
+});
+
+it('shows no AI analysis block when the region has no augmentation', () => {
+  render(<HotspotDetailPanel {...baseProps({ augmentation: null })} />);
+  expect(screen.queryByText('AI analysis')).not.toBeInTheDocument();
+});
+
+it('shows the augmentation, labelled as generated analysis', () => {
+  render(<HotspotDetailPanel {...baseProps({ augmentation: { label: '[R1]', text: 'Sara laughs.' } })} />);
+  expect(screen.getByText('AI analysis')).toBeInTheDocument();
+  expect(screen.getByText('Sara laughs.')).toBeInTheDocument();
+});
+
+it('places the analysis above the verbatim segments so it cannot read as source text', () => {
+  const { container } = render(
+    <HotspotDetailPanel {...baseProps({ augmentation: { label: '[R1]', text: 'Sara laughs.' } })} />,
+  );
+
+  const analysis = container.querySelector('.augmented-section');
+  const segments = container.querySelector('.segment-list');
+  expect(analysis).not.toBeNull();
+  expect(segments).not.toBeNull();
+  expect(analysis!.compareDocumentPosition(segments!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+it('renders the augmentation as markdown rather than literal syntax', () => {
+  const text = [
+    'The passage expresses a mix of emotions:',
+    '',
+    '1. **Joy**: "God hath made a laughter for me".',
+    '2. **Humor**: hints of sarcasm.',
+  ].join('\n');
+
+  const { container } = render(<HotspotDetailPanel {...baseProps({ augmentation: { label: '[R1]', text } })} />);
+
+  expect(container.querySelectorAll('.augmented-body li')).toHaveLength(2);
+  expect(container.querySelector('.augmented-body strong')?.textContent).toBe('Joy');
+  expect(screen.queryByText(/\*\*Joy\*\*/)).not.toBeInTheDocument();
 });

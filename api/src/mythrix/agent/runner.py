@@ -1,11 +1,11 @@
-"""UI-free turn driver — streams one compiled agent graph through one turn
-and returns updated history plus a `TurnResult`. Kept terminal-free so it is
-testable without stdin and reusable by a future non-CLI surface (e.g.
-`POST /api/agent`)."""
+"""UI-free turn driver — streams one compiled agent graph through one turn,
+yielding whatever a node emits as it goes and ending with a `TurnResult`. Kept
+terminal-free so it is testable without stdin and reusable by any surface."""
 
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
@@ -13,7 +13,7 @@ from langgraph.errors import GraphRecursionError
 from langgraph.graph.state import CompiledStateGraph
 
 from mythrix.agent.commands.adhoc import PendingAdhocQuery
-from mythrix.agent.commands.discover import PendingDiscovery
+from mythrix.agent.commands.augment import PendingAugmentation
 from mythrix.core.logging_config import truncate
 
 logger = logging.getLogger(__name__)
@@ -27,13 +27,14 @@ _RECURSION_LIMIT_MESSAGE = (
 class TurnResult:
     reply: str
     tool_calls: list[str]
+    history: list = field(default_factory=list)
     instructions: list[dict] = field(default_factory=list)
     pending_query: PendingAdhocQuery | None = None
-    pending_discovery: PendingDiscovery | None = None
+    pending_augmentation: PendingAugmentation | None = None
     backend_authored: bool = False
 
 
-def run_turn(
+def stream_turn(
     graph: CompiledStateGraph,
     history: list,
     user_text: str,
@@ -41,55 +42,70 @@ def run_turn(
     max_tool_iterations: int,
     context_summary: str = "",
     pending_query: PendingAdhocQuery | None = None,
-    pending_discovery: PendingDiscovery | None = None,
+    pending_augmentation: PendingAugmentation | None = None,
     region_id: str | None = None,
     interpretant: str | None = None,
-) -> tuple[list, TurnResult]:
-    """Runs one turn: appends `user_text` to `history`, streams the graph,
-    and returns the updated history plus the ordered tool-name trace
-    (specs/interfaces/agent.md FR-AG-10) and reply. On hitting the per-turn tool-call bound (FR-AG-12), the
-    turn ends with a clear message and `history` is returned unchanged — the
+    visible_regions: list[str] | None = None,
+) -> Iterator[dict | TurnResult]:
+    """Runs one turn: appends `user_text` to `history`, streams the graph, and
+    yields each node-emitted payload as it arrives, then one final
+    `TurnResult` carrying the updated history, the ordered tool-name trace
+    (specs/interfaces/agent.md FR-AG-10) and the reply.
+
+    Intermediate yields are the `dict`s a deterministic node writes through
+    LangGraph's custom stream (FR-AU-23); a turn whose nodes emit nothing
+    yields the `TurnResult` alone. The distinction is by type, so a caller
+    never has to inspect a payload to know whether the turn is over.
+
+    On hitting the per-turn tool-call bound (FR-AG-12), the turn ends with a
+    clear message and `TurnResult.history` is the history passed in — the
     runaway turn's messages are not kept.
 
     `context_summary` (default `""`) is folded into the model invocation by
-    `agent/graph.py::agent_node`, alongside `state["messages"]`.
+    `graph/nodes/llm.py::agent_node`, alongside `state["messages"]`.
 
-    `pending_query`/`pending_discovery` (default `None`) carry the session's
-    outstanding ad-hoc query and discovery into the graph and back out on
-    `TurnResult`, since the graph holds no state of its own between turns
-    (specs/interfaces/agnostic-query.md FR-AQ-05; discovery.md FR-DS-08).
+    `pending_query`/`pending_augmentation` (default `None`) carry the
+    session's outstanding ad-hoc query and augmentation into the graph and
+    back out on `TurnResult`, since the graph holds no state of its own
+    between turns (agnostic-query.md FR-AQ-05; augmentation.md FR-AU-08).
 
-    `region_id`/`interpretant` (default `None`) carry the session's active
-    hotspot into the graph for `agent/graph.py::summarize_node` to read
-    directly — turn-scoped inputs only, unlike `pending_query`, so nothing
-    reads them back off the final state (agent.md FR-AG-33, ADR-012)."""
+    `region_id`/`interpretant`/`visible_regions` (default `None`) carry the
+    session's active hotspot and the consumer's current display into the graph
+    for the deterministic nodes to read directly — turn-scoped inputs only,
+    unlike `pending_query`, so nothing reads them back off the final state
+    (agent.md FR-AG-33; augmentation.md FR-AU-12, ADR-012)."""
     messages = [*history, HumanMessage(content=user_text)]
     tool_calls: list[str] = []
     final_state = {"messages": messages}
     logged_upto = len(messages)
 
     try:
-        for state in graph.stream(
+        for mode, payload in graph.stream(
             {
                 "messages": messages,
                 "context_summary": context_summary,
                 "pending_query": pending_query,
-                "pending_discovery": pending_discovery,
+                "pending_augmentation": pending_augmentation,
                 "instructions": [],
                 "region_id": region_id,
                 "interpretant": interpretant,
+                "visible_regions": visible_regions or [],
                 "backend_authored": False,
             },
             config={"recursion_limit": max_tool_iterations},
-            stream_mode="values",
+            stream_mode=["values", "custom"],
         ):
-            final_state = state
-            last_message = state["messages"][-1]
+            if mode == "custom":
+                yield payload
+                continue
+
+            final_state = payload
+            last_message = payload["messages"][-1]
 
             if isinstance(last_message, AIMessage) and last_message.tool_calls:
                 tool_calls.extend(call["name"] for call in last_message.tool_calls)
 
-            for new_message in state["messages"][logged_upto:]:
+            for new_message in payload["messages"][logged_upto:]:
                 if isinstance(new_message, AIMessage):
                     logger.info(
                         "model output: content=%s tool_calls=%s",
@@ -101,24 +117,27 @@ def run_turn(
                     )
                 elif isinstance(new_message, ToolMessage):
                     logger.info("tool result: name=%s result=%s", new_message.name, truncate(str(new_message.content)))
-            logged_upto = len(state["messages"])
+            logged_upto = len(payload["messages"])
     except GraphRecursionError:
         logger.info(
             "turn hit recursion bound: max_tool_iterations=%d tool_calls=%d", max_tool_iterations, len(tool_calls)
         )
-        return history, TurnResult(
+        yield TurnResult(
             reply=_RECURSION_LIMIT_MESSAGE,
             tool_calls=tool_calls,
+            history=history,
             pending_query=pending_query,
-            pending_discovery=pending_discovery,
+            pending_augmentation=pending_augmentation,
         )
+        return
 
     new_history = final_state["messages"]
-    return new_history, TurnResult(
+    yield TurnResult(
         reply=str(new_history[-1].content),
         tool_calls=tool_calls,
+        history=new_history,
         instructions=final_state.get("instructions", []),
         pending_query=final_state.get("pending_query"),
-        pending_discovery=final_state.get("pending_discovery"),
+        pending_augmentation=final_state.get("pending_augmentation"),
         backend_authored=bool(final_state.get("backend_authored")),
     )

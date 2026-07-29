@@ -38,7 +38,14 @@ def render_passage_summary_prompt(text: str, concepts: tuple[str, ...]) -> str:
     concept_list = ", ".join(concepts)
     return f'Summarize the following passage, focusing on the concepts: {concept_list}.\n\nPassage:\n"{text}"'
 
-def render_passage_analysis_prompt(text: str, focus: str, concepts: tuple[str, ...]) -> str:
+
+def render_augmentation_prompt(text: str, focus: str) -> str:
+    """One region's reading against the user's own question (FR-AU-19).
+
+    The retrieval terms are deliberately absent: a region reaches a run
+    because the user is looking at it, not because a term matched, so naming
+    terms here would invite the model to answer about them instead of about
+    the focus."""
     return (
         f"Analyze the following passage for this analytical task: {focus}\n\n"
         "Base your analysis exclusively on the passage itself. "
@@ -52,12 +59,12 @@ def render_passage_analysis_prompt(text: str, focus: str, concepts: tuple[str, .
         f'Passage:\n"{text}"'
     )
 
-def render_discovery_consolidation_prompt(
-    focus: str, findings: tuple[tuple[str, str], ...], concepts: tuple[str, ...]
-) -> str:
-    rendered = "\n\n".join(
-        f"{label}\n{finding}" for label, finding in findings
-    )
+
+def render_consolidation_prompt(focus: str, augmentations: tuple[tuple[str, str], ...]) -> str:
+    """The single answer across a run's augmentations (FR-AU-20). Given the
+    augmentations and their labels only — never raw passage text, which this
+    invocation has no way to cite and no need to re-read."""
+    rendered = "\n\n".join(f"{label}\n{augmentation}" for label, augmentation in augmentations)
 
     return (
         "The user requested the following analysis:\n\n"
@@ -68,7 +75,6 @@ def render_discovery_consolidation_prompt(
         "Synthesize these analyses to answer the requested analytical task. "
         "Do not replace the requested analysis with a relevance check, "
         "keyword comparison, or search summary. "
-        "Do not assume that the retrieval terms are the subject of the analysis. "
         "Report the patterns, differences, and relevant evidence that emerge "
         "from the individual analyses. "
         "If the passages genuinely provide little or no evidence for the task, "

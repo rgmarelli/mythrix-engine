@@ -65,6 +65,7 @@ function App() {
     interpretantFacetOptions,
     selectedHotspot,
     selectedIndex,
+    augmentations,
     sendAgentMessage,
     clearAgentThread,
   } = useTabs(capabilities);
@@ -125,6 +126,7 @@ function App() {
         hotspots={rankedHotspots}
         selectedRegionId={activeTab.selectedRegionId}
         search={activeTab.hotspotSearch}
+        augmentations={augmentations}
         onSearchChange={setHotspotSearch}
         onSelect={(regionId) => {
           setRegionId(regionId);
@@ -137,6 +139,7 @@ function App() {
         hotspot={selectedHotspot}
         hasResult={activeTab.queryResult !== null}
         activeInterpretant={activeTab.selectedInterpretant}
+        augmentation={selectedHotspot ? (augmentations[selectedHotspot.regionId] ?? null) : null}
         canGoPrev={selectedIndex > 0}
         canGoNext={selectedIndex >= 0 && selectedIndex < rankedHotspots.length - 1}
         onPrev={() => {

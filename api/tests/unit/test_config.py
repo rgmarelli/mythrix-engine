@@ -16,7 +16,7 @@ def test_defaults() -> None:
     assert settings.generation_num_ctx == 8192
     assert settings.region_window_size == 3
     assert settings.region_min_interpretants == 1
-    assert settings.discover_max_regions == 8
+    assert settings.augment_max_regions == 8
 
 
 def test_env_var_overrides_default(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -61,12 +61,12 @@ def test_match_pool_size_can_be_overridden(monkeypatch: pytest.MonkeyPatch) -> N
     assert settings.retrieval_match_pool_size == 50
 
 
-def test_discover_max_regions_can_be_overridden(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("MYTHRIX_DISCOVER_MAX_REGIONS", "3")
+def test_augment_max_regions_can_be_overridden(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MYTHRIX_AUGMENT_MAX_REGIONS", "3")
 
     settings = Settings(_env_file=None)  # type: ignore[call-arg]
 
-    assert settings.discover_max_regions == 3
+    assert settings.augment_max_regions == 3
 
 
 def test_region_window_size_and_min_interpretants_can_be_overridden(monkeypatch: pytest.MonkeyPatch) -> None:

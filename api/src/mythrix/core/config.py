@@ -62,11 +62,12 @@ class Settings(BaseSettings):
     `agent_max_tool_iterations` bounds how many tool calls one conversational
     turn may make before it ends rather than looping (FR-AG-12).
 
-    `discover_max_regions` (FR-DS-13) bounds how many retrieved regions one
-    corpus-discovery run reads, and so bounds its generation calls at N+1.
-    `agent_max_tool_iterations` does not apply: it governs the orchestration
-    model's own tool loop, which a deterministic run never enters (ADR-015).
-    Kept small because the calls are sequential and block the turn.
+    `augment_max_regions` (FR-AU-14) bounds how many of the consumer's visible
+    regions one augmentation run reads, and so bounds its generation calls at
+    N+1. `agent_max_tool_iterations` does not apply: it governs the
+    orchestration model's own tool loop, which a deterministic run never enters
+    (ADR-015). Kept small because the calls are sequential and hold the turn's
+    connection open.
     """
 
     model_config = SettingsConfigDict(env_prefix="MYTHRIX_", env_file=".env", extra="ignore")
@@ -84,4 +85,4 @@ class Settings(BaseSettings):
     region_min_interpretants: int = 1
     agent_model: str | None = None
     agent_max_tool_iterations: int = 8
-    discover_max_regions: int = 8
+    augment_max_regions: int = 8

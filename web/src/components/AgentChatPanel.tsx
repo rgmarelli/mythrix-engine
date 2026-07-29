@@ -84,7 +84,7 @@ function contextStripText(hotspot: Hotspot | null): string {
 // what "no binding" means.
 const CONFIRM_LABELS: Record<string, string> = {
   confirm_query: 'Run this query',
-  confirm_discovery: 'Run this discovery',
+  confirm_augment: 'Run this augmentation',
 };
 
 // A confirmation instruction carries the exact command a human would type

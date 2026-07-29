@@ -8,7 +8,7 @@ from langchain_core.messages import HumanMessage
 from mythrix.agent.capabilities import AGENT_CAPABILITIES, CLEAR_COMMAND
 from mythrix.agent.commands import resolve_command
 from mythrix.agent.commands.adhoc import CONFIRM_COMMAND, QUERY_COMMAND
-from mythrix.agent.commands.discover import DISCOVER_COMMAND, DISCOVER_CONFIRM_COMMAND
+from mythrix.agent.commands.augment import AUGMENT_COMMAND, AUGMENT_CONFIRM_COMMAND
 from mythrix.agent.commands.summarize import SUMMARIZE_COMMAND
 from mythrix.agent.graph.builder import route_input
 
@@ -37,8 +37,8 @@ def test_declared_commands_cover_every_command_the_backend_implements() -> None:
         QUERY_COMMAND,
         CONFIRM_COMMAND,
         SUMMARIZE_COMMAND,
-        DISCOVER_COMMAND,
-        DISCOVER_CONFIRM_COMMAND,
+        AUGMENT_COMMAND,
+        AUGMENT_CONFIRM_COMMAND,
     } <= set(_COMMANDS)
 
 
@@ -48,25 +48,27 @@ def test_the_confirmation_commands_are_unlisted() -> None:
     typing an id by hand."""
     assert _COMMANDS[CONFIRM_COMMAND].listed is False
     assert _COMMANDS[QUERY_COMMAND].listed is True
-    assert _COMMANDS[DISCOVER_CONFIRM_COMMAND].listed is False
-    assert _COMMANDS[DISCOVER_COMMAND].listed is True
+    assert _COMMANDS[AUGMENT_CONFIRM_COMMAND].listed is False
+    assert _COMMANDS[AUGMENT_COMMAND].listed is True
 
 
 def test_every_declared_instruction_type_is_one_the_graph_can_emit() -> None:
-    assert set(_BINDINGS) == {"confirm_query", "execute_query", "confirm_discovery"}
+    assert set(_BINDINGS) == {"confirm_query", "execute_query", "confirm_augment", "augment_region"}
     assert route_input({"messages": [HumanMessage(content=f"{QUERY_COMMAND} laughter")]}) == "parse_query"
     assert route_input({"messages": [HumanMessage(content=f"{CONFIRM_COMMAND} 7f3a1c9e")]}) == "execute_query"
-    assert route_input({"messages": [HumanMessage(content=f'{DISCOVER_COMMAND} "joy", laughter')]}) == "plan_discovery"
+    assert route_input({"messages": [HumanMessage(content=f"{AUGMENT_COMMAND} where is joy")]}) == "plan_augment"
 
 
-def test_the_confirmation_instructions_declare_no_binding() -> None:
-    """Neither triggers a request — each affordance sends a chat command
-    (FR-CAP-07, FR-DS-31). Modeling that as an explicit `None` is what lets a
-    consumer tell it apart from a type it simply does not know (FR-CAP-13),
-    which is the difference between rendering a chip and reporting an error."""
+def test_the_unbound_instructions_declare_an_explicit_none() -> None:
+    """None of these triggers a request: the confirmations send a chat
+    command (FR-CAP-07, FR-AU-32), and `augment_region` carries a result
+    rather than asking for one (FR-AU-26). Modeling that as an explicit
+    `None` is what lets a consumer tell it apart from a type it simply does
+    not know (FR-CAP-13) — the difference between handling it and reporting
+    an error."""
     assert _BINDINGS["confirm_query"] is None
-    assert _BINDINGS["confirm_discovery"] is None
-    assert "confirm_discovery" in _BINDINGS
+    assert _BINDINGS["confirm_augment"] is None
+    assert _BINDINGS["augment_region"] is None
 
 
 def test_execute_query_binds_to_a_safe_method_and_a_same_origin_path() -> None:

@@ -550,6 +550,21 @@ button {
   font-weight: 600;
   font-size: 1rem;
   color: var(--ink-h);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+/* Says an AI analysis exists for this region, without showing it
+   (specs/interfaces/augmentation.md FR-AU-27). */
+.augmented-mark {
+  display: inline-flex;
+  color: var(--violet);
+}
+
+.augmented-mark svg {
+  width: 13px;
+  height: 13px;
 }
 
 .hc-source {
@@ -754,6 +769,102 @@ button {
   font-size: 0.75rem;
   opacity: 0.6;
   margin: 0.4rem 0 0;
+}
+
+/* Generated analysis, kept visually distinct from the verbatim segments it
+   sits above so the two are never confused (FR-AU-28). */
+.augmented-section {
+  border: 1px solid var(--violet);
+  border-radius: var(--radius);
+  background: var(--violet-wash);
+  padding: 0.9rem 1.1rem;
+  margin-bottom: 1.2rem;
+}
+
+.augmented-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--violet);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.5rem;
+}
+
+.augmented-head svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+/* Generated text arrives as markdown, like every other model-authored reply
+   (agent.md FR-AG-23), so it is rendered rather than shown as literal
+   syntax. Mirrors the chat bubble's own markdown rules. */
+.augmented-body {
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--ink-h);
+}
+
+.augmented-body > *:first-child {
+  margin-top: 0;
+}
+
+.augmented-body > *:last-child {
+  margin-bottom: 0;
+}
+
+.augmented-body p {
+  margin: 0.5em 0;
+}
+
+.augmented-body ul,
+.augmented-body ol {
+  margin: 0.5em 0;
+  padding-left: 1.3em;
+}
+
+.augmented-body li + li {
+  margin-top: 0.25em;
+}
+
+.augmented-body strong {
+  color: var(--ink-h);
+  font-weight: 600;
+}
+
+.augmented-body a {
+  color: var(--violet);
+}
+
+.augmented-body code {
+  font-family: var(--f-mono);
+  font-size: 0.92em;
+  background: var(--violet-wash);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+}
+
+.augmented-body pre {
+  margin: 0.5em 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--violet-wash);
+  overflow-x: auto;
+}
+
+.augmented-body pre code {
+  background: none;
+  padding: 0;
+}
+
+/* Wide content must scroll inside the block, never widen the reader. */
+.augmented-body table {
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
 }
 
 .reader-actions {

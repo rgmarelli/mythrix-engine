@@ -28,6 +28,7 @@ from mythrix.core.models import (
     Manifestation,
     Property,
     QueryDirective,
+    Segment,
     Sign,
     Source,
     Tradition,
@@ -38,6 +39,7 @@ from mythrix.core.retrieval.pipeline import (
     collect_exact_tokens,
     parse_region_id,
     region_id_of,
+    region_locator,
 )
 from mythrix.core.vector.store import VectorHit
 
@@ -1200,3 +1202,27 @@ def test_search_deep_pools_logs_a_filter_token_with_zero_matching_chunks(
 
     messages = [record.getMessage() for record in caplog.records]
     assert any("filter_token='100'" in m and "as_token='hundred'" in m and "hits=0" in m for m in messages)
+
+
+def _segment(ordinal: int, locator: str) -> Segment:
+    return Segment(ordinal=ordinal, locator=locator, text="…", section="")
+
+
+def test_region_locator_reuses_a_single_segments_own_locator() -> None:
+    assert region_locator((_segment(1, "Genesis 21:5"),)) == "Genesis 21:5"
+
+
+def test_region_locator_merges_a_shared_prefix_into_a_range() -> None:
+    """The label a multi-segment region is cited by (FR-RT-05) — the two
+    locators collapse to one reference rather than reading as two."""
+    segments = (_segment(1, "Genesis 21:5"), _segment(2, "Genesis 21:6"), _segment(3, "Genesis 21:8"))
+
+    assert region_locator(segments) == "Genesis 21:5–8"
+
+
+def test_region_locator_joins_both_locators_in_full_when_no_prefix_is_shared() -> None:
+    """A region spanning a chapter boundary cannot be written as one
+    `chapter:verse` range without naming a verse in the wrong chapter."""
+    segments = (_segment(1, "Genesis 21:8"), _segment(2, "Genesis 22:1"))
+
+    assert region_locator(segments) == "Genesis 21:8–Genesis 22:1"

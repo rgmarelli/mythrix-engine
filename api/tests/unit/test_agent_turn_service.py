@@ -1,4 +1,4 @@
-"""Unit tests for `agent/turn_service.py::run_chat_turn` — drives a stub
+"""Unit tests for `agent/turn_service.py` — drives a stub
 tool-calling model through `compile_agent_graph`, no live Ollama involved."""
 
 import logging
@@ -10,7 +10,7 @@ from langchain_core.tools import tool
 
 from mythrix.agent.context import AgentContext
 from mythrix.agent.sessions import SessionStore
-from mythrix.agent.turn_service import AgentInstruction, run_chat_turn
+from mythrix.agent.turn_service import AgentInstruction, TurnEvent, run_chat_turn, stream_chat_turn
 from mythrix.core.errors import ModelRequestError
 
 
@@ -421,13 +421,30 @@ def _adhoc_graph():  # noqa: ANN202 - CompiledStateGraph, matching `_graph` abov
 
 
 def _turn(graph, sessions: SessionStore, message: str, **overrides):  # noqa: ANN001, ANN003, ANN202
+    """The turn's terminal event, for a test with no interest in progress."""
     return run_chat_turn(
         graph=graph,
         sessions=sessions,
         session_id="s1",
         message=message,
         ui_selection=overrides.pop("ui_selection", AgentContext()),
+        visible_regions=overrides.pop("visible_regions", []),
         max_tool_iterations=8,
+    )
+
+
+def _events(graph, sessions: SessionStore, message: str, **overrides):  # noqa: ANN001, ANN003, ANN202
+    """Every event the turn produced, in order."""
+    return list(
+        stream_chat_turn(
+            graph=graph,
+            sessions=sessions,
+            session_id="s1",
+            message=message,
+            ui_selection=overrides.pop("ui_selection", AgentContext()),
+            visible_regions=overrides.pop("visible_regions", []),
+            max_tool_iterations=8,
+        )
     )
 
 
@@ -611,128 +628,254 @@ def test_citation_failure_logs_and_returns_fallback(caplog: pytest.LogCaptureFix
     assert any("turn failed" in m and "citation validation" in m for m in messages)
 
 
-# --- corpus discovery (discovery.md FR-DS-22–FR-DS-28) --------------------
+# --- region augmentation (augmentation.md FR-AU-22–FR-AU-31) --------------
+
+_REGION_IDS = ["waite::0-1", "waite::10-11"]
 
 
 @tool
-def query_adhoc(terms: list[dict], limit: int) -> dict:
-    """Fake query_adhoc mirroring the real tool's shape."""
+def read_region(region_id: str) -> dict:
+    """Fake read_region mirroring the real tool's shape."""
+    index = _REGION_IDS.index(region_id)
     return {
-        "matched_count": 2,
-        "regions": [
-            {
-                "region_id": f"waite::{i * 10}-{i * 10 + 1}",
-                "source": "Douay-Rheims",
-                "source_id": "waite",
-                "locator": f"Genesis {i + 1}:6",
-                "score": 0.8,
-                "convergence_count": 1,
-                "matches": [],
-            }
-            for i in range(2)
-        ],
+        "region_id": region_id,
+        "source": "Douay-Rheims",
+        "source_id": "waite",
+        "locator": f"Genesis {index + 1}:6",
+        "text": "God hath made a laughter for me.",
     }
 
 
 @tool
-def analyze_passage(passage_text: str, focus: str, concepts: list[str]) -> dict:
-    """Fake analyze_passage mirroring the real tool's shape."""
-    return {"finding": "a finding"}
+def augment_passage(passage_text: str, focus: str) -> dict:
+    """Fake augment_passage mirroring the real tool's shape."""
+    return {"augmentation": "a reading"}
 
 
-def _discovery_graph(consolidation: str):  # noqa: ANN202 - CompiledStateGraph
+def _augment_graph(consolidation: str):  # noqa: ANN202 - CompiledStateGraph
     @tool
-    def consolidate_findings(focus: str, findings: list[dict], concepts: list[str]) -> dict:
-        """Fake consolidate_findings returning a scripted consolidation."""
+    def consolidate_augmentations(focus: str, augmentations: list[dict]) -> dict:
+        """Fake consolidate_augmentations returning a scripted consolidation."""
         return {"consolidation": consolidation}
 
-    return compile_graph(ExplodingLLM(), _TOOLS, node_tools=[query_adhoc, analyze_passage, consolidate_findings])
+    return compile_graph(ExplodingLLM(), _TOOLS, node_tools=[read_region, augment_passage, consolidate_augmentations])
 
 
-def _plan_and_confirm(graph, sessions: SessionStore, consolidation_graph=None):  # noqa: ANN001, ANN202
-    plan = _turn(graph, sessions, '/discover "where joy is", laughter')
-    discovery_id = sessions.get_or_create("s1").pending_discovery.id
-    return plan, _turn(consolidation_graph or graph, sessions, f"/discover-confirm {discovery_id}")
+def _plan_and_confirm(graph, sessions: SessionStore):  # noqa: ANN001, ANN202
+    plan = _turn(graph, sessions, "/augment where is joy", visible_regions=list(_REGION_IDS))
+    augmentation_id = sessions.get_or_create("s1").pending_augmentation.id
+    return plan, _turn(graph, sessions, f"/augment-confirm {augmentation_id}")
 
 
-def test_a_discovery_run_keeps_its_region_markers_in_the_delivered_reply() -> None:
-    """FR-DS-23: `[R#]` is validated like every other marker but retained, so
-    a consolidated claim can be traced to the section supporting it."""
+def _confirm_events(graph, sessions: SessionStore):  # noqa: ANN001, ANN202
+    _turn(graph, sessions, "/augment where is joy", visible_regions=list(_REGION_IDS))
+    augmentation_id = sessions.get_or_create("s1").pending_augmentation.id
+    return _events(graph, sessions, f"/augment-confirm {augmentation_id}")
+
+
+def test_a_run_keeps_its_region_markers_in_the_delivered_reply() -> None:
+    """FR-AU-30: `[R#]` is validated like every other marker but retained, so
+    a consolidated claim can be traced to the region supporting it."""
     sessions = SessionStore()
 
-    _, run = _plan_and_confirm(_discovery_graph("Joy recurs as reversal [R1][R2]."), sessions)
+    _, run = _plan_and_confirm(_augment_graph("Joy recurs as reversal [R1][R2]."), sessions)
 
-    assert "Joy recurs as reversal [R1][R2]." in run.reply_text
-    assert "### [R1] Douay-Rheims — Genesis 1:6" in run.reply_text
+    assert run.reply_text.startswith("Joy recurs as reversal [R1][R2].")
+    assert "Augmented 2 regions on screen." in run.reply_text
 
 
 def test_a_consolidation_citing_a_region_that_does_not_exist_fails_the_turn() -> None:
-    """FR-DS-22: region markers are validated exactly as graph-fact and
-    segment markers are — two regions were read, so `[R9]` names nothing."""
+    """FR-AU-31: region markers are validated exactly as graph-fact and
+    segment markers are — two regions were augmented, so `[R9]` names
+    nothing."""
     sessions = SessionStore()
 
-    _, run = _plan_and_confirm(_discovery_graph("Joy recurs [R9]."), sessions)
+    _, run = _plan_and_confirm(_augment_graph("Joy recurs [R9]."), sessions)
 
     assert "[R9]" not in run.reply_text
     assert "couldn't actually back up" in run.reply_text
 
 
 def test_a_marker_shaped_focus_does_not_fail_the_plan_turn() -> None:
-    """FR-DS-24: the plan reply is entirely backend-composed, so validation
-    does not apply — the alternative is a user's own words failing their turn.
-    The marker is still stripped from the visible reply, as every `[S#]` is."""
+    """FR-AU-31: the plan reply is entirely backend-composed, so validation
+    does not apply — the alternative is a user's own words failing their
+    turn."""
     sessions = SessionStore()
 
-    plan = _turn(_discovery_graph("unused"), sessions, '/discover "what does [S1] mean", laughter')
+    plan = _turn(
+        _augment_graph("unused"),
+        sessions,
+        "/augment what does [S1] mean",
+        visible_regions=list(_REGION_IDS),
+    )
 
     assert "couldn't actually back up" not in plan.reply_text
-    assert "Parsed discovery:" in plan.reply_text
-    assert sessions.get_or_create("s1").pending_discovery is not None
+    assert "Parsed augmentation:" in plan.reply_text
+    assert sessions.get_or_create("s1").pending_augmentation is not None
 
 
-def test_a_run_records_only_the_retrieval_step_and_the_report_in_history() -> None:
-    """FR-DS-28: the per-region fetches and analyses are observable in the
+def test_a_run_records_only_the_region_list_and_the_reply_in_history() -> None:
+    """FR-AU-35: the per-region reads and generations are observable in the
     log, not in the thread the next turn replays."""
     sessions = SessionStore()
 
-    _plan_and_confirm(_discovery_graph("Joy recurs [R1]."), sessions)
+    _plan_and_confirm(_augment_graph("Joy recurs [R1]."), sessions)
 
     history = sessions.get_or_create("s1").history
-    assert [m.name for m in history if isinstance(m, ToolMessage)] == ["query_adhoc"]
-    # FR-DS-27: both turns are recorded, and each stored user message is the
+    assert [m.name for m in history if isinstance(m, ToolMessage)] == ["augment_regions"]
+    # FR-AU-34: both turns are recorded, and each stored user message is the
     # literal text the user sent rather than a rewritten directive.
     user_messages = [str(m.content) for m in history if isinstance(m, HumanMessage)]
-    assert user_messages[0] == '/discover "where joy is", laughter'
-    assert user_messages[1].startswith("/discover-confirm ")
+    assert user_messages[0] == "/augment where is joy"
+    assert user_messages[1].startswith("/augment-confirm ")
 
 
-def test_a_confirmed_discovery_is_cleared_from_the_session() -> None:
+def test_the_recorded_region_list_carries_no_passage_text() -> None:
+    """FR-AU-36: the passage reached the generation call and nowhere else."""
     sessions = SessionStore()
 
-    _plan_and_confirm(_discovery_graph("Joy recurs [R1]."), sessions)
+    _plan_and_confirm(_augment_graph("Joy recurs [R1]."), sessions)
 
-    assert sessions.get_or_create("s1").pending_discovery is None
+    history = sessions.get_or_create("s1").history
+    record = next(m for m in history if isinstance(m, ToolMessage) and m.name == "augment_regions")
+    assert "God hath made a laughter" not in str(record.content)
+    assert "Genesis 1:6" in str(record.content)
 
 
-def test_a_pending_discovery_survives_an_unrelated_turn() -> None:
+def test_a_confirmed_augmentation_is_cleared_from_the_session() -> None:
     sessions = SessionStore()
-    graph = _discovery_graph("unused")
-    _turn(graph, sessions, '/discover "where joy is", laughter')
-    pending = sessions.get_or_create("s1").pending_discovery
+
+    _plan_and_confirm(_augment_graph("Joy recurs [R1]."), sessions)
+
+    assert sessions.get_or_create("s1").pending_augmentation is None
+
+
+def test_a_pending_augmentation_survives_an_unrelated_turn() -> None:
+    sessions = SessionStore()
+    graph = _augment_graph("unused")
+    _turn(graph, sessions, "/augment where is joy", visible_regions=list(_REGION_IDS))
+    pending = sessions.get_or_create("s1").pending_augmentation
 
     _turn(compile_graph(ScriptedLLM([AIMessage(content="Hello there.")]), _TOOLS), sessions, "hello")
 
-    assert sessions.get_or_create("s1").pending_discovery is pending
+    assert sessions.get_or_create("s1").pending_augmentation is pending
 
 
-def test_a_thread_reset_clears_the_pending_discovery() -> None:
-    """FR-DS-08, matching `pending_query`'s existing lifecycle."""
+def test_a_thread_reset_clears_the_pending_augmentation() -> None:
+    """FR-AU-08, matching `pending_query`'s existing lifecycle."""
     sessions = SessionStore()
-    graph = _discovery_graph("unused")
-    _turn(graph, sessions, '/discover "where joy is", laughter', ui_selection=AgentContext(sign="the-tower"))
-    assert sessions.get_or_create("s1").pending_discovery is not None
+    graph = _augment_graph("unused")
+    _turn(
+        graph,
+        sessions,
+        "/augment where is joy",
+        ui_selection=AgentContext(sign="the-tower"),
+        visible_regions=list(_REGION_IDS),
+    )
+    assert sessions.get_or_create("s1").pending_augmentation is not None
 
     plain = compile_graph(ScriptedLLM([AIMessage(content="Hello there.")]), _TOOLS)
     _turn(plain, sessions, "hello", ui_selection=AgentContext(sign="the-magician"))
 
-    assert sessions.get_or_create("s1").pending_discovery is None
+    assert sessions.get_or_create("s1").pending_augmentation is None
+
+
+# --- the turn as a stream of events (FR-AU-22–FR-AU-25) --------------------
+
+
+def test_an_ordinary_turn_is_the_terminal_event_alone() -> None:
+    """FR-AU-22: a turn with no progress to report costs a consumer nothing
+    extra to parse."""
+    sessions = SessionStore()
+    graph = compile_graph(ScriptedLLM([AIMessage(content="Hello there.")]), _TOOLS)
+
+    events = _events(graph, sessions, "hello")
+
+    assert [e.event for e in events] == ["turn"]
+    assert events[0].reply_text == "Hello there."
+
+
+def test_a_run_emits_a_message_and_an_instruction_per_region_before_the_reply() -> None:
+    """FR-AU-23: each region lands as it completes, so a minutes-long run is
+    legible while it is still running."""
+    sessions = SessionStore()
+
+    events = _confirm_events(_augment_graph("Joy recurs [R1][R2]."), sessions)
+
+    assert [e.event for e in events] == [
+        "message",
+        "instruction",
+        "message",
+        "instruction",
+        "turn",
+    ]
+    assert events[0].text == "Augmented [R1] Douay-Rheims — Genesis 1:6"
+    assert events[2].text == "Augmented [R2] Douay-Rheims — Genesis 2:6"
+
+
+def test_each_region_instruction_addresses_the_region_it_belongs_to() -> None:
+    """FR-AU-26: the consumer holds it against that region, so the payload
+    must name it."""
+    sessions = SessionStore()
+
+    events = _confirm_events(_augment_graph("Joy recurs [R1][R2]."), sessions)
+
+    instructions = [e.instruction for e in events if e.event == "instruction"]
+    assert [i.type for i in instructions] == ["augment_region", "augment_region"]
+    assert [i.payload["region_id"] for i in instructions] == _REGION_IDS
+    assert [i.payload["label"] for i in instructions] == ["[R1]", "[R2]"]
+    assert instructions[0].payload["augmentation"] == "a reading"
+
+
+def test_instructions_delivered_mid_turn_are_not_repeated_in_the_terminal_event() -> None:
+    """A consumer applying them as they arrive must not apply them twice."""
+    sessions = SessionStore()
+
+    events = _confirm_events(_augment_graph("Joy recurs [R1][R2]."), sessions)
+
+    assert events[-1].event == "turn"
+    assert events[-1].instructions == []
+
+
+def test_a_failed_turn_still_ends_in_exactly_one_terminal_event() -> None:
+    """FR-AU-22 holds on the failure paths too, so a consumer can always wait
+    for one."""
+    sessions = SessionStore()
+
+    events = _confirm_events(_augment_graph("Joy recurs [R9]."), sessions)
+
+    assert [e.event for e in events].count("turn") == 1
+    assert events[-1].event == "turn"
+    assert "couldn't actually back up" in events[-1].reply_text
+
+
+def test_abandoning_the_stream_releases_the_session_lock() -> None:
+    """The lock spans every yield, so a consumer that disconnects mid-run must
+    not strand the session for the process's life."""
+    sessions = SessionStore()
+    graph = _augment_graph("Joy recurs [R1][R2].")
+    _turn(graph, sessions, "/augment where is joy", visible_regions=list(_REGION_IDS))
+    augmentation_id = sessions.get_or_create("s1").pending_augmentation.id
+
+    stream = stream_chat_turn(
+        graph=graph,
+        sessions=sessions,
+        session_id="s1",
+        message=f"/augment-confirm {augmentation_id}",
+        ui_selection=AgentContext(),
+        max_tool_iterations=8,
+    )
+    next(stream)
+    stream.close()
+
+    # A second turn would block forever if the lock were still held.
+    assert _turn(graph, sessions, "/augment again", visible_regions=list(_REGION_IDS)) is not None
+
+
+def test_run_chat_turn_collapses_the_stream_to_its_terminal_event() -> None:
+    sessions = SessionStore()
+
+    _, run = _plan_and_confirm(_augment_graph("Joy recurs [R1][R2]."), sessions)
+
+    assert isinstance(run, TurnEvent)
+    assert run.event == "turn"

@@ -1,17 +1,28 @@
 import type { Hotspot } from '../api/types';
 import { convergenceLabel, hotspotTitle } from '../utils/hotspot';
+import { SparkleIcon } from './SparkleIcon';
 
 interface Props {
   hotspot: Hotspot;
   isActive: boolean;
+  isAugmented: boolean;
   onSelect: () => void;
 }
 
-export function HotspotCard({ hotspot, isActive, onSelect }: Props) {
+export function HotspotCard({ hotspot, isActive, isAugmented, onSelect }: Props) {
   return (
     <button type="button" className={isActive ? 'hotspot-card active' : 'hotspot-card'} onClick={onSelect}>
       <div className="hc-top">
-        <span className="hc-title">{hotspotTitle(hotspot)}</span>
+        <span className="hc-title">
+          {hotspotTitle(hotspot)}
+          {/* The reading itself stays in the reader; the rail only says one
+              exists (specs/interfaces/augmentation.md FR-AU-27). */}
+          {isAugmented && (
+            <span className="augmented-mark" title="Has AI analysis">
+              <SparkleIcon />
+            </span>
+          )}
+        </span>
         <span className="hc-badge">{convergenceLabel(hotspot.convergenceCount)}</span>
       </div>
       <span className="hc-source">{hotspot.source.citation_label || hotspot.source.title}</span>
