@@ -18,6 +18,7 @@
 ## Engineering Approach and Solution Quality
 
 * **Prioritize the correct solution over the quickest solution.** The primary proposed solution must address the underlying problem properly within the project's architecture, design principles, and long-term maintainability goals. Do not default to shortcuts, workarounds, hacks, or narrowly scoped fixes simply because they are faster or easier to implement.
+* **Do not preserve poor abstractions for compatibility.** If existing code has an abstraction that no longer fits the problem, prefer improving or replacing the abstraction over layering additional conditionals, flags, or special cases on top of it.
 * **Do not silently introduce shortcuts.** If the technically correct solution is more complex, requires architectural changes, or takes significantly more effort, propose that solution first.
 * **Explicitly disclose shortcuts and compromises.** If a shortcut, workaround, temporary fix, or technically inferior alternative is being considered, clearly identify it as such, explain what the proper solution would be, and describe the trade-offs, limitations, and technical debt it introduces.
 * **Require explicit user approval for shortcuts.** Do not implement a shortcut, workaround, or deliberate architectural compromise without the user's explicit approval. The user's approval must be obtained before implementation, not inferred from the request to "make it work" or from time constraints.
