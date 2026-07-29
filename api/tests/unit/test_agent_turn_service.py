@@ -7,7 +7,7 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.tools import tool
 
-from mythrix.agent.context import AgentUiSelection
+from mythrix.agent.context import AgentContext
 from mythrix.agent.graph import compile_agent_graph
 from mythrix.agent.sessions import SessionStore
 from mythrix.agent.turn_service import AgentInstruction, run_chat_turn
@@ -97,7 +97,7 @@ def test_normal_turn_grounds_the_reply_and_backfills_context() -> None:
         sessions=sessions,
         session_id="s1",
         message="tell me about the magician in rider-waite",
-        ui_selection=AgentUiSelection(),
+        ui_selection=AgentContext(),
         max_tool_iterations=8,
     )
 
@@ -122,7 +122,7 @@ def test_get_sign_leaves_the_uis_own_selection_byte_identical() -> None:
         AIMessage(content="", tool_calls=[{**call, "id": "c2"}]),
         AIMessage(content="Still willpower [G1]."),
     ]
-    selection = AgentUiSelection(sign="the-magician", tradition="rider-waite", semiotic_system="tarot")
+    selection = AgentContext(sign="the-magician", tradition="rider-waite", semiotic_system="tarot")
     sessions, graph = SessionStore(), _graph(script)
 
     def _turn():  # noqa: ANN202
@@ -172,7 +172,7 @@ def test_hotspot_navigation_resets_the_thread() -> None:
         sessions=sessions,
         session_id="s1",
         message="tell me about the magician",
-        ui_selection=AgentUiSelection(region_id="waite::0-1"),
+        ui_selection=AgentContext(region_id="waite::0-1"),
         max_tool_iterations=8,
     )
 
@@ -181,7 +181,7 @@ def test_hotspot_navigation_resets_the_thread() -> None:
         sessions=sessions,
         session_id="s1",
         message="tell me about it again",
-        ui_selection=AgentUiSelection(region_id="waite::2-3"),
+        ui_selection=AgentContext(region_id="waite::2-3"),
         max_tool_iterations=8,
     )
 
@@ -214,7 +214,7 @@ def test_model_driven_reset_drops_the_stale_pre_reset_history_too() -> None:
         sessions=sessions,
         session_id="s1",
         message="tell me about the magician in rider-waite",
-        ui_selection=AgentUiSelection(),
+        ui_selection=AgentContext(),
         max_tool_iterations=8,
     )
 
@@ -223,7 +223,7 @@ def test_model_driven_reset_drops_the_stale_pre_reset_history_too() -> None:
         sessions=sessions,
         session_id="s1",
         message="what about in marseille",
-        ui_selection=AgentUiSelection(),
+        ui_selection=AgentContext(),
         max_tool_iterations=8,
     )
 
@@ -245,7 +245,7 @@ def test_ambiguous_tradition_short_circuits_with_no_second_model_call() -> None:
         sessions=sessions,
         session_id="s1",
         message="tell me about the magician",
-        ui_selection=AgentUiSelection(),
+        ui_selection=AgentContext(),
         max_tool_iterations=8,
     )
 
@@ -265,7 +265,7 @@ def test_fabricated_citation_marker_is_not_shown_and_history_is_not_persisted() 
         sessions=sessions,
         session_id="s1",
         message="tell me something",
-        ui_selection=AgentUiSelection(),
+        ui_selection=AgentContext(),
         max_tool_iterations=8,
     )
 
@@ -294,7 +294,7 @@ def test_stray_marker_on_a_listing_tool_reply_is_stripped_not_rejected() -> None
         sessions=sessions,
         session_id="s1",
         message="list signs from hebrew_alef_bet",
-        ui_selection=AgentUiSelection(),
+        ui_selection=AgentContext(),
         max_tool_iterations=8,
     )
 
@@ -314,7 +314,7 @@ def test_summarize_command_with_active_hotspot_fetches_and_summarizes_determinis
         sessions=sessions,
         session_id="s1",
         message="/summarize",
-        ui_selection=AgentUiSelection(region_id="waite::0-1", locator="The Fool"),
+        ui_selection=AgentContext(region_id="waite::0-1", locator="The Fool"),
         max_tool_iterations=8,
     )
 
@@ -336,7 +336,7 @@ def test_summarize_command_with_no_hotspot_asks_the_user_to_select_one_without_c
         sessions=sessions,
         session_id="s1",
         message="/summarize",
-        ui_selection=AgentUiSelection(),
+        ui_selection=AgentContext(),
         max_tool_iterations=8,
     )
 
@@ -359,7 +359,7 @@ def test_summarize_command_with_no_hotspot_calls_no_tool() -> None:
         sessions=sessions,
         session_id="s1",
         message="/summarize",
-        ui_selection=AgentUiSelection(),
+        ui_selection=AgentContext(),
         max_tool_iterations=8,
     )
 
@@ -372,7 +372,7 @@ def test_summarize_command_includes_trailing_focus_text_as_the_sole_concept() ->
         sessions=sessions,
         session_id="s1",
         message="/summarize focus on redemption imagery",
-        ui_selection=AgentUiSelection(region_id="waite::0-1", locator="The Fool"),
+        ui_selection=AgentContext(region_id="waite::0-1", locator="The Fool"),
         max_tool_iterations=8,
     )
 
@@ -391,7 +391,7 @@ def test_an_ordinary_turn_after_summarize_sees_the_summary_in_history() -> None:
         sessions=sessions,
         session_id="s1",
         message="/summarize",
-        ui_selection=AgentUiSelection(region_id="waite::0-1", locator="The Fool"),
+        ui_selection=AgentContext(region_id="waite::0-1", locator="The Fool"),
         max_tool_iterations=8,
     )
     run_chat_turn(
@@ -399,7 +399,7 @@ def test_an_ordinary_turn_after_summarize_sees_the_summary_in_history() -> None:
         sessions=sessions,
         session_id="s1",
         message="tell me more about that",
-        ui_selection=AgentUiSelection(region_id="waite::0-1", locator="The Fool"),
+        ui_selection=AgentContext(region_id="waite::0-1", locator="The Fool"),
         max_tool_iterations=8,
     )
 
@@ -426,7 +426,7 @@ def _turn(graph, sessions: SessionStore, message: str, **overrides):  # noqa: AN
         sessions=sessions,
         session_id="s1",
         message=message,
-        ui_selection=overrides.pop("ui_selection", AgentUiSelection()),
+        ui_selection=overrides.pop("ui_selection", AgentContext()),
         max_tool_iterations=8,
     )
 
@@ -512,9 +512,9 @@ def test_a_second_query_command_supersedes_the_first() -> None:
 def test_a_thread_reset_discards_the_pending_query() -> None:
     sessions = SessionStore()
     graph = _adhoc_graph()
-    parsed = _turn(graph, sessions, "/query laughter", ui_selection=AgentUiSelection(region_id="waite::0-2"))
+    parsed = _turn(graph, sessions, "/query laughter", ui_selection=AgentContext(region_id="waite::0-2"))
 
-    confirmed = _turn(graph, sessions, _confirm_command(parsed), ui_selection=AgentUiSelection(region_id="waite::9-11"))
+    confirmed = _turn(graph, sessions, _confirm_command(parsed), ui_selection=AgentContext(region_id="waite::9-11"))
 
     assert confirmed.thread_reset is True
     assert confirmed.instructions == []
@@ -562,7 +562,7 @@ def test_plain_turn_logs_start_context_and_outcome(caplog: pytest.LogCaptureFixt
             sessions=sessions,
             session_id="s1",
             message="hi",
-            ui_selection=AgentUiSelection(),
+            ui_selection=AgentContext(),
             max_tool_iterations=8,
         )
 
@@ -582,7 +582,7 @@ def test_tool_failure_logs_and_returns_fallback(caplog: pytest.LogCaptureFixture
             sessions=sessions,
             session_id="s1",
             message="tell me about the magician",
-            ui_selection=AgentUiSelection(),
+            ui_selection=AgentContext(),
             max_tool_iterations=8,
         )
 
@@ -602,7 +602,7 @@ def test_citation_failure_logs_and_returns_fallback(caplog: pytest.LogCaptureFix
             sessions=sessions,
             session_id="s1",
             message="tell me something",
-            ui_selection=AgentUiSelection(),
+            ui_selection=AgentContext(),
             max_tool_iterations=8,
         )
 

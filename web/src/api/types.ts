@@ -118,12 +118,12 @@ export interface HotspotQueryResult {
 }
 
 // --- Agent chat (specs/interfaces/agent.md FR-AG-14–FR-AG-22) ---
-// Wire shapes mirror `api/routes.py`'s `AgentUiSelection`/`AgentTurnRequest`/
-// `AgentContext`/`AgentTurnResponse` — snake_case, as
+// Wire shapes mirror `api/routes.py`'s `AgentContext`/`AgentTurnRequest`/
+// `AgentTurnResponse` — snake_case, as
 // `.model_dump(mode="json")` sends them. `client.ts` is the single seam
 // translating them onto the camelCase view-model types below.
 
-export interface AgentUiSelectionWire {
+export interface AgentContextWire {
   semiotic_system: string | null;
   sign: string | null;
   tradition: string | null;
@@ -137,10 +137,8 @@ export interface AgentUiSelectionWire {
 export interface AgentTurnRequestWire {
   session_id: string;
   message: string;
-  ui_selection: AgentUiSelectionWire;
+  ui_selection: AgentContextWire;
 }
-
-export type AgentContextWire = AgentUiSelectionWire;
 
 // An agent instruction (specs/interfaces/agnostic-query.md FR-AQ-07,
 // FR-AQ-13–14): `type` names the action, `payload` carries whatever it needs,
@@ -228,7 +226,7 @@ export interface AgentTurnResponseWire {
 
 // --- View model (as the UI consumes it — see client.ts) ---
 
-export interface AgentUiSelection {
+export interface AgentContext {
   semioticSystem: string | null;
   sign: string | null;
   tradition: string | null;
@@ -238,8 +236,6 @@ export interface AgentUiSelection {
   regionId: string | null;
   locator: string | null;
 }
-
-export type AgentContext = AgentUiSelection;
 
 export type AgentInstruction = AgentInstructionWire;
 

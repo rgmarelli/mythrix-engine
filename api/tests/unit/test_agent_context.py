@@ -6,7 +6,6 @@ from langchain_core.messages import AIMessage, ToolMessage
 
 from mythrix.agent.context import (
     AgentContext,
-    AgentUiSelection,
     apply_ui_selection,
     backfill_from_tool_results,
     detect_thread_reset,
@@ -16,31 +15,31 @@ from mythrix.agent.context import (
 
 def test_detect_thread_reset_true_on_region_change() -> None:
     previous = AgentContext(region_id="waite::0-1")
-    incoming = AgentUiSelection(region_id="waite::2-3")
+    incoming = AgentContext(region_id="waite::2-3")
     assert detect_thread_reset(previous, incoming) is True
 
 
 def test_detect_thread_reset_true_on_session_scoped_field_change() -> None:
     previous = AgentContext(region_id="waite::0-1", sign="the-tower")
-    incoming = AgentUiSelection(region_id="waite::0-1", sign="the-sun")
+    incoming = AgentContext(region_id="waite::0-1", sign="the-sun")
     assert detect_thread_reset(previous, incoming) is True
 
 
 def test_detect_thread_reset_false_when_nothing_relevant_changed() -> None:
     previous = AgentContext(region_id="waite::0-1", sign="the-tower", source_id="waite")
-    incoming = AgentUiSelection(region_id="waite::0-1", sign="the-tower", source_id="other")
+    incoming = AgentContext(region_id="waite::0-1", sign="the-tower", source_id="other")
     assert detect_thread_reset(previous, incoming) is False
 
 
 def test_detect_thread_reset_false_when_both_regions_are_none() -> None:
     previous = AgentContext()
-    incoming = AgentUiSelection()
+    incoming = AgentContext()
     assert detect_thread_reset(previous, incoming) is False
 
 
 def test_apply_ui_selection_always_takes_incoming_region_id_even_when_none() -> None:
     previous = AgentContext(region_id="waite::0-1")
-    incoming = AgentUiSelection(region_id=None)
+    incoming = AgentContext(region_id=None)
     merged = apply_ui_selection(previous, incoming)
     assert merged.region_id is None
 
@@ -49,7 +48,7 @@ def test_apply_ui_selection_preserves_session_scoped_field_when_incoming_is_none
     """A sign the agent previously resolved from chat alone must survive a
     later turn whose UI selection carries no sign at all."""
     previous = AgentContext(sign="the-sun", tradition="rider-waite")
-    incoming = AgentUiSelection(sign=None, tradition=None, region_id=None)
+    incoming = AgentContext(sign=None, tradition=None, region_id=None)
     merged = apply_ui_selection(previous, incoming)
     assert merged.sign == "the-sun"
     assert merged.tradition == "rider-waite"
@@ -57,7 +56,7 @@ def test_apply_ui_selection_preserves_session_scoped_field_when_incoming_is_none
 
 def test_apply_ui_selection_overwrites_session_scoped_field_when_incoming_sets_it() -> None:
     previous = AgentContext(sign="the-sun")
-    incoming = AgentUiSelection(sign="the-tower")
+    incoming = AgentContext(sign="the-tower")
     merged = apply_ui_selection(previous, incoming)
     assert merged.sign == "the-tower"
 
@@ -67,7 +66,7 @@ def test_apply_ui_selection_always_takes_incoming_locator_even_when_none() -> No
     the same all-or-nothing rule rather than the session-scoped "preserve
     when absent" rule."""
     previous = AgentContext(region_id="waite::0-1", locator="Ecclesiasticus 43:1-4")
-    incoming = AgentUiSelection(region_id=None, locator=None)
+    incoming = AgentContext(region_id=None, locator=None)
     merged = apply_ui_selection(previous, incoming)
     assert merged.locator is None
 
