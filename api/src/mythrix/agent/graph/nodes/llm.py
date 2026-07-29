@@ -73,17 +73,30 @@ def route_after_tools(state: AgentState) -> str:
     return "agent"
 
 
+def _display(candidate: object) -> str:
+    """A candidate's display form: an entity carried as an object is named by
+    its `name`, a bare string by itself (ADR-014). Keeps this node generic
+    over `needs_*` rather than special-casing traditions."""
+    if isinstance(candidate, dict):
+        return str(candidate.get("name") or candidate.get("slug", ""))
+    return str(candidate)
+
+
 def clarify_node(state: AgentState) -> dict:
     """Builds the clarifying-question reply directly from the tool result's
     own `needs_*` payload — no model call, so it cannot state anything beyond
     what the tool actually returned. Reads whichever `needs_*` key is
     present; `get_sign`'s `needs_tradition` (candidates under
-    `traditions`) is the case exercised today."""
+    `traditions`) is the case exercised today.
+
+    The question is composed from the payload's display keys, so the user is
+    asked in the words the viewer shows them, not in slugs (FR-AG-07)."""
     payload = _safe_json_loads(state["messages"][-1].content)
     needs_key = _needs_key(payload)
     field = needs_key.removeprefix("needs_") if needs_key else "value"
     candidates_key = f"{field}s" if not field.endswith("s") else field
     candidates = payload.get(candidates_key, ()) if isinstance(payload, dict) else ()
-    sign = payload.get("sign", "this sign") if isinstance(payload, dict) else "this sign"
-    text = f"Which {field} would you like to use for {sign}? Available: {', '.join(candidates)}."
+    sign = payload.get("sign_name") or payload.get("sign", "this sign") if isinstance(payload, dict) else "this sign"
+    names = ", ".join(_display(candidate) for candidate in candidates)
+    text = f"Which {field} would you like to use for {sign}? Available: {names}."
     return {"messages": [AIMessage(content=text)]}

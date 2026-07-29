@@ -16,13 +16,24 @@ from mythrix.core.errors import ModelRequestError
 
 @tool
 def get_sign(sign: str, tradition: str | None = None) -> dict:
-    """Fake get_sign mirroring the real tool's needs_tradition shape."""
+    """Fake get_sign mirroring the real tool's needs_tradition shape, and its
+    slug identity keys / `*_name` display keys (ADR-014)."""
     if tradition is None:
-        return {"needs_tradition": True, "sign": "The Magician", "traditions": ["rider-waite", "marseille"]}
+        return {
+            "needs_tradition": True,
+            "sign": "the-magician",
+            "sign_name": "The Magician",
+            "traditions": [
+                {"slug": "rider-waite", "name": "Rider-Waite-Smith"},
+                {"slug": "marseille", "name": "Tarot de Marseille"},
+            ],
+        }
     return {
-        "sign": "The Magician",
+        "sign": "the-magician",
+        "sign_name": "The Magician",
         "semiotic_system": "tarot",
-        "tradition": tradition,
+        "tradition": "rider-waite",
+        "tradition_name": "Rider-Waite-Smith",
         "citations": [{"source": "Waite", "locator": "p. 1"}],
     }
 
@@ -92,10 +103,48 @@ def test_normal_turn_grounds_the_reply_and_backfills_context() -> None:
 
     assert "[G1]" not in response.reply_text
     assert "willpower" in response.reply_text
-    assert response.context.sign == "The Magician"
+    assert response.context.sign == "the-magician"
     assert response.context.tradition == "rider-waite"
     assert response.context.semiotic_system == "tarot"
     assert response.thread_reset is False
+
+
+def test_get_sign_leaves_the_uis_own_selection_byte_identical() -> None:
+    """The invariant this change exists to establish: a turn that resolves the
+    same entities the browser already selected returns them spelled exactly as
+    the browser sent them, so the context stays comparable as identity
+    (ADR-014). Before, `get_sign` overwrote "rider-waite" with
+    "Rider-Waite-Smith" and every later turn read as a subject change."""
+    call = {"name": "get_sign", "args": {"sign": "The Magician", "tradition": "rider-waite"}, "id": "c1"}
+    script = [
+        AIMessage(content="", tool_calls=[call]),
+        AIMessage(content="Willpower [G1]."),
+        AIMessage(content="", tool_calls=[{**call, "id": "c2"}]),
+        AIMessage(content="Still willpower [G1]."),
+    ]
+    selection = AgentUiSelection(sign="the-magician", tradition="rider-waite", semiotic_system="tarot")
+    sessions, graph = SessionStore(), _graph(script)
+
+    def _turn():  # noqa: ANN202
+        return run_chat_turn(
+            graph=graph,
+            sessions=sessions,
+            session_id="s1",
+            message="tell me about it",
+            ui_selection=selection,
+            max_tool_iterations=8,
+        )
+
+    # The first turn establishes the thread — a selection against an empty
+    # stored context is itself a reset. The second is the one that regressed.
+    first = _turn()
+    second = _turn()
+
+    for response in (first, second):
+        assert response.context.sign == selection.sign
+        assert response.context.tradition == selection.tradition
+        assert response.context.semiotic_system == selection.semiotic_system
+    assert second.thread_reset is False
 
 
 def test_hotspot_navigation_resets_the_thread() -> None:
@@ -201,8 +250,9 @@ def test_ambiguous_tradition_short_circuits_with_no_second_model_call() -> None:
     )
 
     assert llm.calls == 1
-    assert "rider-waite" in response.reply_text
-    assert "marseille" in response.reply_text
+    # The user is asked in display names, not slugs (FR-AG-07, ADR-014).
+    assert "Rider-Waite-Smith" in response.reply_text
+    assert "Tarot de Marseille" in response.reply_text
     assert response.context.sign is None
 
 

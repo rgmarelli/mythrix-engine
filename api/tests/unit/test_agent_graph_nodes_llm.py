@@ -50,7 +50,13 @@ def test_route_after_tools_routes_to_agent_when_needs_key_is_falsy() -> None:
 
 
 def test_clarify_node_builds_a_deterministic_reply_from_the_payload() -> None:
-    payload = '{"needs_tradition": true, "sign": "The Magician", "traditions": ["rider-waite", "marseille"]}'
+    """The question is asked in display names — the words the viewer shows —
+    while the payload's identity keys stay slugs (FR-AG-07, ADR-014)."""
+    payload = (
+        '{"needs_tradition": true, "sign": "the-magician", "sign_name": "The Magician", '
+        '"traditions": [{"slug": "rider-waite", "name": "Rider-Waite-Smith"}, '
+        '{"slug": "marseille", "name": "Tarot de Marseille"}]}'
+    )
     state = {"messages": [ToolMessage(content=payload, name="get_sign", tool_call_id="c")]}
 
     result = clarify_node(state)
@@ -58,6 +64,18 @@ def test_clarify_node_builds_a_deterministic_reply_from_the_payload() -> None:
     reply = result["messages"][0]
     assert isinstance(reply, AIMessage)
     assert not reply.tool_calls
-    assert "The Magician" in reply.content
-    assert "rider-waite" in reply.content
-    assert "marseille" in reply.content
+    assert reply.content == (
+        "Which tradition would you like to use for The Magician? Available: Rider-Waite-Smith, Tarot de Marseille."
+    )
+    assert "the-magician" not in reply.content
+
+
+def test_clarify_node_renders_bare_string_candidates() -> None:
+    """The node stays generic over `needs_*` (FR-AG-18): a tool whose
+    candidates are plain values, not entity objects, still renders."""
+    payload = '{"needs_system": true, "sign_name": "The Sun", "systems": ["tarot", "hebrew_alef_bet"]}'
+    state = {"messages": [ToolMessage(content=payload, name="some_other_tool", tool_call_id="c")]}
+
+    reply = clarify_node(state)["messages"][0]
+
+    assert reply.content == "Which system would you like to use for The Sun? Available: tarot, hebrew_alef_bet."
