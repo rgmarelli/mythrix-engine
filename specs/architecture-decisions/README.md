@@ -27,6 +27,7 @@ changed decision is a new ADR that supersedes an earlier one, not an edit.
 | [ADR-012](adr-012-deterministic-command-nodes-bypass-tool-selection.md) | A command whose tool sequence is fully determined by context is handled by a dedicated graph node that calls tools directly, in code; the model is invoked only for a step that is genuinely generative | Accepted |
 | [ADR-013](adr-013-region-rollup-sole-query-shape.md) | Region rollup is the only aggregation the retrieval pipeline exposes; per-concept and concept-pair results are retired, superseding ADR-007's geometric-mean pair scoring | Accepted |
 | [ADR-014](adr-014-slug-as-agent-entity-identity.md) | The slug is the only entity identity across the agent boundary — context fields and tool-result identity keys carry slugs, display names travel in separate display keys, and every entity-valued tool argument resolves either form to a slug | Accepted |
+| [ADR-015](adr-015-deterministic-analysis-over-adhoc-retrieval.md) | A deterministic command may run ad-hoc retrieval server-side and read its results, over a tool set split into model-selectable and node-only halves; such a node may fan out N bounded generation calls and record less in history than it did work | Accepted; amends [ADR-010](adr-010-agnostic-adhoc-interpretant-query.md) and narrows [ADR-012](adr-012-deterministic-command-nodes-bypass-tool-selection.md) |
 
 Primary sources for these records: `specs/retrieval/corpus.md`, `specs/retrieval/retrieval.md`,
 and `specs/retrieval/ranking.md` (the factual requirements these decisions produced,

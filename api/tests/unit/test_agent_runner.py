@@ -5,10 +5,10 @@ tool-calling model, no live Ollama."""
 import logging
 
 import pytest
+from graph_helpers import compile_graph
 from langchain_core.messages import AIMessage
 from langchain_core.tools import tool
 
-from mythrix.agent.graph import compile_agent_graph
 from mythrix.agent.runner import run_turn
 
 
@@ -58,7 +58,7 @@ class MultiToolLLM:
 
 
 def test_run_turn_returns_the_ordered_tool_trace_and_reply() -> None:
-    graph = compile_agent_graph(ScriptedLLM(), [echo])
+    graph = compile_graph(ScriptedLLM(), [echo])
     history: list = []
 
     history, result = run_turn(graph, history, "call the tool", max_tool_iterations=8)
@@ -69,7 +69,7 @@ def test_run_turn_returns_the_ordered_tool_trace_and_reply() -> None:
 
 
 def test_run_turn_preserves_history_across_two_turns() -> None:
-    graph = compile_agent_graph(ScriptedLLM(), [echo])
+    graph = compile_graph(ScriptedLLM(), [echo])
     history: list = []
 
     history, first = run_turn(graph, history, "hello", max_tool_iterations=8)
@@ -85,7 +85,7 @@ def test_run_turn_preserves_history_across_two_turns() -> None:
 
 
 def test_run_turn_returns_a_clear_message_when_the_tool_budget_is_exceeded() -> None:
-    graph = compile_agent_graph(LoopingLLM(), [echo])
+    graph = compile_graph(LoopingLLM(), [echo])
     history: list = []
 
     new_history, result = run_turn(graph, history, "loop forever", max_tool_iterations=3)
@@ -95,7 +95,7 @@ def test_run_turn_returns_a_clear_message_when_the_tool_budget_is_exceeded() -> 
 
 
 def test_run_turn_logs_model_output_and_tool_result(caplog: pytest.LogCaptureFixture) -> None:
-    graph = compile_agent_graph(ScriptedLLM(), [echo])
+    graph = compile_graph(ScriptedLLM(), [echo])
 
     with caplog.at_level(logging.INFO, logger="mythrix.agent.runner"):
         run_turn(graph, [], "call the tool", max_tool_iterations=8)
@@ -106,7 +106,7 @@ def test_run_turn_logs_model_output_and_tool_result(caplog: pytest.LogCaptureFix
 
 
 def test_run_turn_logs_every_tool_call_from_one_multi_tool_model_pass(caplog: pytest.LogCaptureFixture) -> None:
-    graph = compile_agent_graph(MultiToolLLM(), [echo])
+    graph = compile_graph(MultiToolLLM(), [echo])
 
     with caplog.at_level(logging.INFO, logger="mythrix.agent.runner"):
         run_turn(graph, [], "call the tools", max_tool_iterations=8)
@@ -118,7 +118,7 @@ def test_run_turn_logs_every_tool_call_from_one_multi_tool_model_pass(caplog: py
 
 
 def test_run_turn_logs_recursion_bound_hit(caplog: pytest.LogCaptureFixture) -> None:
-    graph = compile_agent_graph(LoopingLLM(), [echo])
+    graph = compile_graph(LoopingLLM(), [echo])
 
     with caplog.at_level(logging.INFO, logger="mythrix.agent.runner"):
         run_turn(graph, [], "loop forever", max_tool_iterations=3)
@@ -128,7 +128,7 @@ def test_run_turn_logs_recursion_bound_hit(caplog: pytest.LogCaptureFixture) -> 
 
 
 def test_run_turn_logs_model_input_for_every_invocation(caplog: pytest.LogCaptureFixture) -> None:
-    graph = compile_agent_graph(ScriptedLLM(), [echo])
+    graph = compile_graph(ScriptedLLM(), [echo])
 
     with caplog.at_level(logging.INFO, logger="mythrix.agent.graph.nodes.llm"):
         run_turn(graph, [], "call the tool", max_tool_iterations=8, context_summary="Current sign: The Tower.")
@@ -144,3 +144,42 @@ def test_run_turn_logs_model_input_for_every_invocation(caplog: pytest.LogCaptur
     # The second invocation's history now also includes the first pass's tool call and result.
     assert "ToolMessage" in input_lines[1]
     assert "hi" in input_lines[1]
+
+
+def test_run_turn_carries_a_pending_discovery_into_the_graph_and_back_out() -> None:
+    """FR-DS-08: the graph holds no state between turns, so the session's
+    outstanding discovery round-trips through `run_turn` like `pending_query`."""
+    graph = compile_graph(ScriptedLLM(), [echo])
+
+    _, plan = run_turn(graph, [], '/discover "where joy is", laughter', max_tool_iterations=8)
+
+    assert plan.pending_discovery is not None
+    assert plan.pending_discovery.focus == "where joy is"
+    assert plan.backend_authored is True
+
+    _, confirmed = run_turn(
+        graph,
+        [],
+        "/discover-confirm deadbeef",
+        max_tool_iterations=8,
+        pending_discovery=plan.pending_discovery,
+    )
+
+    assert confirmed.pending_discovery is plan.pending_discovery
+
+
+def test_run_turn_reports_an_ordinary_reply_as_model_authored() -> None:
+    graph = compile_graph(ScriptedLLM(), [echo])
+
+    _, result = run_turn(graph, [], "hello", max_tool_iterations=8)
+
+    assert result.backend_authored is False
+
+
+def test_hitting_the_tool_budget_preserves_both_pending_records() -> None:
+    graph = compile_graph(LoopingLLM(), [echo])
+
+    _, plan = run_turn(compile_graph(ScriptedLLM(), [echo]), [], '/discover "joy", laughter', max_tool_iterations=8)
+    _, result = run_turn(graph, [], "loop forever", max_tool_iterations=3, pending_discovery=plan.pending_discovery)
+
+    assert result.pending_discovery is plan.pending_discovery

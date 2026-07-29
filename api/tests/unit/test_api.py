@@ -11,11 +11,11 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from graph_helpers import compile_graph
 from langchain_core.messages import AIMessage
 from langchain_core.tools import tool
 
 from mythrix.agent.commands.adhoc import execute_query_instruction
-from mythrix.agent.graph import compile_agent_graph
 from mythrix.agent.sessions import SessionStore
 from mythrix.api.app import create_app
 from mythrix.api.dependencies import get_agent_graph, get_agent_sessions, get_stores
@@ -500,9 +500,7 @@ class _ScriptedLLM:
 def _agent_client(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore, script: list[AIMessage]) -> TestClient:
     client = _client(graph_store, vector_store)
     client.app.dependency_overrides[get_agent_sessions] = lambda: SessionStore()
-    client.app.dependency_overrides[get_agent_graph] = lambda: compile_agent_graph(
-        _ScriptedLLM(script), [_fake_get_sign]
-    )
+    client.app.dependency_overrides[get_agent_graph] = lambda: compile_graph(_ScriptedLLM(script), [_fake_get_sign])
     return client
 
 
@@ -541,7 +539,7 @@ def test_agent_turn_reset_on_hotspot_change(graph_store: KuzuGraphStore, vector_
     client = _agent_client(graph_store, vector_store, script)
     sessions = SessionStore()
     client.app.dependency_overrides[get_agent_sessions] = lambda: sessions
-    client.app.dependency_overrides[get_agent_graph] = lambda: compile_agent_graph(
+    client.app.dependency_overrides[get_agent_graph] = lambda: compile_graph(
         _ScriptedLLM(script + [AIMessage(content="Hi again.")]), [_fake_get_sign]
     )
 
@@ -567,7 +565,7 @@ def test_agent_turn_ambiguous_tradition_asks_with_no_second_model_call(
     )
     client = _client(graph_store, vector_store)
     client.app.dependency_overrides[get_agent_sessions] = lambda: SessionStore()
-    client.app.dependency_overrides[get_agent_graph] = lambda: compile_agent_graph(llm, [_fake_get_sign])
+    client.app.dependency_overrides[get_agent_graph] = lambda: compile_graph(llm, [_fake_get_sign])
 
     response = client.post(
         "/api/agent",

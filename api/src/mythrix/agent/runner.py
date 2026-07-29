@@ -13,6 +13,7 @@ from langgraph.errors import GraphRecursionError
 from langgraph.graph.state import CompiledStateGraph
 
 from mythrix.agent.commands.adhoc import PendingAdhocQuery
+from mythrix.agent.commands.discover import PendingDiscovery
 from mythrix.core.logging_config import truncate
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,8 @@ class TurnResult:
     tool_calls: list[str]
     instructions: list[dict] = field(default_factory=list)
     pending_query: PendingAdhocQuery | None = None
+    pending_discovery: PendingDiscovery | None = None
+    backend_authored: bool = False
 
 
 def run_turn(
@@ -38,6 +41,7 @@ def run_turn(
     max_tool_iterations: int,
     context_summary: str = "",
     pending_query: PendingAdhocQuery | None = None,
+    pending_discovery: PendingDiscovery | None = None,
     region_id: str | None = None,
     interpretant: str | None = None,
 ) -> tuple[list, TurnResult]:
@@ -50,10 +54,10 @@ def run_turn(
     `context_summary` (default `""`) is folded into the model invocation by
     `agent/graph.py::agent_node`, alongside `state["messages"]`.
 
-    `pending_query` (default `None`) carries the session's outstanding ad-hoc
-    query into the graph and back out on `TurnResult`, since the graph holds no
-    state of its own between turns (specs/interfaces/agnostic-query.md
-    FR-AQ-05).
+    `pending_query`/`pending_discovery` (default `None`) carry the session's
+    outstanding ad-hoc query and discovery into the graph and back out on
+    `TurnResult`, since the graph holds no state of its own between turns
+    (specs/interfaces/agnostic-query.md FR-AQ-05; discovery.md FR-DS-08).
 
     `region_id`/`interpretant` (default `None`) carry the session's active
     hotspot into the graph for `agent/graph.py::summarize_node` to read
@@ -70,9 +74,11 @@ def run_turn(
                 "messages": messages,
                 "context_summary": context_summary,
                 "pending_query": pending_query,
+                "pending_discovery": pending_discovery,
                 "instructions": [],
                 "region_id": region_id,
                 "interpretant": interpretant,
+                "backend_authored": False,
             },
             config={"recursion_limit": max_tool_iterations},
             stream_mode="values",
@@ -100,7 +106,12 @@ def run_turn(
         logger.info(
             "turn hit recursion bound: max_tool_iterations=%d tool_calls=%d", max_tool_iterations, len(tool_calls)
         )
-        return history, TurnResult(reply=_RECURSION_LIMIT_MESSAGE, tool_calls=tool_calls, pending_query=pending_query)
+        return history, TurnResult(
+            reply=_RECURSION_LIMIT_MESSAGE,
+            tool_calls=tool_calls,
+            pending_query=pending_query,
+            pending_discovery=pending_discovery,
+        )
 
     new_history = final_state["messages"]
     return new_history, TurnResult(
@@ -108,4 +119,6 @@ def run_turn(
         tool_calls=tool_calls,
         instructions=final_state.get("instructions", []),
         pending_query=final_state.get("pending_query"),
+        pending_discovery=final_state.get("pending_discovery"),
+        backend_authored=bool(final_state.get("backend_authored")),
     )

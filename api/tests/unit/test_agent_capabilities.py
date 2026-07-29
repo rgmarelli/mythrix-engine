@@ -6,9 +6,10 @@ copy of the same literals."""
 from langchain_core.messages import HumanMessage
 
 from mythrix.agent.capabilities import AGENT_CAPABILITIES, CLEAR_COMMAND
-from mythrix.agent.commands.adhoc import CONFIRM_COMMAND, QUERY_COMMAND, is_adhoc_command
+from mythrix.agent.commands import resolve_command
+from mythrix.agent.commands.adhoc import CONFIRM_COMMAND, QUERY_COMMAND
+from mythrix.agent.commands.discover import DISCOVER_COMMAND, DISCOVER_CONFIRM_COMMAND
 from mythrix.agent.commands.summarize import SUMMARIZE_COMMAND
-from mythrix.agent.commands.summarize import command_of as summarize_command_of
 from mythrix.agent.graph.builder import route_input
 
 _COMMANDS = {command.name: command for command in AGENT_CAPABILITIES.commands}
@@ -22,7 +23,7 @@ def test_every_server_command_is_one_the_backend_actually_recognizes() -> None:
     for name, command in _COMMANDS.items():
         if command.handled_by != "server":
             continue
-        recognized = is_adhoc_command(name) or summarize_command_of(name) is not None
+        recognized = resolve_command(name) is not None
         assert recognized, f"{name} is declared server-handled but no backend path recognizes it"
 
 
@@ -32,27 +33,40 @@ def test_clear_is_the_only_client_handled_command() -> None:
 
 
 def test_declared_commands_cover_every_command_the_backend_implements() -> None:
-    assert {QUERY_COMMAND, CONFIRM_COMMAND, SUMMARIZE_COMMAND} <= set(_COMMANDS)
+    assert {
+        QUERY_COMMAND,
+        CONFIRM_COMMAND,
+        SUMMARIZE_COMMAND,
+        DISCOVER_COMMAND,
+        DISCOVER_CONFIRM_COMMAND,
+    } <= set(_COMMANDS)
 
 
-def test_the_confirmation_command_is_unlisted() -> None:
-    """A consumer emits it from a `confirm_query` affordance; offering it in a
-    command palette would invite typing an id by hand."""
+def test_the_confirmation_commands_are_unlisted() -> None:
+    """A consumer emits one from a confirmation affordance, or the user copies
+    it out of the plan reply; offering either in a command palette would invite
+    typing an id by hand."""
     assert _COMMANDS[CONFIRM_COMMAND].listed is False
     assert _COMMANDS[QUERY_COMMAND].listed is True
+    assert _COMMANDS[DISCOVER_CONFIRM_COMMAND].listed is False
+    assert _COMMANDS[DISCOVER_COMMAND].listed is True
 
 
 def test_every_declared_instruction_type_is_one_the_graph_can_emit() -> None:
-    assert set(_BINDINGS) == {"confirm_query", "execute_query"}
+    assert set(_BINDINGS) == {"confirm_query", "execute_query", "confirm_discovery"}
     assert route_input({"messages": [HumanMessage(content=f"{QUERY_COMMAND} laughter")]}) == "parse_query"
     assert route_input({"messages": [HumanMessage(content=f"{CONFIRM_COMMAND} 7f3a1c9e")]}) == "execute_query"
+    assert route_input({"messages": [HumanMessage(content=f'{DISCOVER_COMMAND} "joy", laughter')]}) == "plan_discovery"
 
 
-def test_confirm_query_declares_no_binding() -> None:
-    """It triggers no request — the affordance sends a chat command
-    (FR-CAP-07). Modeling that as an explicit `None` is what lets a consumer
-    tell it apart from a type it simply does not know."""
+def test_the_confirmation_instructions_declare_no_binding() -> None:
+    """Neither triggers a request — each affordance sends a chat command
+    (FR-CAP-07, FR-DS-31). Modeling that as an explicit `None` is what lets a
+    consumer tell it apart from a type it simply does not know (FR-CAP-13),
+    which is the difference between rendering a chip and reporting an error."""
     assert _BINDINGS["confirm_query"] is None
+    assert _BINDINGS["confirm_discovery"] is None
+    assert "confirm_discovery" in _BINDINGS
 
 
 def test_execute_query_binds_to_a_safe_method_and_a_same_origin_path() -> None:

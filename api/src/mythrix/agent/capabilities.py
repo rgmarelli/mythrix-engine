@@ -17,6 +17,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 from mythrix.agent.commands.adhoc import CONFIRM_COMMAND, QUERY_COMMAND
+from mythrix.agent.commands.discover import DISCOVER_COMMAND, DISCOVER_CONFIRM_COMMAND
 from mythrix.agent.commands.summarize import SUMMARIZE_COMMAND
 
 CLEAR_COMMAND = "/clear"
@@ -24,7 +25,7 @@ CLEAR_COMMAND = "/clear"
 SafeMethod = Literal["GET", "QUERY"]
 BodyMode = Literal["payload"]
 ResultKind = Literal["regions"]
-InstructionType = Literal["confirm_query", "execute_query"]
+InstructionType = Literal["confirm_query", "execute_query", "confirm_discovery"]
 
 
 class CommandSpec(BaseModel):
@@ -88,9 +89,29 @@ AGENT_CAPABILITIES = AgentCapabilities(
             handled_by="server",
             listed=False,
         ),
+        CommandSpec(
+            name=DISCOVER_COMMAND,
+            args='"what to look for", term[:exact|:filter], …',
+            summary="Search the corpus on your own terms, read every result against a question, and consolidate",
+            handled_by="server",
+            listed=True,
+        ),
+        CommandSpec(
+            name=DISCOVER_CONFIRM_COMMAND,
+            args="<id>",
+            summary="Run a parsed discovery",
+            handled_by="server",
+            listed=False,
+        ),
     ],
     instructions=[
         InstructionSpec(type="confirm_query", binding=None),
+        # Like `confirm_query`: no binding, so a consumer renders an affordance
+        # that sends the confirmation command rather than issuing a request
+        # (FR-CAP-07, FR-DS-31). A declared type with no binding and an
+        # undeclared type are deliberately different things (FR-CAP-13) —
+        # emitting this without declaring it here would surface as an error.
+        InstructionSpec(type="confirm_discovery", binding=None),
         InstructionSpec(
             type="execute_query",
             binding=InstructionBinding(

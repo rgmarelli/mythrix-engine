@@ -442,6 +442,7 @@ describe('agent instructions', () => {
     commands: [],
     bindings: {
       confirm_query: null,
+      confirm_discovery: null,
       execute_query: { method: 'QUERY', path: '/api/query/adhoc', body: 'payload', result: 'regions' },
     },
   };
@@ -542,6 +543,23 @@ describe('agent instructions', () => {
     const { result } = renderHook(() => useTabs(CAPABILITIES));
     await act(async () => {
       await result.current.sendAgentMessage('/query laughter');
+    });
+
+    expect(fetchBoundRegions).not.toHaveBeenCalled();
+    expect(result.current.activeTab.agentItems.at(-1)).toMatchObject({ kind: 'ai' });
+  });
+
+  it('runs nothing for a confirm_discovery instruction, and reports no error', async () => {
+    // Declared with a null binding, so it is known-but-unexecutable rather
+    // than undeclared (FR-CAP-13, FR-DS-31) — the difference between the panel
+    // rendering a chip and an error bubble appearing beside the plan.
+    vi.mocked(postAgentTurn).mockResolvedValueOnce(
+      turnWith([{ type: 'confirm_discovery', payload: { confirm_command: '/discover-confirm 7f3a1c' } }]),
+    );
+
+    const { result } = renderHook(() => useTabs(CAPABILITIES));
+    await act(async () => {
+      await result.current.sendAgentMessage('/discover "where joy is", laughter');
     });
 
     expect(fetchBoundRegions).not.toHaveBeenCalled();

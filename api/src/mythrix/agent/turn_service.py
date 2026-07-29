@@ -8,12 +8,12 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Literal
 
 from langchain_core.messages import ToolMessage
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel
 
+from mythrix.agent.capabilities import InstructionType
 from mythrix.agent.citations import find_invalid_markers, strip_markers
 from mythrix.agent.commands.adhoc import is_adhoc_command
 from mythrix.agent.context import (
@@ -46,7 +46,7 @@ class AgentInstruction(BaseModel):
     carries whatever `type` needs; mapping `type` to an actual endpoint call is
     the consumer's job, not this model's or the node's that produced it."""
 
-    type: Literal["confirm_query", "execute_query"]
+    type: InstructionType
     payload: dict
 
 
@@ -88,11 +88,17 @@ def _build_valid_marker_ids(tool_messages: list[ToolMessage]) -> set[str]:
     """Counts citable items across this turn's tool results, in the order
     they appear, per `agent/prompts.py`'s marker convention: each
     `get_sign` citation is a "G" item, each `query_sign`/`fetch_segments`
-    segment is an "S" item. Counting continues across multiple tool calls in
-    the same turn rather than restarting per call."""
+    segment is an "S" item, and each `query_adhoc` region is an "R" item.
+    Counting continues across multiple tool calls in the same turn rather than
+    restarting per call.
+
+    A discovery run's `query_adhoc` result is already truncated to the regions
+    the run reads, so the "R" ids and the report's sections are the same list
+    by construction (FR-DS-21)."""
     valid_ids: set[str] = set()
     g_count = 0
     s_count = 0
+    r_count = 0
     for message in tool_messages:
         payload = _safe_json_loads(message.content)
         if message.name == "get_sign" and isinstance(payload, dict) and "error" not in payload:
@@ -104,6 +110,10 @@ def _build_valid_marker_ids(tool_messages: list[ToolMessage]) -> set[str]:
                 for _ in region.get("segments", ()):
                     s_count += 1
                     valid_ids.add(f"S{s_count}")
+        elif message.name == "query_adhoc" and isinstance(payload, dict) and "error" not in payload:
+            for _ in payload.get("regions", ()):
+                r_count += 1
+                valid_ids.add(f"R{r_count}")
         elif message.name == "fetch_segments" and isinstance(payload, list):
             for segment in payload:
                 if "error" in segment:
@@ -111,6 +121,18 @@ def _build_valid_marker_ids(tool_messages: list[ToolMessage]) -> set[str]:
                 s_count += 1
                 valid_ids.add(f"S{s_count}")
     return valid_ids
+
+
+def _ungrounded_markers(reply: str, tool_messages: list[ToolMessage], backend_authored: bool) -> tuple[str, ...]:
+    """The markers in `reply` naming no item this turn's tools returned.
+
+    Empty for a reply with no model-authored text in it (FR-DS-24): a
+    marker-shaped sequence there came from the backend's own composition or
+    from the user's own input echoed back, neither of which is the ungrounded
+    claim FR-AG-06 exists to reject."""
+    if backend_authored or _only_listing_tools_called(tool_messages):
+        return ()
+    return find_invalid_markers(reply, _build_valid_marker_ids(tool_messages))
 
 
 def run_chat_turn(
@@ -130,6 +152,7 @@ def run_chat_turn(
         if thread_reset:
             session.history = []
             session.pending_query = None
+            session.pending_discovery = None
 
         context = apply_ui_selection(previous_context, ui_selection)
         full_context_summary = render_context_summary(context)
@@ -151,6 +174,7 @@ def run_chat_turn(
                 max_tool_iterations=max_tool_iterations,
                 context_summary=full_context_summary,
                 pending_query=session.pending_query,
+                pending_discovery=session.pending_discovery,
                 region_id=context.region_id,
                 interpretant=context.interpretant,
             )
@@ -163,6 +187,7 @@ def run_chat_turn(
             )
 
         session.pending_query = result.pending_query
+        session.pending_discovery = result.pending_discovery
         instructions = [AgentInstruction(**instruction) for instruction in result.instructions]
 
         if is_adhoc_command(message):
@@ -193,10 +218,9 @@ def run_chat_turn(
 
         visible_reply = result.reply.strip()
 
-        valid_ids = _build_valid_marker_ids(tool_messages)
-        invalid_markers = find_invalid_markers(visible_reply, valid_ids)
+        invalid_markers = _ungrounded_markers(visible_reply, tool_messages, result.backend_authored)
         try:
-            if invalid_markers and not _only_listing_tools_called(tool_messages):
+            if invalid_markers:
                 raise CitationValidationError(invalid_markers)
         except CitationValidationError as exc:
             logger.info("turn failed: citation validation: %s", exc)
