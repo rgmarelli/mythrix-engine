@@ -75,3 +75,6 @@ Rules:
 - Prefer describing the outcome of a change over the sequence of edits performed.
 - Avoid writing commit messages as changelogs or pull request descriptions.
 - Include detailed migration notes, file lists, or implementation history only when explicitly requested.
+- Do not add yourself as an author or co-author of the commits.
+- All commit messages and logs must be reviewed and explicitly approved by the user before execution.
+
