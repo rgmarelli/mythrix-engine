@@ -647,7 +647,7 @@ def read_region(region_id: str) -> dict:
 
 
 @tool
-def augment_passage(passage_text: str, focus: str) -> dict:
+def augment_passage(passage_text: str, focus: str, source: str, locator: str) -> dict:
     """Fake augment_passage mirroring the real tool's shape."""
     return {"augmentation": "a reading"}
 

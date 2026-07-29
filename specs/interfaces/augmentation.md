@@ -149,9 +149,11 @@ describes.
 ### Generation
 
 - FR-AU-19: Each augmented region produces one augmentation from exactly one
-  generation-model invocation, given that region's passage and the run's focus.
-  The invocation is instructed to answer from the passage alone and to say so
-  when the passage does not bear on the focus.
+  generation-model invocation, given that region's passage, its source and
+  locator, and the run's focus. The invocation is instructed to use the
+  reference only to know what passage it is reading, not to draw on outside
+  knowledge of it, and to answer from the passage alone — saying so when the
+  passage does not bear on the focus.
 - FR-AU-20: After every augmentation is produced, the augmentations are
   consolidated into a single answer to the focus, naming what recurs across
   them and where it does not, through a bounded, hierarchical sequence of

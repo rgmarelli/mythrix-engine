@@ -39,19 +39,33 @@ def render_passage_summary_prompt(text: str, concepts: tuple[str, ...]) -> str:
     return f'Summarize the following passage, focusing on the concepts: {concept_list}.\n\nPassage:\n"{text}"'
 
 
-def render_augmentation_prompt(text: str, focus: str) -> str:
+def render_augmentation_prompt(text: str, focus: str, source: str, locator: str) -> str:
     """One region's reading against the user's own question (FR-AU-19).
 
-    The retrieval terms are deliberately absent: a region reaches a run
-    because the user is looking at it, not because a term matched, so naming
-    terms here would invite the model to answer about them instead of about
-    the focus."""
+    The reference (`source`/`locator`) is included so the model never has to
+    infer what passage it is reading — a gap that, left open, does not stay
+    unfilled: the model recognizes familiar text from its own training and
+    states a reference for it anyway, sometimes the wrong one. The instruction
+    below is deliberately narrow — ground the reading, do not editorialize
+    from it — since knowing the true reference should not license answering
+    from anything beyond the passage's own text.
+
+    The retrieval terms remain absent, unlike the reference: a region reaches
+    a run because the user is looking at it, not because a term matched, so
+    naming a term here would invite the model to answer about it instead of
+    about the focus. A reference is not a retrieval term — it identifies the
+    passage rather than explaining why it was surfaced."""
     return (
+        f"Reference: {source} — {locator}.\n\n"
         f"Analyze the following passage for this analytical task: {focus}\n\n"
         "Base your analysis exclusively on the passage itself. "
         "Interpret the passage directly and make reasonable inferences "
         "when they are supported by the text. "
         "Do not introduce external facts or context.\n\n"
+        "The reference above identifies which passage this is. Use it only "
+        "for that. Do not name, restate, or discuss the reference itself, and "
+        "do not draw on outside or prior knowledge associated with it — "
+        "everything you say must still come from the passage's own text.\n\n"
         "If the passage provides relevant evidence for the requested analysis, "
         "describe it. If the evidence is ambiguous, explain the ambiguity. "
         "Only say that the passage is not relevant when it genuinely provides "

@@ -276,7 +276,12 @@ def _augment_regions(
             region["locator"],
         )
         result = _tool_by_name(tools, "augment_passage").invoke(
-            {"passage_text": region["text"], "focus": pending.focus}
+            {
+                "passage_text": region["text"],
+                "focus": pending.focus,
+                "source": region["source"],
+                "locator": region["locator"],
+            }
         )
         if "error" in result:
             logger.info("augment region %d/%d failed: label=%s error=%s", rank, total, label, result["error"])
