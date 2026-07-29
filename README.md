@@ -1,6 +1,6 @@
 # Mythrix Engine
 
-**A deterministic symbolic retrieval engine with an LLM-powered interpretation and knowledge-discovery assistant.**
+**A deterministic knowledge retrieval engine with symbolic reasoning and evidence-grounded LLM augmentation.**
 
 > 🚧 **Work in Progress**
 >
@@ -68,28 +68,39 @@ The central design decision in Mythrix is to deliberately separate **retrieval**
 
 ```text
 ┌───────────────────────────────────────────────┐
-│             INTERPRETATION LAYER              │
+│             GENERATIVE LAYER                  │
 │                                               │
 │  LLM Assistant                                │
+│                                               │
+│  Interpretation                               │
 │  • Explain difficult passages                 │
-│  • Explore retrieved evidence                 │
 │  • Compare concepts and sources               │
 │  • Answer follow-up questions                 │
 │  • Discover connections                       │
-│  • Request additional queries                 │
-│  • Maintain natural-language conversation     │
-└───────────────────────┬───────────────────────┘
+│  • Maintain conversation                      │
+└───────────────────────▲───────────────────────┘
                         │
-                 Evidence / Commands
+                 Augmented Evidence
                         │
-                 ───────┼───────
-                  TRUST BOUNDARY
-                 ───────┼───────
+┌───────────────────────┴───────────────────────┐
+│       EVIDENCE AUGMENTATION LAYER             │
+│                                               │
+│  Grounded synthesis                           │
+│                                               │
+│  • Summarize evidence regions                 │
+│  • Relate retrieved concepts                  │
+│  • Consolidate multiple passages              │
+│  • Preserve provenance                        │
+│                                               │
+└───────────────────────▲───────────────────────┘
                         │
-┌───────────────────────▼───────────────────────┐
+                  Retrieved Evidence
+                        │
+┌───────────────────────┴───────────────────────┐
 │              RETRIEVAL LAYER                  │
 │                                               │
 │  Deterministic Query Engine                   │
+│                                               │
 │  • Symbolic resolution                        │
 │  • Retrieval                                  │
 │  • Convergence                                │
@@ -109,6 +120,7 @@ The central design decision in Mythrix is to deliberately separate **retrieval**
        │ Interpretants│    │ Passages      │
        │ Relations    │    │ References    │
        └──────────────┘    └───────────────┘
+
 ```
 
 This boundary is intentional.
@@ -138,29 +150,34 @@ It is to avoid making them responsible for determining what evidence exists.
 
 ---
 
+## Evidence-grounded Knowledge Augmentation
+
+Retrieval alone is not enough for knowledge-intensive systems.
+
+Once relevant evidence has been identified, Mythrix can augment that evidence with
+LLM-assisted analysis while preserving the original source boundaries.
+
+The augmentation layer operates over retrieved regions, not over the entire corpus.
+
+It can help:
+
+- summarize multiple evidence regions
+- identify relationships between retrieved concepts
+- explain difficult passages
+- compare different sources
+- assist exploration without generating unsupported facts
+
+The LLM does not create new evidence.
+
+It transforms retrieved evidence into a more accessible form for human inquiry.
+
+---
+
 ## Why Not Put the LLM in Charge of Retrieval?
 
 Mythrix is designed to work with potentially large corpora of reference material.
 
-A conventional LLM-centered RAG pipeline typically couples the user's natural-language question, query formulation, retrieval, and final generation:
-
-```text
-User question
-      ↓
-LLM
-      ↓
-Query formulation
-      ↓
-Vector retrieval
-      ↓
-Top-K chunks
-      ↓
-LLM context
-      ↓
-Generated answer
-```
-
-This approach can be useful, but it gives the model significant influence over which evidence enters the context.
+Many LLM-centered RAG architectures allow the model to influence query formulation, retrieval context, and final generation. This approach can be useful, but it gives the model significant influence over which evidence enters the context.
 
 Mythrix explores a different architecture:
 
@@ -181,6 +198,8 @@ LLM interpretation and exploration
 ```
 
 The deterministic engine reduces a potentially large corpus to a manageable and explainable **evidence surface**.
+
+This evidence surface can then be augmented, summarized, and explored by generative models without losing provenance.
 
 The LLM then operates over that surface.
 
@@ -272,7 +291,7 @@ A query may surface passages written in:
 
 The user can then ask:
 
-> "What is this author actually saying here?"
+> "How do these retrieved passages relate to each other?"
 
 The assistant can help explain the passage, clarify terminology, compare sources, and connect concepts across retrieved evidence.
 
@@ -283,6 +302,8 @@ The interaction can then become iterative:
 ```text
 Retrieve
    ↓
+Augment evidence
+   ↓
 Interpret
    ↓
 Explore
@@ -290,8 +311,6 @@ Explore
 Ask
    ↓
 Retrieve more
-   ↓
-Interpret again
 ```
 
 This creates a knowledge-discovery loop in which the LLM acts as a bridge between **retrieval and human inquiry**.
@@ -408,6 +427,10 @@ The system narrows the corpus before asking the LLM to interpret or explore the 
 
 The LLM is an assistant for interpretation and discovery, not an autonomous authority over the knowledge domain.
 
+### Generation is constrained by evidence
+
+Generative capabilities operate only over retrieved and validated evidence surfaces, preserving provenance throughout exploration.
+
 ---
 
 ## Technology
@@ -421,7 +444,7 @@ Mythrix is currently built with:
 * **FastAPI** for the application API
 * **CLI** for direct interaction
 * **Web UI** for interactive exploration
-* **Ollama**, running locally, for both the embedding model (retrieval) and the generation model (interpretation) — no hosted or cloud model is ever called
+* **Ollama**, running locally, for embedding and generation models — keeping model execution replaceable and independent from the retrieval architecture.
 
 The deterministic query engine is designed to remain usable independently of the conversational agent.
 
@@ -481,8 +504,6 @@ Human Exploration
             =
 Explainable Knowledge Discovery
 ```
-
-The Tarot domain is currently used as an experimental symbolic system, but the architecture is intended to remain independent of any single symbolic tradition.
 
 ---
 
