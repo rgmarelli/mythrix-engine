@@ -3,9 +3,11 @@
 A confirmation-gated chat command that reads every region the consumer is
 currently displaying ([web-viewer.md](web-viewer.md)) against a free-text
 focus, delivers each reading as it is produced, and consolidates the readings
-into one cited answer. Served by the [Conversational Agent](agent.md)'s chat
-panel and handled entirely in code, without the orchestration model's tool
-selection
+into one cited answer, consolidated hierarchically when there are more than
+one batch's worth of them
+([ADR-016](../architecture-decisions/adr-016-hierarchical-map-reduce-augmentation-consolidation.md)).
+Served by the [Conversational Agent](agent.md)'s chat panel and handled
+entirely in code, without the orchestration model's tool selection
 ([ADR-015](../architecture-decisions/adr-015-deterministic-augmentation-over-viewer-regions.md)).
 
 ## Vocabulary
@@ -150,14 +152,25 @@ describes.
   generation-model invocation, given that region's passage and the run's focus.
   The invocation is instructed to answer from the passage alone and to say so
   when the passage does not bear on the focus.
-- FR-AU-20: After every augmentation is produced, exactly one further
-  generation-model invocation consolidates them into a single answer to the
-  focus, naming what recurs across them and where it does not. It is given the
-  augmentations and their region labels only — never raw passage text.
-- FR-AU-21: A run invokes the generation model exactly N+1 times for N augmented
-  regions, and never more. The fan-out is bounded by FR-AU-14, not by the
-  per-turn tool-call bound, which governs the model's own tool loop and is not
-  reached.
+- FR-AU-20: After every augmentation is produced, the augmentations are
+  consolidated into a single answer to the focus, naming what recurs across
+  them and where it does not, through a bounded, hierarchical sequence of
+  generation-model invocations rather than always exactly one: the
+  augmentations are grouped into batches of at most a configured size; each
+  batch is consolidated by one invocation, given that batch's augmentations
+  and their region labels only, never raw passage text; if more than one
+  batch's worth of results remain, those results are themselves grouped and
+  consolidated again, given only prior results, never raw passage text or the
+  individual augmentations directly; this repeats until exactly one result
+  remains, which is the run's answer. When the number of a run's augmentations
+  does not exceed the configured batch size, this collapses to exactly one
+  invocation given the augmentations directly.
+- FR-AU-21: A run invokes the generation model N + C times for N augmented
+  regions, where C is the number of consolidation invocations FR-AU-20
+  performs — deterministic from N and the configured batch size, never a
+  function of model behavior, and equal to 1 whenever N does not exceed that
+  size. The fan-out is bounded by FR-AU-14 and FR-AU-40, not by the per-turn
+  tool-call bound, which governs the model's own tool loop and is not reached.
 
 ### Delivery
 
@@ -226,7 +239,24 @@ describes.
   source, human-readable locator and label, and carries no passage text.
 - FR-AU-37: Every step of a run is logged at INFO: the focus; the count supplied
   and the count augmented; each region's index, label, source and locator as its
-  augmentation starts, and its elapsed time as it completes; the consolidation;
-  and the run's total elapsed time.
+  augmentation starts, and its elapsed time as it completes; each consolidation
+  invocation and the run's total invocation count; and the run's total elapsed
+  time.
 - FR-AU-38: Neither command changes the session's semiotic system, sign,
   tradition, or active hotspot.
+- FR-AU-39: A region's marker is assigned once, when its augmentation is
+  produced (FR-AU-30), and is never reassigned, renumbered, or replaced by a
+  later consolidation invocation. Every invocation above the first
+  consolidation level is given no marker vocabulary of its own and is
+  instructed to carry forward, unchanged, whatever markers already appear in
+  what it is given. The run's terminal reply carries only markers naming
+  regions this run augmented (FR-AU-31), regardless of how many consolidation
+  levels produced it.
+- FR-AU-40: The number of augmentations or prior consolidation results one
+  consolidation invocation may be given is configurable and bounded by
+  default, uniformly at every level (FR-AU-20).
+- FR-AU-41: As each consolidation invocation other than a run's final one
+  completes, a chat message reports progress, before the run continues. No
+  instruction accompanies it, since a batch's result is not attached to one
+  region. The run's final consolidation invocation is not separately
+  announced, since its result is the terminal reply itself.

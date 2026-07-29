@@ -53,6 +53,7 @@ def compile_agent_graph(  # noqa: ANN001 - Runnable, no shared base type worth i
     toolset: ToolSet,
     *,
     augment_max_regions: int,
+    augment_consolidation_group_size: int,
 ) -> CompiledStateGraph:
     """Compiles the turn's state machine given an already tool-bound chat
     model. `route_input` dispatches the incoming message: an ad-hoc-query
@@ -82,7 +83,10 @@ def compile_agent_graph(  # noqa: ANN001 - Runnable, no shared base type worth i
     compiled graph is reusable across turns with no reconstruction.
     `augment_max_regions` is not that bound and does not substitute for it:
     it bounds a deterministic node's own generation fan-out, on a path the
-    model's tool loop never enters (FR-AU-21)."""
+    model's tool loop never enters (FR-AU-21). `augment_consolidation_group_size`
+    bounds a further, independent fan-out on the same path: how many results
+    one consolidation invocation may be given, at every level of a run's
+    hierarchical consolidation (FR-AU-40, ADR-016)."""
     builder = StateGraph(AgentState)
     builder.add_node("agent", lambda state: agent_node(state, llm_with_tools))
     builder.add_node("tools", ToolNode(toolset.model_tools))
@@ -90,8 +94,21 @@ def compile_agent_graph(  # noqa: ANN001 - Runnable, no shared base type worth i
     builder.add_node("parse_query", parse_query_node)
     builder.add_node("execute_query", execute_query_node)
     builder.add_node("summarize", lambda state: summarize_node(state, toolset.all))
-    builder.add_node("plan_augment", lambda state: plan_augment_node(state, max_regions=augment_max_regions))
-    builder.add_node("run_augment", lambda state: run_augment_node(state, toolset.all, max_regions=augment_max_regions))
+    builder.add_node(
+        "plan_augment",
+        lambda state: plan_augment_node(
+            state, max_regions=augment_max_regions, consolidation_group_size=augment_consolidation_group_size
+        ),
+    )
+    builder.add_node(
+        "run_augment",
+        lambda state: run_augment_node(
+            state,
+            toolset.all,
+            max_regions=augment_max_regions,
+            consolidation_group_size=augment_consolidation_group_size,
+        ),
+    )
     builder.add_conditional_edges(
         START,
         route_input,

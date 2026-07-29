@@ -1,15 +1,19 @@
 """Deterministic nodes for the `/augment` and `/augment-confirm` commands
-(specs/interfaces/augmentation.md FR-AU-05–FR-AU-25, ADR-012, ADR-015).
+(specs/interfaces/augmentation.md FR-AU-05–FR-AU-25, FR-AU-39–FR-AU-41,
+ADR-012, ADR-015, ADR-016).
 
 `plan_augment_node` parses and snapshots; `run_augment_node` executes the whole
 sequence — read each region, augment each passage, consolidate — in code. The
-orchestration model is invoked at no point in either turn. The only model calls
-are the N+1 generation calls inside `augment_passage`/`consolidate_augmentations`,
-each of which is one prompt producing one string over the narrow `ChatClient`.
+orchestration model is invoked at no point in either turn. The model calls are
+the N generation calls inside `augment_passage`, one per region, plus a
+deterministic-but-variable number of further calls that consolidate them
+hierarchically (`_consolidate`, ADR-016) — each of which is still one prompt
+producing one string over the narrow `ChatClient`.
 """
 
 from __future__ import annotations
 
+import itertools
 import json
 import logging
 import time
@@ -29,6 +33,7 @@ from mythrix.agent.commands.augment import (
     augment_region_instruction,
     confirm_augment_instruction,
     confirm_id_of,
+    consolidation_progress_message,
     new_augmentation_id,
     parse_augment_command,
     region_done_message,
@@ -60,7 +65,7 @@ def _backend_reply(text: str, pending: PendingAugmentation | None, messages: lis
     }
 
 
-def plan_augment_node(state: AgentState, *, max_regions: int) -> dict:
+def plan_augment_node(state: AgentState, *, max_regions: int, consolidation_group_size: int) -> dict:
     """Parses an `/augment` command and snapshots the consumer's visible
     regions alongside it (FR-AU-05, FR-AU-09), replying with the plan and the
     command that runs it. Reads nothing and invokes no model (FR-AU-06). A
@@ -83,8 +88,11 @@ def plan_augment_node(state: AgentState, *, max_regions: int) -> dict:
         len(region_ids),
         augmenting,
     )
+    plan = render_plan(
+        focus, len(region_ids), augmenting, augmentation_id, consolidation_group_size=consolidation_group_size
+    )
     return {
-        **_backend_reply(render_plan(focus, len(region_ids), augmenting, augmentation_id), None),
+        **_backend_reply(plan, None),
         "pending_augmentation": PendingAugmentation(id=augmentation_id, focus=focus, region_ids=region_ids),
         "instructions": [confirm_augment_instruction(augmentation_id, focus, augmenting)],
     }
@@ -108,14 +116,82 @@ def _record_messages(augmentations: tuple[RegionAugmentation, ...]) -> list:
     ]
 
 
-def run_augment_node(state: AgentState, tools: list, *, max_regions: int) -> dict:  # noqa: ANN001 - BaseTool list
+def _consolidate(
+    tools: list,  # noqa: ANN001 - BaseTool list
+    focus: str,
+    augmentations: tuple[RegionAugmentation, ...],
+    group_size: int,
+) -> tuple[dict, int]:
+    """Hierarchical map-reduce over `augmentations`' readings (ADR-016):
+    batches of at most `group_size` are consolidated by one generation call
+    each; while more than `group_size` results remain, the results are
+    themselves batched and consolidated again, until exactly one remains.
+    Returns the final tool result and the number of consolidation calls made
+    — N + this count is the run's total (FR-AU-21).
+
+    The first level (raw, individually labeled augmentations) always goes
+    through `consolidate_augmentations`; every level above it (already-
+    synthesized text that already embeds `[R#]` markers, with no label of its
+    own) goes through `rollup_augmentations` instead (FR-AU-39) — never the
+    reverse, since only the first level's prompt is given a label vocabulary
+    to cite from. `rollup_augmentations` is looked up only once the loop
+    proves it is needed, so a run that never exceeds `group_size` costs no
+    lookup and requires no such tool to be registered."""
+    writer = get_stream_writer()
+    consolidate = _tool_by_name(tools, "consolidate_augmentations")
+    items: list[str] = [a.text for a in augmentations]
+    labels: list[str] = [f"{a.label} {a.source}, {a.locator}" for a in augmentations]
+    calls = 0
+    level = 1
+
+    while len(items) > group_size:
+        rollup = _tool_by_name(tools, "rollup_augmentations")
+        index_batches = list(itertools.batched(range(len(items)), group_size))
+        next_items: list[str] = []
+        for rank, idx_batch in enumerate(index_batches, start=1):
+            calls += 1
+            batch = [items[i] for i in idx_batch]
+            if level == 1:
+                label_batch = [labels[i] for i in idx_batch]
+                result = consolidate.invoke(
+                    {
+                        "focus": focus,
+                        "augmentations": [
+                            {"label": lbl, "augmentation": txt} for lbl, txt in zip(label_batch, batch, strict=True)
+                        ],
+                    }
+                )
+            else:
+                result = rollup.invoke({"focus": focus, "summaries": batch})
+            if "error" in result:
+                return result, calls
+            next_items.append(result["consolidation"])
+            writer({"message": consolidation_progress_message(level, rank, len(index_batches))})
+        items, labels, level = next_items, [], level + 1
+
+    calls += 1
+    if level == 1:
+        final = consolidate.invoke(
+            {
+                "focus": focus,
+                "augmentations": [{"label": lbl, "augmentation": txt} for lbl, txt in zip(labels, items, strict=True)],
+            }
+        )
+    else:
+        final = _tool_by_name(tools, "rollup_augmentations").invoke({"focus": focus, "summaries": items})
+    return final, calls
+
+
+def run_augment_node(  # noqa: ANN001 - BaseTool list
+    state: AgentState, tools: list, *, max_regions: int, consolidation_group_size: int
+) -> dict:
     """Runs a confirmed augmentation (FR-AU-07, FR-AU-13–FR-AU-25).
 
     Which operations run and in what order is decided here, not by the
     orchestration model's tool selection: one `read_region`/`augment_passage`
-    pair per region in the supplied order, then one
-    `consolidate_augmentations`. The set of regions read and the order they
-    are read in are exactly the snapshot taken at plan time, head-truncated to
+    pair per region in the supplied order, then a hierarchical consolidation
+    (`_consolidate`, ADR-016). The set of regions read and the order they are
+    read in are exactly the snapshot taken at plan time, head-truncated to
     `max_regions` — no model participates in selecting or re-ordering one
     (FR-AU-13).
 
@@ -148,14 +224,7 @@ def run_augment_node(state: AgentState, tools: list, *, max_regions: int) -> dic
         return _backend_reply(NO_PASSAGE_MESSAGE, None)
 
     logger.info("augment consolidate: id=%s augmentations=%d", augmentation_id, len(augmentations))
-    consolidation = _tool_by_name(tools, "consolidate_augmentations").invoke(
-        {
-            "focus": pending.focus,
-            "augmentations": [
-                {"label": f"{a.label} {a.source}, {a.locator}", "augmentation": a.text} for a in augmentations
-            ],
-        }
-    )
+    consolidation, consolidation_calls = _consolidate(tools, pending.focus, augmentations, consolidation_group_size)
     if "error" in consolidation:
         logger.info("augment run failed: id=%s error=%s", augmentation_id, consolidation["error"])
         return _backend_reply(consolidation["error"], None)
@@ -164,7 +233,7 @@ def run_augment_node(state: AgentState, tools: list, *, max_regions: int) -> dic
         "augment done: id=%s regions=%d model_calls=%d elapsed=%.1fs",
         augmentation_id,
         len(augmentations),
-        len(augmentations) + 1,
+        len(augmentations) + consolidation_calls,
         time.monotonic() - started,
     )
     reply = render_reply(strip_markers(consolidation["consolidation"]), len(pending.region_ids), len(augmentations))

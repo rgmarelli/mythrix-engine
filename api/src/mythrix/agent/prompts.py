@@ -85,3 +85,36 @@ def render_consolidation_prompt(focus: str, augmentations: tuple[tuple[str, str]
         "e.g. [R1] or [R1][R3]. "
         "Never cite a label that does not appear above."
     )
+
+
+def render_rollup_prompt(focus: str, summaries: tuple[str, ...]) -> str:
+    """A further synthesis across summaries that are themselves consolidations
+    (FR-AU-39), used above the first consolidation level once a run has more
+    augmentations than one invocation may be given (ADR-016).
+
+    Unlike `render_consolidation_prompt`, these inputs are not individually
+    labeled — each already cites the regions behind it with `[R#]` markers
+    embedded in its own text. This prompt's one load-bearing instruction is
+    therefore the opposite of the leaf prompt's: carry every such marker
+    forward exactly as written rather than choosing from a label list, since
+    inventing or renumbering one here would cite a region this invocation was
+    never given."""
+    rendered = "\n\n".join(f"Summary {i}:\n{summary}" for i, summary in enumerate(summaries, start=1))
+
+    return (
+        "The user requested the following analysis:\n\n"
+        f"{focus}\n\n"
+        "Below are several analyses, each already synthesized from a group of "
+        "readings and already citing the specific regions behind it using "
+        "[R#] markers embedded in its own text.\n\n"
+        f"{rendered}\n\n"
+        "Synthesize these summaries into one further analysis that answers the "
+        "requested analytical task, describing what recurs and what diverges "
+        "across them.\n\n"
+        "Every [R#] marker already present in the summaries above must appear "
+        "in your answer exactly as written, unchanged, wherever the claim it "
+        "supports survives or is paraphrased. Never invent a new marker, never "
+        "renumber one, and never merge two into one. The 'Summary N' labels "
+        "above are for your reference only, are not citation markers, and must "
+        "not appear in your answer."
+    )

@@ -57,5 +57,6 @@ def get_agent_graph(request: Request) -> CompiledStateGraph:
             agent_llm.bind_tools(toolset.model_tools),
             toolset,
             augment_max_regions=settings.augment_max_regions,
+            augment_consolidation_group_size=settings.augment_consolidation_group_size,
         )
     return request.app.state.agent_graph

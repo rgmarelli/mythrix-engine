@@ -17,6 +17,7 @@ def test_defaults() -> None:
     assert settings.region_window_size == 3
     assert settings.region_min_interpretants == 1
     assert settings.augment_max_regions == 8
+    assert settings.augment_consolidation_group_size == 8
 
 
 def test_env_var_overrides_default(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -67,6 +68,19 @@ def test_augment_max_regions_can_be_overridden(monkeypatch: pytest.MonkeyPatch) 
     settings = Settings(_env_file=None)  # type: ignore[call-arg]
 
     assert settings.augment_max_regions == 3
+
+
+def test_augment_consolidation_group_size_can_be_overridden(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MYTHRIX_AUGMENT_CONSOLIDATION_GROUP_SIZE", "3")
+
+    settings = Settings(_env_file=None)  # type: ignore[call-arg]
+
+    assert settings.augment_consolidation_group_size == 3
+
+
+def test_augment_consolidation_group_size_rejects_values_below_two() -> None:
+    with pytest.raises(ValueError, match="greater than or equal to 2"):
+        Settings(augment_consolidation_group_size=1, _env_file=None)  # type: ignore[call-arg]
 
 
 def test_region_window_size_and_min_interpretants_can_be_overridden(monkeypatch: pytest.MonkeyPatch) -> None:

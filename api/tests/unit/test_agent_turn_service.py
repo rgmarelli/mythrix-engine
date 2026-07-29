@@ -879,3 +879,136 @@ def test_run_chat_turn_collapses_the_stream_to_its_terminal_event() -> None:
 
     assert isinstance(run, TurnEvent)
     assert run.event == "turn"
+
+
+# --- hierarchical consolidation (FR-AU-20, FR-AU-21, FR-AU-39–FR-AU-41, ADR-016) --
+
+_MULTI_REGION_IDS = ["waite::0-1", "waite::10-11", "waite::20-21"]
+
+
+def _multi_level_graph(rollup_consolidation: str):  # noqa: ANN202 - CompiledStateGraph
+    """A run over three regions with a consolidation group size of two, so
+    the first level performs two `consolidate_augmentations` calls (a batch
+    of two regions, then a batch of one) and a further `rollup_augmentations`
+    call combines their two results into the run's answer — the smallest
+    setup that exercises a level above the leaf."""
+    calls: list[list[dict]] = []
+
+    @tool
+    def read_region(region_id: str) -> dict:
+        """Fake read_region over `_MULTI_REGION_IDS`, mirroring `read_region`
+        above — nested rather than module-level, so its tool name doesn't
+        collide with that fixture's."""
+        index = _MULTI_REGION_IDS.index(region_id)
+        return {
+            "region_id": region_id,
+            "source": "Douay-Rheims",
+            "source_id": "waite",
+            "locator": f"Genesis {index + 1}:6",
+            "text": "God hath made a laughter for me.",
+        }
+
+    @tool
+    def consolidate_augmentations(focus: str, augmentations: list[dict]) -> dict:
+        """Scripted per call: the first batch (regions 1-2) cites both; the
+        second batch (region 3) cites the one it was given."""
+        calls.append(augmentations)
+        if len(calls) == 1:
+            return {"consolidation": "Joy recurs in the first pair [R1][R2]."}
+        return {"consolidation": "A solitary reading on its own [R3]."}
+
+    @tool
+    def rollup_augmentations(focus: str, summaries: list[str]) -> dict:
+        """Scripted to return whatever the test wants the run's final answer
+        to say, given the two group summaries above."""
+        return {"consolidation": rollup_consolidation}
+
+    return compile_graph(
+        ExplodingLLM(),
+        _TOOLS,
+        node_tools=[read_region, augment_passage, consolidate_augmentations, rollup_augmentations],
+        consolidation_group_size=2,
+    )
+
+
+def _multi_level_confirm(graph, sessions: SessionStore):  # noqa: ANN001, ANN202
+    plan = _turn(graph, sessions, "/augment where is joy", visible_regions=list(_MULTI_REGION_IDS))
+    augmentation_id = sessions.get_or_create("s1").pending_augmentation.id
+    return plan, _turn(graph, sessions, f"/augment-confirm {augmentation_id}")
+
+
+def _multi_level_confirm_events(graph, sessions: SessionStore):  # noqa: ANN001, ANN202
+    _turn(graph, sessions, "/augment where is joy", visible_regions=list(_MULTI_REGION_IDS))
+    augmentation_id = sessions.get_or_create("s1").pending_augmentation.id
+    return _events(graph, sessions, f"/augment-confirm {augmentation_id}")
+
+
+def test_a_rollup_that_preserves_markers_delivers_them_all() -> None:
+    """FR-AU-39: a marker assigned at the leaf level survives a rollup that
+    carries it forward unchanged, however many levels produced the reply."""
+    sessions = SessionStore()
+
+    _, run = _multi_level_confirm(
+        _multi_level_graph("Joy recurs across every reading examined [R1][R2][R3]."), sessions
+    )
+
+    assert run.reply_text.startswith("Joy recurs across every reading examined [R1][R2][R3].")
+    assert "Augmented 3 regions on screen." in run.reply_text
+
+
+def test_a_rollup_that_drops_a_marker_delivers_the_reply_without_it() -> None:
+    """A rollup is free to leave a region out of its synthesis — dropping a
+    marker is not an error, and the reply must not gain one it wasn't given."""
+    sessions = SessionStore()
+
+    _, run = _multi_level_confirm(_multi_level_graph("Joy recurs in most readings [R1][R2]."), sessions)
+
+    assert "[R3]" not in run.reply_text
+    assert "[R1]" in run.reply_text
+    assert "[R2]" in run.reply_text
+    assert "couldn't actually back up" not in run.reply_text
+
+
+def test_a_rollup_that_invents_a_marker_fails_the_turn() -> None:
+    """FR-AU-31 holds regardless of which consolidation level produced the
+    reply: a marker naming no region this run augmented fails the turn."""
+    sessions = SessionStore()
+
+    _, run = _multi_level_confirm(_multi_level_graph("Joy recurs [R9]."), sessions)
+
+    assert "[R9]" not in run.reply_text
+    assert "couldn't actually back up" in run.reply_text
+
+
+def test_a_multi_level_run_streams_a_progress_message_per_non_final_group() -> None:
+    """FR-AU-41: each consolidation invocation before the run's last reports
+    progress with a message and no instruction; the final rollup is not
+    separately announced, since its result is the terminal reply."""
+    sessions = SessionStore()
+
+    events = _multi_level_confirm_events(_multi_level_graph("Joy recurs [R1][R2][R3]."), sessions)
+
+    assert [e.event for e in events] == [
+        "message",
+        "instruction",
+        "message",
+        "instruction",
+        "message",
+        "instruction",
+        "message",
+        "message",
+        "turn",
+    ]
+    consolidation_messages = [e.text for e in events if e.event == "message"][-2:]
+    assert consolidation_messages == ["Consolidated group 1/2 (pass 1)", "Consolidated group 2/2 (pass 1)"]
+
+
+def test_a_small_run_never_looks_up_rollup_augmentations() -> None:
+    """A run whose augmentations don't exceed the group size stays on the
+    flat, single-call path (ADR-016) and must not require
+    `rollup_augmentations` to be registered at all."""
+    sessions = SessionStore()
+
+    _, run = _plan_and_confirm(_augment_graph("Joy recurs as reversal [R1][R2]."), sessions)
+
+    assert run.reply_text.startswith("Joy recurs as reversal [R1][R2].")

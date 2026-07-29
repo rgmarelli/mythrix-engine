@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -63,11 +64,20 @@ class Settings(BaseSettings):
     turn may make before it ends rather than looping (FR-AG-12).
 
     `augment_max_regions` (FR-AU-14) bounds how many of the consumer's visible
-    regions one augmentation run reads, and so bounds its generation calls at
-    N+1. `agent_max_tool_iterations` does not apply: it governs the
-    orchestration model's own tool loop, which a deterministic run never enters
-    (ADR-015). Kept small because the calls are sequential and hold the turn's
-    connection open.
+    regions one augmentation run reads. `agent_max_tool_iterations` does not
+    apply: it governs the orchestration model's own tool loop, which a
+    deterministic run never enters (ADR-015). Kept small because the calls are
+    sequential and hold the turn's connection open.
+
+    `augment_consolidation_group_size` (FR-AU-40) bounds how many augmentations
+    or prior consolidation results one consolidation invocation may be given.
+    A run whose augmentations exceed this bound consolidates them hierarchically
+    — grouped, consolidated, and re-grouped until one result remains (ADR-016)
+    — rather than a single flat-prompt consolidation call whose quality
+    degrades as `augment_max_regions` grows. Default of `8` keeps a batch's
+    rendered prompt well inside `generation_num_ctx` regardless of how large
+    `augment_max_regions` is set. Must be at least `2`: a group of `1` never
+    shrinks the reduce loop.
     """
 
     model_config = SettingsConfigDict(env_prefix="MYTHRIX_", env_file=".env", extra="ignore")
@@ -85,4 +95,5 @@ class Settings(BaseSettings):
     region_min_interpretants: int = 1
     agent_model: str | None = None
     agent_max_tool_iterations: int = 8
-    augment_max_regions: int = 8
+    augment_max_regions: int = 1000
+    augment_consolidation_group_size: int = Field(default=8, ge=2)

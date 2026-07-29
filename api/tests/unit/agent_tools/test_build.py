@@ -16,7 +16,7 @@ _MODEL_TOOLS = {
     "fetch_segments",
     "summarize_passage",
 }
-_NODE_TOOLS = {"read_region", "augment_passage", "consolidate_augmentations"}
+_NODE_TOOLS = {"read_region", "augment_passage", "consolidate_augmentations", "rollup_augmentations"}
 
 
 def test_build_tools_returns_exactly_the_seven_read_only_model_tools(
@@ -30,7 +30,7 @@ def test_region_reading_and_its_generation_steps_are_unreachable_from_the_model(
     stores: Stores, settings: Settings
 ) -> None:
     """FR-AU-11 as a structural property: the orchestration model is bound to
-    `model_tools` alone, so these three are absent from its tool schema — it
+    `model_tools` alone, so these four are absent from its tool schema — it
     cannot augment regions on its own initiative."""
     toolset = build_tools(stores, settings, FakeChatClient())
 

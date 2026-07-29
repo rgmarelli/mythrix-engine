@@ -14,7 +14,9 @@ orchestration model and executed by `ToolNode`; `node_tools` is reachable only
 by name lookup from a deterministic node. Region reading and the generation
 steps built on it live in `node_tools`, so the model has no binding for them
 and cannot augment regions of its own accord — a property of the tool schema
-rather than of prompt compliance (FR-AU-11, FR-AG-32).
+rather than of prompt compliance (FR-AU-11, FR-AG-32). `rollup_augmentations`
+is the fourth `node_tools` entry, reached only above a run's first
+consolidation level (ADR-016).
 
 Each tool returns compact, JSON-serializable data (dicts / lists of dicts) —
 never prose — so the LLM relays cited evidence rather than inventing it
@@ -37,6 +39,7 @@ from mythrix.agent.tools.list_signs import build_list_signs_tool
 from mythrix.agent.tools.list_traditions import build_list_traditions_tool
 from mythrix.agent.tools.query_sign import build_query_sign_tool
 from mythrix.agent.tools.read_region import build_read_region_tool
+from mythrix.agent.tools.rollup_augmentations import build_rollup_augmentations_tool
 from mythrix.agent.tools.summarize_passage import build_summarize_passage_tool
 from mythrix.core.bootstrap import Stores
 from mythrix.core.chat import ChatClient
@@ -61,7 +64,7 @@ class ToolSet:
 
 def build_tools(stores: Stores, settings: Settings, chat_client: ChatClient) -> ToolSet:
     """Returns the seven model-selectable read-only tools
-    (specs/interfaces/agent.md FR-AG-03) plus the three reachable only from a
+    (specs/interfaces/agent.md FR-AG-03) plus the four reachable only from a
     deterministic node (FR-AU-11)."""
     return ToolSet(
         model_tools=[
@@ -77,5 +80,6 @@ def build_tools(stores: Stores, settings: Settings, chat_client: ChatClient) -> 
             build_read_region_tool(stores),
             build_augment_passage_tool(chat_client),
             build_consolidate_augmentations_tool(chat_client),
+            build_rollup_augmentations_tool(chat_client),
         ],
     )

@@ -10,6 +10,8 @@ from mythrix.agent.commands.augment import (
     confirm_augment_instruction,
     confirm_command_for,
     confirm_id_of,
+    consolidation_call_bound,
+    consolidation_progress_message,
     new_augmentation_id,
     parse_augment_command,
     region_done_message,
@@ -97,6 +99,45 @@ def test_the_plan_states_one_count_when_nothing_is_truncated() -> None:
 
 def test_the_plan_says_region_singular_for_one() -> None:
     assert "1 region " in render_plan("focus", supplied=1, augmenting=1, augmentation_id="a")
+
+
+def test_the_plan_states_one_consolidation_call_when_augmenting_fits_one_group() -> None:
+    """ADR-016: augmenting <= consolidation_group_size collapses to the flat,
+    single-call behavior a run always had."""
+    plan = render_plan("focus", supplied=6, augmenting=6, augmentation_id="7f3a1c", consolidation_group_size=8)
+
+    assert "plus 1 call to consolidate them" in plan
+    assert "up to" not in plan
+
+
+def test_the_plan_states_the_exact_consolidation_call_count_for_a_large_run() -> None:
+    """FR-AU-40/ADR-016: a run whose augmentations exceed the group size states
+    the deterministic, multi-invocation count — still never hedged as "up to"."""
+    plan = render_plan("focus", supplied=20, augmenting=20, augmentation_id="7f3a1c", consolidation_group_size=8)
+
+    assert f"plus {consolidation_call_bound(20, 8)} calls to consolidate them" in plan
+    assert "up to" not in plan
+
+
+def test_consolidation_call_bound_collapses_to_one_at_or_under_the_group_size() -> None:
+    assert consolidation_call_bound(1, 8) == 1
+    assert consolidation_call_bound(8, 8) == 1
+
+
+def test_consolidation_call_bound_grows_hierarchically_above_the_group_size() -> None:
+    # 9 items, group size 8: one leaf batch of 8 + one of 1 (2 calls),
+    # then 1 final call over the 2 results.
+    assert consolidation_call_bound(9, 8) == 3
+    # 20 items, group size 8: three leaf batches (8, 8, 4) -> 3 calls,
+    # then 1 final call over the 3 results.
+    assert consolidation_call_bound(20, 8) == 4
+    # 65 items, group size 8: 9 leaf batches -> 9 calls, then 2 rollup
+    # batches (8, 1) -> 2 calls, then 1 final call over the 2 results.
+    assert consolidation_call_bound(65, 8) == 12
+
+
+def test_consolidation_progress_message_names_the_group_and_pass() -> None:
+    assert consolidation_progress_message(1, 2, 3) == "Consolidated group 2/3 (pass 1)"
 
 
 def test_the_reply_carries_the_consolidation_and_the_count_but_not_the_readings() -> None:

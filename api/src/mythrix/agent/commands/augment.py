@@ -101,15 +101,44 @@ def _count(supplied: int, augmenting: int) -> str:
     return f"{augmenting} of {supplied} regions"
 
 
-def render_plan(focus: str, supplied: int, augmenting: int, augmentation_id: str) -> str:
+def consolidation_call_bound(item_count: int, group_size: int) -> int:
+    """The exact number of consolidation invocations a hierarchical run
+    performs for `item_count` augmentations grouped by at most `group_size`
+    (FR-AU-21, ADR-016): one per batch at each level, repeated until one
+    result remains. `item_count <= group_size` collapses to `1` — the same
+    single call a flat run always made."""
+    if item_count <= 1:
+        return item_count
+    calls = 0
+    items = item_count
+    while items > group_size:
+        items = -(-items // group_size)  # batches produced this level
+        calls += items
+    return calls + 1
+
+
+def consolidation_progress_message(level: int, rank: int, of: int) -> str:
+    """The chat line marking one non-final consolidation invocation complete
+    (FR-AU-41). `level` is 1-based from the leaf level up; `rank`/`of` name
+    the invocation's position among its own level's batches."""
+    return f"Consolidated group {rank}/{of} (pass {level})"
+
+
+def render_plan(
+    focus: str, supplied: int, augmenting: int, augmentation_id: str, *, consolidation_group_size: int = 8
+) -> str:
     """The reply restating a parsed augmentation and naming the command that
     runs it (FR-AU-05). States both counts, which the backend knows exactly:
-    the regions were supplied with the turn rather than retrieved."""
+    the regions were supplied with the turn rather than retrieved. The
+    consolidation count is likewise exact, never "up to" — the number of
+    invocations a hierarchical run performs is deterministic from
+    `augmenting` and `consolidation_group_size` alone (ADR-016)."""
+    calls = consolidation_call_bound(augmenting, consolidation_group_size)
     return (
         f"Parsed augmentation:\n\n"
         f"Focus: {focus}\n\n"
         f"A run reads {_count(supplied, augmenting)} currently on screen, "
-        f"one generation call each, plus one to consolidate them.\n\n"
+        f"one generation call each, plus {calls} call{'' if calls == 1 else 's'} to consolidate them.\n\n"
         f"Send `{confirm_command_for(augmentation_id)}` to run it."
     )
 
