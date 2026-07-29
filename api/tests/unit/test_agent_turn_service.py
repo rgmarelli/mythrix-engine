@@ -663,13 +663,13 @@ def _augment_graph(consolidation: str):  # noqa: ANN202 - CompiledStateGraph
 
 def _plan_and_confirm(graph, sessions: SessionStore):  # noqa: ANN001, ANN202
     plan = _turn(graph, sessions, "/augment where is joy", visible_regions=list(_REGION_IDS))
-    augmentation_id = sessions.get_or_create("s1").pending_augmentation.id
+    augmentation_id = sessions.get_or_create("s1").pending.augmentation.id
     return plan, _turn(graph, sessions, f"/augment-confirm {augmentation_id}")
 
 
 def _confirm_events(graph, sessions: SessionStore):  # noqa: ANN001, ANN202
     _turn(graph, sessions, "/augment where is joy", visible_regions=list(_REGION_IDS))
-    augmentation_id = sessions.get_or_create("s1").pending_augmentation.id
+    augmentation_id = sessions.get_or_create("s1").pending.augmentation.id
     return _events(graph, sessions, f"/augment-confirm {augmentation_id}")
 
 
@@ -711,7 +711,7 @@ def test_a_marker_shaped_focus_does_not_fail_the_plan_turn() -> None:
 
     assert "couldn't actually back up" not in plan.reply_text
     assert "Parsed augmentation:" in plan.reply_text
-    assert sessions.get_or_create("s1").pending_augmentation is not None
+    assert sessions.get_or_create("s1").pending.augmentation is not None
 
 
 def test_a_run_records_only_the_region_list_and_the_reply_in_history() -> None:
@@ -747,18 +747,18 @@ def test_a_confirmed_augmentation_is_cleared_from_the_session() -> None:
 
     _plan_and_confirm(_augment_graph("Joy recurs [R1]."), sessions)
 
-    assert sessions.get_or_create("s1").pending_augmentation is None
+    assert sessions.get_or_create("s1").pending.augmentation is None
 
 
 def test_a_pending_augmentation_survives_an_unrelated_turn() -> None:
     sessions = SessionStore()
     graph = _augment_graph("unused")
     _turn(graph, sessions, "/augment where is joy", visible_regions=list(_REGION_IDS))
-    pending = sessions.get_or_create("s1").pending_augmentation
+    pending = sessions.get_or_create("s1").pending.augmentation
 
     _turn(compile_graph(ScriptedLLM([AIMessage(content="Hello there.")]), _TOOLS), sessions, "hello")
 
-    assert sessions.get_or_create("s1").pending_augmentation is pending
+    assert sessions.get_or_create("s1").pending.augmentation is pending
 
 
 def test_a_thread_reset_clears_the_pending_augmentation() -> None:
@@ -772,12 +772,12 @@ def test_a_thread_reset_clears_the_pending_augmentation() -> None:
         ui_selection=AgentContext(sign="the-tower"),
         visible_regions=list(_REGION_IDS),
     )
-    assert sessions.get_or_create("s1").pending_augmentation is not None
+    assert sessions.get_or_create("s1").pending.augmentation is not None
 
     plain = compile_graph(ScriptedLLM([AIMessage(content="Hello there.")]), _TOOLS)
     _turn(plain, sessions, "hello", ui_selection=AgentContext(sign="the-magician"))
 
-    assert sessions.get_or_create("s1").pending_augmentation is None
+    assert sessions.get_or_create("s1").pending.augmentation is None
 
 
 # --- the turn as a stream of events (FR-AU-22–FR-AU-25) --------------------
@@ -855,7 +855,7 @@ def test_abandoning_the_stream_releases_the_session_lock() -> None:
     sessions = SessionStore()
     graph = _augment_graph("Joy recurs [R1][R2].")
     _turn(graph, sessions, "/augment where is joy", visible_regions=list(_REGION_IDS))
-    augmentation_id = sessions.get_or_create("s1").pending_augmentation.id
+    augmentation_id = sessions.get_or_create("s1").pending.augmentation.id
 
     stream = stream_chat_turn(
         graph=graph,
@@ -933,13 +933,13 @@ def _multi_level_graph(rollup_consolidation: str):  # noqa: ANN202 - CompiledSta
 
 def _multi_level_confirm(graph, sessions: SessionStore):  # noqa: ANN001, ANN202
     plan = _turn(graph, sessions, "/augment where is joy", visible_regions=list(_MULTI_REGION_IDS))
-    augmentation_id = sessions.get_or_create("s1").pending_augmentation.id
+    augmentation_id = sessions.get_or_create("s1").pending.augmentation.id
     return plan, _turn(graph, sessions, f"/augment-confirm {augmentation_id}")
 
 
 def _multi_level_confirm_events(graph, sessions: SessionStore):  # noqa: ANN001, ANN202
     _turn(graph, sessions, "/augment where is joy", visible_regions=list(_MULTI_REGION_IDS))
-    augmentation_id = sessions.get_or_create("s1").pending_augmentation.id
+    augmentation_id = sessions.get_or_create("s1").pending.augmentation.id
     return _events(graph, sessions, f"/augment-confirm {augmentation_id}")
 
 

@@ -12,8 +12,7 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.errors import GraphRecursionError
 from langgraph.graph.state import CompiledStateGraph
 
-from mythrix.agent.commands.adhoc import PendingAdhocQuery
-from mythrix.agent.commands.augment import PendingAugmentation
+from mythrix.agent.commands import PendingCommands
 from mythrix.core.logging_config import truncate
 
 logger = logging.getLogger(__name__)
@@ -29,8 +28,7 @@ class TurnResult:
     tool_calls: list[str]
     history: list = field(default_factory=list)
     instructions: list[dict] = field(default_factory=list)
-    pending_query: PendingAdhocQuery | None = None
-    pending_augmentation: PendingAugmentation | None = None
+    pending: PendingCommands = field(default_factory=PendingCommands)
     backend_authored: bool = False
 
 
@@ -41,8 +39,7 @@ def stream_turn(
     *,
     max_tool_iterations: int,
     context_summary: str = "",
-    pending_query: PendingAdhocQuery | None = None,
-    pending_augmentation: PendingAugmentation | None = None,
+    pending: PendingCommands | None = None,
     region_id: str | None = None,
     interpretant: str | None = None,
     visible_regions: list[str] | None = None,
@@ -64,16 +61,18 @@ def stream_turn(
     `context_summary` (default `""`) is folded into the model invocation by
     `graph/nodes/llm.py::agent_node`, alongside `state["messages"]`.
 
-    `pending_query`/`pending_augmentation` (default `None`) carry the
-    session's outstanding ad-hoc query and augmentation into the graph and
-    back out on `TurnResult`, since the graph holds no state of its own
-    between turns (agnostic-query.md FR-AQ-05; augmentation.md FR-AU-08).
+    `pending` (default `None`, treated as an empty `PendingCommands`) carries
+    the session's outstanding ad-hoc query and augmentation into the graph's
+    two separate state keys and back out on `TurnResult`, since the graph
+    holds no state of its own between turns (agnostic-query.md FR-AQ-05;
+    augmentation.md FR-AU-08).
 
     `region_id`/`interpretant`/`visible_regions` (default `None`) carry the
     session's active hotspot and the consumer's current display into the graph
     for the deterministic nodes to read directly — turn-scoped inputs only,
-    unlike `pending_query`, so nothing reads them back off the final state
+    unlike `pending`, so nothing reads them back off the final state
     (agent.md FR-AG-33; augmentation.md FR-AU-12, ADR-012)."""
+    pending = pending or PendingCommands()
     messages = [*history, HumanMessage(content=user_text)]
     tool_calls: list[str] = []
     final_state = {"messages": messages}
@@ -84,8 +83,8 @@ def stream_turn(
             {
                 "messages": messages,
                 "context_summary": context_summary,
-                "pending_query": pending_query,
-                "pending_augmentation": pending_augmentation,
+                "pending_query": pending.query,
+                "pending_augmentation": pending.augmentation,
                 "instructions": [],
                 "region_id": region_id,
                 "interpretant": interpretant,
@@ -126,8 +125,7 @@ def stream_turn(
             reply=_RECURSION_LIMIT_MESSAGE,
             tool_calls=tool_calls,
             history=history,
-            pending_query=pending_query,
-            pending_augmentation=pending_augmentation,
+            pending=pending,
         )
         return
 
@@ -137,7 +135,9 @@ def stream_turn(
         tool_calls=tool_calls,
         history=new_history,
         instructions=final_state.get("instructions", []),
-        pending_query=final_state.get("pending_query"),
-        pending_augmentation=final_state.get("pending_augmentation"),
+        pending=PendingCommands(
+            query=final_state.get("pending_query"),
+            augmentation=final_state.get("pending_augmentation"),
+        ),
         backend_authored=bool(final_state.get("backend_authored")),
     )

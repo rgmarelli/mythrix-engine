@@ -4,9 +4,13 @@ parsing/detection only — no LangGraph import anywhere under this package."""
 
 from __future__ import annotations
 
-from mythrix.agent.commands import adhoc, augment, summarize
+from dataclasses import dataclass
 
-__all__ = ["adhoc", "augment", "summarize", "resolve_command"]
+from mythrix.agent.commands import adhoc, augment, summarize
+from mythrix.agent.commands.adhoc import PendingAdhocQuery
+from mythrix.agent.commands.augment import PendingAugmentation
+
+__all__ = ["adhoc", "augment", "summarize", "resolve_command", "PendingCommands"]
 
 _HANDLERS = (
     adhoc.command_of,
@@ -22,3 +26,14 @@ def resolve_command(message: str) -> str | None:
         if cmd := handler(message):
             return cmd
     return None
+
+
+@dataclass(frozen=True)
+class PendingCommands:
+    """The turn's outstanding command confirmations, one slot per command
+    that supports one (agnostic-query.md FR-AQ-05, augmentation.md FR-AU-08)
+    — bundled so a caller carrying this across a turn boundary needn't know
+    how many such commands exist."""
+
+    query: PendingAdhocQuery | None = None
+    augmentation: PendingAugmentation | None = None

@@ -22,6 +22,7 @@ from pydantic import BaseModel
 
 from mythrix.agent.capabilities import InstructionType
 from mythrix.agent.citations import find_invalid_markers, strip_markers
+from mythrix.agent.commands import PendingCommands
 from mythrix.agent.commands.adhoc import is_adhoc_command
 from mythrix.agent.context import (
     AgentContext,
@@ -203,8 +204,7 @@ def stream_chat_turn(
         thread_reset = detect_thread_reset(previous_context, ui_selection)
         if thread_reset:
             session.history = []
-            session.pending_query = None
-            session.pending_augmentation = None
+            session.pending = PendingCommands()
 
         context = apply_ui_selection(previous_context, ui_selection)
         full_context_summary = render_context_summary(context)
@@ -227,8 +227,7 @@ def stream_chat_turn(
                 message,
                 max_tool_iterations=max_tool_iterations,
                 context_summary=full_context_summary,
-                pending_query=session.pending_query,
-                pending_augmentation=session.pending_augmentation,
+                pending=session.pending,
                 region_id=context.region_id,
                 interpretant=context.interpretant,
                 visible_regions=visible_regions or [],
@@ -256,8 +255,7 @@ def stream_chat_turn(
         assert result is not None, "stream_turn always ends with a TurnResult"
         new_history = result.history
 
-        session.pending_query = result.pending_query
-        session.pending_augmentation = result.pending_augmentation
+        session.pending = result.pending
         instructions = [AgentInstruction(**instruction) for instruction in result.instructions]
 
         if is_adhoc_command(message):

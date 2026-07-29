@@ -169,14 +169,14 @@ def test_run_turn_logs_model_input_for_every_invocation(caplog: pytest.LogCaptur
 def test_run_turn_carries_a_pending_augmentation_into_the_graph_and_back_out() -> None:
     """FR-AU-08: the graph holds no state between turns, so the session's
     outstanding augmentation round-trips through the driver like
-    `pending_query`."""
+    `pending.query`."""
     graph = compile_graph(ScriptedLLM(), [echo])
 
     _, plan = run_turn(graph, [], "/augment where joy is", max_tool_iterations=8, visible_regions=["src::1-2"])
 
-    assert plan.pending_augmentation is not None
-    assert plan.pending_augmentation.focus == "where joy is"
-    assert plan.pending_augmentation.region_ids == ("src::1-2",)
+    assert plan.pending.augmentation is not None
+    assert plan.pending.augmentation.focus == "where joy is"
+    assert plan.pending.augmentation.region_ids == ("src::1-2",)
     assert plan.backend_authored is True
 
     _, confirmed = run_turn(
@@ -184,10 +184,10 @@ def test_run_turn_carries_a_pending_augmentation_into_the_graph_and_back_out() -
         [],
         "/augment-confirm deadbeef",
         max_tool_iterations=8,
-        pending_augmentation=plan.pending_augmentation,
+        pending=plan.pending,
     )
 
-    assert confirmed.pending_augmentation is plan.pending_augmentation
+    assert confirmed.pending.augmentation is plan.pending.augmentation
 
 
 def test_a_plan_turn_with_nothing_on_screen_holds_no_pending_augmentation() -> None:
@@ -197,7 +197,7 @@ def test_a_plan_turn_with_nothing_on_screen_holds_no_pending_augmentation() -> N
 
     _, plan = run_turn(graph, [], "/augment where joy is", max_tool_iterations=8, visible_regions=[])
 
-    assert plan.pending_augmentation is None
+    assert plan.pending.augmentation is None
     assert "no regions on screen" in plan.reply.lower()
 
 
@@ -228,8 +228,6 @@ def test_hitting_the_tool_budget_preserves_both_pending_records() -> None:
         max_tool_iterations=8,
         visible_regions=["src::1-2"],
     )
-    _, result = run_turn(
-        graph, [], "loop forever", max_tool_iterations=3, pending_augmentation=plan.pending_augmentation
-    )
+    _, result = run_turn(graph, [], "loop forever", max_tool_iterations=3, pending=plan.pending)
 
-    assert result.pending_augmentation is plan.pending_augmentation
+    assert result.pending.augmentation is plan.pending.augmentation

@@ -657,7 +657,7 @@ def test_an_augmentation_run_streams_one_line_per_region_then_the_turn(
         },
     )
     assert plan.status_code == 200
-    augmentation_id = sessions.get_or_create("s1").pending_augmentation.id
+    augmentation_id = sessions.get_or_create("s1").pending.augmentation.id
 
     run = client.post(
         "/api/agent",

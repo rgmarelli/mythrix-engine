@@ -6,8 +6,7 @@ from __future__ import annotations
 import threading
 from dataclasses import dataclass, field
 
-from mythrix.agent.commands.adhoc import PendingAdhocQuery
-from mythrix.agent.commands.augment import PendingAugmentation
+from mythrix.agent.commands import PendingCommands
 from mythrix.agent.context import AgentContext
 
 
@@ -15,8 +14,7 @@ from mythrix.agent.context import AgentContext
 class SessionState:
     history: list = field(default_factory=list)
     context: AgentContext = field(default_factory=AgentContext)
-    pending_query: PendingAdhocQuery | None = None
-    pending_augmentation: PendingAugmentation | None = None
+    pending: PendingCommands = field(default_factory=PendingCommands)
 
 
 class SessionStore:
