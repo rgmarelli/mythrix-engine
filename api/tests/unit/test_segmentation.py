@@ -65,7 +65,7 @@ def test_numbered_section_skips_the_title_block() -> None:
     segments = segment_text(text, scheme="numbered_section")
 
     assert len(segments) == 1
-    assert segments[0].section == "1"
+    assert segments[0].section == ""
 
 
 def test_paragraph_scheme_segments_every_paragraph_verbatim() -> None:

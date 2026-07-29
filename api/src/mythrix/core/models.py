@@ -302,11 +302,13 @@ class Segment(MythrixModel):
     region's `segments` carries each match-carrying segment once, deduped by
     `ordinal`, regardless of how many interpretants matched it.
 
-    `section` names the enclosing chapter/numbered-section locator (e.g.
-    `"Genesis 20"`) a source's segmenter attaches to each chunk, empty for a
-    source with no declared structure — carried here so a consumer (the web
-    viewer's Add Context action, `hotspot-context-expansion`) can tell whether
-    a neighboring segment shares this one's chapter without a second lookup.
+    `section` names the enclosing chapter locator (e.g. `"Genesis 20"`) a
+    source's segmenter attaches to every segment within that chapter, shared
+    across neighbors — carried here so a consumer (the web viewer's Add
+    Context action, `hotspot-context-expansion`) can tell whether a
+    neighboring segment shares this one's chapter without a second lookup.
+    Empty whenever a source declares no structure above the individual
+    segment (no declared structure, `paragraph`, `numbered_section`).
     """
 
     ordinal: int

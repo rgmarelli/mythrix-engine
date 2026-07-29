@@ -98,7 +98,9 @@ def _segment_scripture_verse(text: str) -> list[Chunk]:
 def _segment_numbered_section(text: str) -> list[Chunk]:
     """One segment per numbered section (e.g. `"83. And what is Nun?..."`,
     the Bahir's own structure). A paragraph with no leading `N.` marker (the
-    title block, translator's note) is not a section and is skipped."""
+    title block, translator's note) is not a section and is skipped. A
+    numbered section has no grouping above itself, so like `_segment_paragraph`,
+    `section` stays empty; `locator` alone carries the section number."""
     chunks: list[Chunk] = []
     ordinal = 0
     for start, end in _paragraphs(text):
@@ -116,7 +118,6 @@ def _segment_numbered_section(text: str) -> list[Chunk]:
                 char_end=end,
                 locator=f"§{section}",
                 ordinal=ordinal,
-                section=section,
             )
         )
         ordinal += 1

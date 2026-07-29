@@ -184,7 +184,8 @@ def test_source_with_a_declared_structure_scheme_routes_through_the_segmenter(
 
     assert written == 2
     hits = vector_store.similarity_search([len("First section."), 0.0], top_k=5)
-    assert {hit.section for hit in hits} == {"1", "2"}
+    assert {hit.locator for hit in hits} == {"§1", "§2"}
+    assert {hit.section for hit in hits} == {""}
     assert all("1." not in hit.text and "2." not in hit.text for hit in hits)
 
 

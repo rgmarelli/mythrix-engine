@@ -165,6 +165,39 @@ describe('Add Context', () => {
     expect(screen.getByText('Full context loaded').closest('button')).toBeDisabled();
   });
 
+  it('keeps extending across repeated activations for a source with no chapter grouping (e.g. numbered_section)', async () => {
+    // A numbered_section source (the Bahir) leaves `section` empty on every
+    // segment — there is no grouping above the segment itself. Regression
+    // guard: this must not be mistaken for a chapter boundary after one probe.
+    const hotspot = makeHotspot({
+      segments: [makeSegment({ ordinal: 50, section: '', text: 'middle' })],
+    });
+    vi.mocked(fetchSegments).mockImplementation((_sourceId, start, end) => {
+      if (start === 49 && end === 49) return Promise.resolve([makeSegment({ ordinal: 49, section: '', text: 'before once' })]);
+      if (start === 51 && end === 51) return Promise.resolve([makeSegment({ ordinal: 51, section: '', text: 'after once' })]);
+      return Promise.resolve([]);
+    });
+    render(<HotspotDetailPanel {...baseProps({ hotspot })} />);
+    const button = screen.getByText('+ Add Context');
+    await userEvent.click(button);
+    expect(await screen.findByText('before once')).toBeInTheDocument();
+    expect(screen.getByText('after once')).toBeInTheDocument();
+    // Still extendable after the first activation — not prematurely "fully loaded".
+    expect(screen.getByText('+ Add Context')).toBeInTheDocument();
+    expect(screen.queryByText('Full context loaded')).not.toBeInTheDocument();
+
+    // The next activation probes past what was just loaded (48/52) and finds
+    // nothing — only now should both edges report bounded.
+    vi.mocked(fetchSegments).mockImplementation((_sourceId, start, end) => {
+      if (start === 48 && end === 48) return Promise.resolve([]);
+      if (start === 52 && end === 52) return Promise.resolve([]);
+      return Promise.resolve([]);
+    });
+    await userEvent.click(screen.getByText('+ Add Context'));
+    await waitFor(() => expect(screen.getByText('Full context loaded')).toBeInTheDocument());
+    expect(screen.getByText('Full context loaded').closest('button')).toBeDisabled();
+  });
+
   it('shows a distinct error and leaves the hotspot displayed when the context request fails', async () => {
     const hotspot = makeHotspot({
       segments: [makeSegment({ ordinal: 5, section: '43', text: 'middle' })],

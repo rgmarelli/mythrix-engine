@@ -8,7 +8,7 @@ How verbatim, non-matching segments are progressively loaded around a hotspot's 
 - **context segment**: A verbatim segment from the same source, loaded into the detail panel on demand, that carried no interpretant match.
 - **internal gap**: A non-matching segment whose ordinal lies strictly between a hotspot's lowest and highest matched ordinal, absent from the hotspot as returned.
 - **leading edge / trailing edge**: The lowest-ordinal and highest-ordinal segment currently loaded in a hotspot's detail panel (matched or context).
-- **chapter boundary**: The first/last segment of the structural section (`Segment.section`, e.g. a scripture chapter or a numbered section) that an edge segment belongs to. A source that declares no such structure has no chapter boundary; its only bounds are the source's first and last segment.
+- **chapter boundary**: The first/last segment of the structural section (`Segment.section`, e.g. a scripture chapter) that an edge segment belongs to. A source whose segmentation scheme groups no segments under a shared section (e.g. a numbered section, which has no grouping above itself) has no chapter boundary; its only bounds are the source's first and last segment.
 
 ## Functional requirements
 

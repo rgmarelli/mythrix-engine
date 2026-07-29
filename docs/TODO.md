@@ -13,10 +13,14 @@
   Let's start by fetching these signs.
   ``` 
 
+* [ ] **Fix copyright in LICENSE and source code.**
+  ```text  
+    # SPDX-FileCopyrightText: 2026 Guido Marelli
+    # SPDX-License-Identifier: AGPL-3.0-or-later
+  ``` 
+
 ## Features
 * [ ] **`/summarize` ignores Add Context expansion.** Tapping "Add Context" in `HotspotDetailPanel` only extends local component state (`handleAddContext` → `fetchSegments` → `mergeSegments`, `web/src/components/HotspotDetailPanel.tsx:93`); it never reaches the backend. `/summarize`'s rewrite (`turn_service.py:_rewrite_summarize_command`) still scopes to `context.region_id`/`locator`, so the agent summarizes only the original hotspot region, not the wider range the user just loaded on screen. Needs a Specify pass (`specs/tmp/`) before implementation — likely either sending the expanded ordinal range up with the `/summarize` request, or having the backend directive reflect what's currently rendered.
-
-* [ ] **Add context not working for Bahir when there are no gaps to fill.** It says: "Full context loaded."
 
 * [ ] **Augmentation: Clarify context.** Augmentation uses a context expansion feature that mentions fragments that can be "hidden" from the user. This is confusing, so we need to add clarification in the UI.
 
