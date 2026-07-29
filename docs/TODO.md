@@ -17,6 +17,7 @@
 
 - **Augmentation: Increasing `augment_max_regions` to 50 produces bad consolidation.** Understand max value for `augment_max_regions` and see if we can somehow tune the consolidation phase. Testing showed that max=20 produces accurate results.
 
+- **Refactor: stream_chat_turn**. The current design is overly coupled with command handling (e.g., session.pending_query = result.pending_query, session.pending_augmentation = result.pending_augmentation).
 
 ## Features
 - **Augmentation: Add links in `/augmentation` output to navigate regions.** Clicking `[Rn]` should make the UI focus on the `Rn` region.
