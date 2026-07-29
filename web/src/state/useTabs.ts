@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fetchQuery, postAgentTurn } from '../api/client';
 import { executeInstruction } from '../api/instructions';
-import type { AgentCapabilities, AgentInstruction, AgentUiSelection, Hotspot, HotspotQueryResult } from '../api/types';
+import type { AgentCapabilities, AgentContext, AgentInstruction, Hotspot, HotspotQueryResult } from '../api/types';
 import { hotspotTitle } from '../utils/hotspot';
 
 // Mirrors `Settings.retrieval_min_score`'s default (`src/mythrix/core/config.py`)
@@ -273,7 +273,7 @@ export function useTabs(capabilities: AgentCapabilities | null = null) {
     if (!trimmed || !tab || tab.agentSending) return;
 
     const selectedHotspot = tab.queryResult?.hotspots.find((h) => h.regionId === tab.selectedRegionId) ?? null;
-    const uiSelection: AgentUiSelection = {
+    const uiSelection: AgentContext = {
       semioticSystem: tab.selectedSystem || null,
       sign: tab.selectedSign || null,
       tradition: tab.selectedTradition || null,

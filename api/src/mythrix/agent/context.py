@@ -1,10 +1,9 @@
 """The chat panel's structured working memory (specs/interfaces/agent.md FR-AG-17) —
 distinct from the raw per-turn message history the generation model already
-sees via `AgentState["messages"]`. `AgentContext` is deliberately the single
-class used both as `turn_service`'s internal working context and as
-`api/routes.py`'s response field: `AgentUiSelection` (what the browser sends,
-as-is, each turn) and `AgentContext` (the backend-confirmed shape) carry the
-same fields, so both live here rather than being redefined in `api/routes.py`."""
+sees via `AgentState["messages"]`. `AgentContext` is the single class used for
+all three roles the one context object of FR-AG-17 plays: what the browser
+sends as-is each turn, `turn_service`'s internal working context, and
+`api/routes.py`'s response field."""
 
 from __future__ import annotations
 
@@ -22,23 +21,11 @@ from pydantic import BaseModel
 _RESET_FIELDS = ("semiotic_system", "sign", "tradition")
 
 
-class AgentUiSelection(BaseModel):
-    """What the browser sends, as-is, each turn (specs/interfaces/agent.md FR-AG-17) — the
-    client never pre-clears or diffs this before sending."""
-
-    semiotic_system: str | None = None
-    sign: str | None = None
-    tradition: str | None = None
-    source_id: str | None = None
-    interpretant: str | None = None
-    min_score: float | None = None
-    region_id: str | None = None
-    locator: str | None = None
-
-
 class AgentContext(BaseModel):
-    """The backend-confirmed context, returned alongside every turn's reply
-    (specs/interfaces/agent.md FR-AG-17)."""
+    """The turn's context object (specs/interfaces/agent.md FR-AG-17). Incoming, it is the
+    browser's current UI selection, which the client never pre-clears or diffs
+    before sending; outgoing, it is the backend-confirmed context returned
+    alongside the reply."""
 
     semiotic_system: str | None = None
     sign: str | None = None
@@ -50,7 +37,7 @@ class AgentContext(BaseModel):
     locator: str | None = None
 
 
-def detect_thread_reset(previous: AgentContext, incoming: AgentUiSelection) -> bool:
+def detect_thread_reset(previous: AgentContext, incoming: AgentContext) -> bool:
     """`True` if the incoming turn's UI selection no longer matches the
     hotspot/subject the stored context was scoped to (specs/interfaces/agent.md FR-AG-16): a different
     `region_id`, or a different `semiotic_system`/`sign`/`tradition`. Facet
@@ -62,7 +49,7 @@ def detect_thread_reset(previous: AgentContext, incoming: AgentUiSelection) -> b
     return any(getattr(incoming, field) != getattr(previous, field) for field in _RESET_FIELDS)
 
 
-def apply_ui_selection(context: AgentContext, incoming: AgentUiSelection) -> AgentContext:
+def apply_ui_selection(context: AgentContext, incoming: AgentContext) -> AgentContext:
     """Merges the browser's current UI selection onto the stored context.
     `region_id` and `locator` are always taken from `incoming` as-is, even
     when `None` — "no hotspot selected" is itself meaningful information for

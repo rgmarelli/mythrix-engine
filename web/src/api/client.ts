@@ -5,7 +5,6 @@ import type {
   AgentTurnRequestWire,
   AgentTurnResponseWire,
   AgentTurnResult,
-  AgentUiSelection,
   BodyMode,
   Hotspot,
   HotspotQueryResult,
@@ -168,7 +167,7 @@ export async function fetchBoundRegions(
   return { facets: result.facets, hotspots: result.regions.map(toHotspot) };
 }
 
-function toAgentUiSelectionWire(selection: AgentUiSelection) {
+function toAgentContextWire(selection: AgentContext) {
   return {
     semiotic_system: selection.semioticSystem,
     sign: selection.sign,
@@ -200,12 +199,12 @@ function toAgentContext(wire: AgentTurnResponseWire['context']): AgentContext {
 export async function postAgentTurn(
   sessionId: string,
   message: string,
-  uiSelection: AgentUiSelection,
+  uiSelection: AgentContext,
 ): Promise<AgentTurnResult> {
   const requestBody: AgentTurnRequestWire = {
     session_id: sessionId,
     message,
-    ui_selection: toAgentUiSelectionWire(uiSelection),
+    ui_selection: toAgentContextWire(uiSelection),
   };
   const response = await fetch(`${API_BASE_URL}/api/agent`, {
     method: 'POST',

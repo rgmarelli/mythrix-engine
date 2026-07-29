@@ -18,7 +18,6 @@ from mythrix.agent.citations import find_invalid_markers, strip_markers
 from mythrix.agent.commands.adhoc import is_adhoc_command
 from mythrix.agent.context import (
     AgentContext,
-    AgentUiSelection,
     apply_ui_selection,
     backfill_from_tool_results,
     detect_thread_reset,
@@ -120,7 +119,7 @@ def run_chat_turn(
     sessions: SessionStore,
     session_id: str,
     message: str,
-    ui_selection: AgentUiSelection,
+    ui_selection: AgentContext,
     max_tool_iterations: int,
 ) -> AgentTurnResponse:
     session = sessions.get_or_create(session_id)

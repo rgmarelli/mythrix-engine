@@ -15,7 +15,7 @@ from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel
 
 from mythrix.agent.capabilities import AGENT_CAPABILITIES, AgentCapabilities
-from mythrix.agent.context import AgentUiSelection
+from mythrix.agent.context import AgentContext
 from mythrix.agent.sessions import SessionStore
 from mythrix.agent.turn_service import AgentTurnResponse, run_chat_turn
 from mythrix.api.dependencies import get_agent_graph, get_agent_sessions, get_stores
@@ -224,7 +224,7 @@ def agent_capabilities() -> AgentCapabilities:
 class AgentTurnRequest(BaseModel):
     session_id: str
     message: str
-    ui_selection: AgentUiSelection
+    ui_selection: AgentContext
 
 
 @router.post("/agent", response_model=AgentTurnResponse)
