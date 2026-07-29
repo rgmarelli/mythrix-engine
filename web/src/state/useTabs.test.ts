@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { fetchBoundRegions, fetchQuery, streamAgentTurn } from '../api/client';
 import { DEFAULT_MIN_SCORE, useTabs } from './useTabs';
-import { makeHotspot } from '../test/fixtures';
+import { makeHotspot, makeSource } from '../test/fixtures';
 import type { AgentCapabilities, AgentInstruction, HotspotQueryResult } from '../api/types';
 
 vi.mock('../api/client', () => ({
@@ -696,5 +696,96 @@ describe('augmentations', () => {
     });
 
     expect(result.current.augmentations).toEqual({});
+  });
+
+  it('patches the progress item with the marker its own instruction names', async () => {
+    const result = await queried([makeHotspot({ regionId: 'src::1-2' })]);
+    vi.mocked(streamAgentTurn).mockImplementationOnce(async (_s, _m, _u, _r, onEvent) => {
+      onEvent?.({ event: 'message', text: 'Augmented [R1] Douay-Rheims — Genesis 21:6' });
+      onEvent?.({ event: 'instruction', instruction: augmentRegion('src::1-2', '[R1]', 'Sara laughs.') as never });
+      return { context: EMPTY_CONTEXT, replyText: 'Joy recurs [R1].', instructions: [], threadReset: false };
+    });
+
+    await act(async () => {
+      await result.current.sendAgentMessage('/augment-confirm 7f3a1c');
+    });
+
+    const progressItem = result.current.activeTab.agentItems.find(
+      (item) => item.kind === 'ai' && item.text.startsWith('Augmented'),
+    );
+    expect(progressItem).toMatchObject({ regionMarkers: { '[R1]': 'src::1-2' } });
+  });
+
+  it("gives the consolidation the run's full marker map", async () => {
+    const result = await queried([makeHotspot({ regionId: 'src::1-2' }), makeHotspot({ regionId: 'src::5-6' })]);
+    vi.mocked(streamAgentTurn).mockImplementationOnce(async (_s, _m, _u, _r, onEvent) => {
+      onEvent?.({ event: 'message', text: 'Augmented [R1] Douay-Rheims — Genesis 21:6' });
+      onEvent?.({ event: 'instruction', instruction: augmentRegion('src::1-2', '[R1]', 'Sara laughs.') as never });
+      onEvent?.({ event: 'message', text: 'Augmented [R2] Douay-Rheims — Genesis 21:8' });
+      onEvent?.({ event: 'instruction', instruction: augmentRegion('src::5-6', '[R2]', 'Isaac grows.') as never });
+      return { context: EMPTY_CONTEXT, replyText: 'Joy recurs [R1][R2].', instructions: [], threadReset: false };
+    });
+
+    await act(async () => {
+      await result.current.sendAgentMessage('/augment-confirm 7f3a1c');
+    });
+
+    const consolidation = result.current.activeTab.agentItems.at(-1);
+    expect(consolidation).toMatchObject({
+      text: 'Joy recurs [R1][R2].',
+      regionMarkers: { '[R1]': 'src::1-2', '[R2]': 'src::5-6' },
+    });
+  });
+});
+
+describe('navigateToRegion', () => {
+  async function queriedTwoSources() {
+    vi.mocked(fetchQuery).mockResolvedValueOnce({
+      facets: { sources: [], interpretants: [] },
+      hotspots: [
+        makeHotspot({ regionId: 'src::1-2', source: makeSource({ id: 'src-a' }) }),
+        makeHotspot({ regionId: 'src::5-6', source: makeSource({ id: 'src-b' }) }),
+      ],
+    });
+    const { result } = renderHook(() => useTabs());
+    await act(async () => {
+      await result.current.runQuery();
+    });
+    return result;
+  }
+
+  it('selects a region already on the list without touching the filters', async () => {
+    const result = await queriedTwoSources();
+    act(() => {
+      result.current.setSourceId('src-b');
+    });
+    expect(result.current.rankedHotspots.map((h) => h.regionId)).toEqual(['src::5-6']);
+
+    act(() => {
+      result.current.navigateToRegion('src::5-6');
+    });
+
+    expect(result.current.activeTab.selectedSourceId).toBe('src-b');
+    expect(result.current.activeTab.selectedRegionId).toBe('src::5-6');
+  });
+
+  it('clears the source, interpretant, and search filters only when the region is excluded by them', async () => {
+    const result = await queriedTwoSources();
+    act(() => {
+      result.current.setSourceId('src-a');
+      result.current.setInterpretant('sun');
+      result.current.setHotspotSearch('laughs');
+    });
+    expect(result.current.rankedHotspots.some((h) => h.regionId === 'src::5-6')).toBe(false);
+
+    act(() => {
+      result.current.navigateToRegion('src::5-6');
+    });
+
+    expect(result.current.activeTab.selectedSourceId).toBeNull();
+    expect(result.current.activeTab.selectedInterpretant).toBeNull();
+    expect(result.current.activeTab.hotspotSearch).toBe('');
+    expect(result.current.activeTab.selectedRegionId).toBe('src::5-6');
+    expect(result.current.rankedHotspots.some((h) => h.regionId === 'src::5-6')).toBe(true);
   });
 });

@@ -4,6 +4,12 @@ export function hotspotTitle(hotspot: Hotspot): string {
   return hotspot.locator || hotspot.source.citation_label || hotspot.source.title;
 }
 
+// Shared with `HotspotList`'s scroll-to-selection so both sides name the
+// same DOM node without duplicating the id format.
+export function hotspotElementId(regionId: string): string {
+  return `hotspot-${regionId}`;
+}
+
 export function convergenceLabel(count: number): string {
   return `${count} interpretant${count === 1 ? '' : 's'}`;
 }

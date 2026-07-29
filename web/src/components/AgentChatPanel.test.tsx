@@ -30,6 +30,7 @@ function renderPanel(overrides: Partial<ComponentProps<typeof AgentChatPanel>> =
     isSending: false,
     onSend: vi.fn(),
     onClear: vi.fn(),
+    onNavigateRegion: vi.fn(),
     selectedHotspot: null,
     capabilities: CAPABILITIES,
     ...overrides,
@@ -55,7 +56,7 @@ it('shows the hotspot title and its matched interpretants in the context strip',
 it('renders user, ai, reset, and error items by kind', () => {
   const items: ThreadItem[] = [
     { kind: 'user', id: '1', text: 'What does the sun mean?' },
-    { kind: 'ai', id: '2', text: 'It signifies vitality.', instructions: [] },
+    { kind: 'ai', id: '2', text: 'It signifies vitality.', instructions: [], regionMarkers: {} },
     { kind: 'reset', id: '3', label: 'now reading The Moon' },
     { kind: 'error', id: '4', text: 'Something went wrong.' },
   ];
@@ -67,9 +68,17 @@ it('renders user, ai, reset, and error items by kind', () => {
 });
 
 it('renders markdown formatting in an ai item as elements, not literal syntax', () => {
-  const items: ThreadItem[] = [{ kind: 'ai', id: '1', text: 'This is **bold**.\n\n- first\n- second', instructions: [] }];
+  const items: ThreadItem[] = [{ kind: 'ai', id: '1', text: 'This is **bold**.\n\n- first\n- second', instructions: [], regionMarkers: {} }];
   const { container } = render(
-    <AgentChatPanel items={items} isSending={false} onSend={vi.fn()} onClear={vi.fn()} selectedHotspot={null} capabilities={CAPABILITIES} />,
+    <AgentChatPanel
+      items={items}
+      isSending={false}
+      onSend={vi.fn()}
+      onClear={vi.fn()}
+      onNavigateRegion={vi.fn()}
+      selectedHotspot={null}
+      capabilities={CAPABILITIES}
+    />,
   );
   expect(container.querySelector('.bubble strong')).toHaveTextContent('bold');
   expect(container.querySelectorAll('.bubble li')).toHaveLength(2);
@@ -77,12 +86,59 @@ it('renders markdown formatting in an ai item as elements, not literal syntax', 
 });
 
 it('renders HTML-like text in an ai item as inert text, not a live element', () => {
-  const items: ThreadItem[] = [{ kind: 'ai', id: '1', text: '<img src=x onerror="window.__pwned = true">', instructions: [] }];
+  const items: ThreadItem[] = [{ kind: 'ai', id: '1', text: '<img src=x onerror="window.__pwned = true">', instructions: [], regionMarkers: {} }];
   const { container } = render(
-    <AgentChatPanel items={items} isSending={false} onSend={vi.fn()} onClear={vi.fn()} selectedHotspot={null} capabilities={CAPABILITIES} />,
+    <AgentChatPanel
+      items={items}
+      isSending={false}
+      onSend={vi.fn()}
+      onClear={vi.fn()}
+      onNavigateRegion={vi.fn()}
+      selectedHotspot={null}
+      capabilities={CAPABILITIES}
+    />,
   );
   expect(container.querySelector('.bubble img')).not.toBeInTheDocument();
   expect((window as unknown as { __pwned?: boolean }).__pwned).toBeUndefined();
+});
+
+it('renders a marker with a resolved region as a link that navigates on click', async () => {
+  const onNavigateRegion = vi.fn();
+  const items: ThreadItem[] = [
+    { kind: 'ai', id: '1', text: 'Joy recurs [R1].', instructions: [], regionMarkers: { '[R1]': 'src::1-2' } },
+  ];
+  renderPanel({ items, onNavigateRegion });
+
+  await userEvent.click(screen.getByRole('link', { name: '[R1]' }));
+
+  expect(onNavigateRegion).toHaveBeenCalledWith('src::1-2');
+});
+
+it('renders a marker absent from the map as plain text, not a link', () => {
+  const items: ThreadItem[] = [{ kind: 'ai', id: '1', text: 'Joy recurs [R9].', instructions: [], regionMarkers: {} }];
+  renderPanel({ items });
+
+  expect(screen.queryByRole('link', { name: '[R9]' })).not.toBeInTheDocument();
+  expect(screen.getByText('Joy recurs [R9].')).toBeInTheDocument();
+});
+
+it('renders the same marker at each of its occurrences as an independent link', async () => {
+  const onNavigateRegion = vi.fn();
+  const items: ThreadItem[] = [
+    {
+      kind: 'ai',
+      id: '1',
+      text: 'Joy recurs [R1], and again [R1].',
+      instructions: [],
+      regionMarkers: { '[R1]': 'src::1-2' },
+    },
+  ];
+  renderPanel({ items, onNavigateRegion });
+
+  const links = screen.getAllByRole('link', { name: '[R1]' });
+  expect(links).toHaveLength(2);
+  await userEvent.click(links[1]);
+  expect(onNavigateRegion).toHaveBeenCalledWith('src::1-2');
 });
 
 it('/clear wipes the composer, calls onClear, and never calls onSend or appears as a message', async () => {
@@ -118,7 +174,17 @@ it('disables the send button when the input is empty', () => {
 });
 
 it('toggles collapsed state via the collapse button', async () => {
-  const { container } = render(<AgentChatPanel items={[]} isSending={false} onSend={vi.fn()} onClear={vi.fn()} selectedHotspot={null} capabilities={CAPABILITIES} />);
+  const { container } = render(
+    <AgentChatPanel
+      items={[]}
+      isSending={false}
+      onSend={vi.fn()}
+      onClear={vi.fn()}
+      onNavigateRegion={vi.fn()}
+      selectedHotspot={null}
+      capabilities={CAPABILITIES}
+    />,
+  );
   expect(container.querySelector('.agent-dock')).not.toHaveClass('collapsed');
   await userEvent.click(screen.getByLabelText('Collapse agent panel'));
   expect(container.querySelector('.agent-dock')).toHaveClass('collapsed');
@@ -247,6 +313,7 @@ it('the confirm affordance sends the instruction command verbatim', async () => 
       id: '1',
       text: 'Parsed query: laughter',
       instructions: [{ type: 'confirm_query', payload: { confirm_command: '/query-confirm 7f3a1c9e' } }],
+      regionMarkers: {},
     },
   ];
   renderPanel({ items, onSend });
@@ -257,7 +324,7 @@ it('the confirm affordance sends the instruction command verbatim', async () => 
 });
 
 it('shows no confirm affordance on an ordinary reply', () => {
-  const items: ThreadItem[] = [{ kind: 'ai', id: '1', text: 'It signifies vitality.', instructions: [] }];
+  const items: ThreadItem[] = [{ kind: 'ai', id: '1', text: 'It signifies vitality.', instructions: [], regionMarkers: {} }];
   renderPanel({ items });
   expect(screen.queryByRole('button', { name: 'Run this query' })).not.toBeInTheDocument();
 });
@@ -275,6 +342,7 @@ it('the discovery confirm affordance sends the instruction command verbatim', as
           payload: { discovery_id: '7f3a1c', confirm_command: '/augment-confirm 7f3a1c' },
         },
       ],
+      regionMarkers: {},
     },
   ];
   renderPanel({ items, onSend });
@@ -294,6 +362,7 @@ it('labels each confirmation chip by its own instruction type', () => {
         { type: 'confirm_query', payload: { confirm_command: '/query-confirm aaa' } },
         { type: 'confirm_augment', payload: { confirm_command: '/augment-confirm bbb' } },
       ],
+      regionMarkers: {},
     },
   ];
   renderPanel({ items });
@@ -309,6 +378,7 @@ it('renders no chip for an instruction type this build does not know', () => {
       id: '1',
       text: 'Something new',
       instructions: [{ type: 'confirm_something_else', payload: { confirm_command: '/whatever 1' } }],
+      regionMarkers: {},
     },
   ];
   renderPanel({ items });

@@ -77,6 +77,41 @@ it('marks the selected hotspot active and calls onSelect with its regionId', asy
   expect(onSelect).toHaveBeenCalledWith('r2');
 });
 
+it('scrolls the newly selected card into view when selection changes from outside the list', () => {
+  const scrollIntoView = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
+  const hotspots = [makeHotspot({ regionId: 'r1', locator: 'A' }), makeHotspot({ regionId: 'r2', locator: 'B' })];
+  const { rerender } = render(
+    <HotspotList
+      headerText="h"
+      hasResult
+      hotspots={hotspots}
+      selectedRegionId="r1"
+      search=""
+      augmentations={{}}
+      onSearchChange={vi.fn()}
+      onSelect={vi.fn()}
+    />,
+  );
+  scrollIntoView.mockClear();
+
+  rerender(
+    <HotspotList
+      headerText="h"
+      hasResult
+      hotspots={hotspots}
+      selectedRegionId="r2"
+      search=""
+      augmentations={{}}
+      onSearchChange={vi.fn()}
+      onSelect={vi.fn()}
+    />,
+  );
+
+  expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' });
+  expect(scrollIntoView.mock.instances[0]).toBe(document.getElementById('hotspot-r2'));
+  scrollIntoView.mockRestore();
+});
+
 it('renders the search box only when hasResult, and reports typed text via onSearchChange', async () => {
   const onSearchChange = vi.fn();
   const { rerender } = render(

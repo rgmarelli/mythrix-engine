@@ -5,14 +5,45 @@ import type { AgentCapabilities, AgentInstruction, CommandSpec, Hotspot } from '
 import type { ThreadItem } from '../state/useTabs';
 import { argHintFor, completionOf, matchCommands } from '../utils/commands';
 import { hotspotTitle } from '../utils/hotspot';
+import { REGION_ID_ATTRIBUTE, remarkRegionMarkers } from '../utils/remarkRegionMarkers';
 
 interface Props {
   items: ThreadItem[];
   isSending: boolean;
   onSend: (message: string) => void;
   onClear: () => void;
+  onNavigateRegion: (regionId: string) => void;
   selectedHotspot: Hotspot | null;
   capabilities: AgentCapabilities | null;
+}
+
+// An `a` rendered from a `[R#]` marker (specs/interfaces/web-viewer.md
+// FR-WEB-28) carries `data-region-id`, set by `remarkRegionMarkers`; any other
+// anchor a reply might contain falls back to opening normally. react-markdown's
+// `Components['a']` type doesn't model that custom attribute, hence the cast.
+function RegionMarkerLink(
+  props: React.ComponentPropsWithoutRef<'a'> & { onNavigateRegion: (regionId: string) => void },
+) {
+  const { href, children, onNavigateRegion } = props;
+  const regionId = (props as Record<string, unknown>)[REGION_ID_ATTRIBUTE];
+  if (typeof regionId === 'string') {
+    return (
+      <a
+        href={href}
+        onClick={(event) => {
+          event.preventDefault();
+          onNavigateRegion(regionId);
+        }}
+      >
+        {children}
+      </a>
+    );
+  }
+  return (
+    <a href={href} target="_blank" rel="noreferrer">
+      {children}
+    </a>
+  );
 }
 
 // `/clear` is implemented here and nowhere else (agent.md FR-AG-22), so it
@@ -124,7 +155,7 @@ function ConfirmActions({ instructions, onSend }: { instructions: AgentInstructi
  * toggle, not a branch into a different element — that's what lets
  * `.agent-dock`'s `transition: height, width` actually animate; two
  * different DOM trees can't transition into each other. */
-export function AgentChatPanel({ items, isSending, onSend, onClear, selectedHotspot, capabilities }: Props) {
+export function AgentChatPanel({ items, isSending, onSend, onClear, onNavigateRegion, selectedHotspot, capabilities }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
@@ -242,7 +273,12 @@ export function AgentChatPanel({ items, isSending, onSend, onClear, selectedHots
             <div className="msg ai" key={item.id}>
               <AiAvatar />
               <div className="bubble">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.text}</ReactMarkdown>
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm, [remarkRegionMarkers, item.regionMarkers]]}
+                  components={{ a: (linkProps) => <RegionMarkerLink {...linkProps} onNavigateRegion={onNavigateRegion} /> }}
+                >
+                  {item.text}
+                </ReactMarkdown>
               </div>
               <ConfirmActions instructions={item.instructions} onSend={send} />
             </div>

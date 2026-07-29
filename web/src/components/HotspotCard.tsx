@@ -1,5 +1,5 @@
 import type { Hotspot } from '../api/types';
-import { convergenceLabel, hotspotTitle } from '../utils/hotspot';
+import { convergenceLabel, hotspotElementId, hotspotTitle } from '../utils/hotspot';
 import { SparkleIcon } from './SparkleIcon';
 
 interface Props {
@@ -11,7 +11,12 @@ interface Props {
 
 export function HotspotCard({ hotspot, isActive, isAugmented, onSelect }: Props) {
   return (
-    <button type="button" className={isActive ? 'hotspot-card active' : 'hotspot-card'} onClick={onSelect}>
+    <button
+      type="button"
+      id={hotspotElementId(hotspot.regionId)}
+      className={isActive ? 'hotspot-card active' : 'hotspot-card'}
+      onClick={onSelect}
+    >
       <div className="hc-top">
         <span className="hc-title">
           {hotspotTitle(hotspot)}

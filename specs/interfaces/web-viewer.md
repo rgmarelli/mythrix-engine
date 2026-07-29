@@ -43,9 +43,14 @@ The tabbed frontend presenting [Ranking](../retrieval/ranking.md) results, backe
 - FR-WEB-25: Each turn is sent with the region identities the viewer is currently displaying, in display order — the ranked hotspot list after the active source facet, interpretant facet and hotspot-search filters have been applied ([augmentation.md](augmentation.md) FR-AU-12). The viewer is the sole authority on that list; no backend counterpart of these filters exists.
 - FR-WEB-26: A region carrying a generated augmentation is marked as such in the hotspot list, distinguishably from one without and without displaying the augmentation itself (FR-AU-27). Opening that region displays the augmentation, labelled as generated analysis and visually distinct from the region's verbatim segments, positioned above them (FR-AU-28).
 - FR-WEB-27: Augmentations are held per tab, keyed by the region each names, and are discarded whenever that tab's query result is replaced — by a form submission or by a `regions`-kind instruction result (FR-AU-29). They are never shared between tabs.
+- FR-WEB-28: A `[R#]` marker in an agent chat message is rendered as a selectable link when it names a region that response's run augmented (FR-WEB-27; [augmentation.md](augmentation.md) FR-AU-30/FR-AU-31); a marker naming no such region renders as plain text. This resolution is scoped to the response it appears in, and applies wherever a marker appears in a response — including a run's per-region progress message, not only its consolidation.
+- FR-WEB-29: The same marker occurring more than once within one response is independently selectable at each occurrence.
+- FR-WEB-30: Selecting a marker's link selects the region it resolves to, exactly as selecting that region from the hotspot rail does (FR-WEB-03), and brings its entry in the rail into view.
+- FR-WEB-31: If the resolved region is excluded from the currently displayed, filtered hotspot list by the source facet, the interpretant facet, or the rail search filter (FR-WEB-02, FR-WEB-16), selecting the marker first clears whichever of those exclude it, then selects the region. A region already on the displayed list is selected without changing any filter.
 
 ## Non-goals
 
 - Rendering ad-hoc query results (FR-WEB-20) differently from graph-native ones, or indicating in the hotspot rail which of the two produced the displayed result.
 - Any user-facing editing, filtering, or overriding of the capabilities document (FR-WEB-17) — the viewer consumes it as served.
 - A UI for comparing multiple interpretive traditions of the same sign against each other (consistent with the cross-tradition-comparison Non-goal in [domain-model.md](../domain/domain-model.md)).
+- Resolving a marker (FR-WEB-28) against a region whose tab's query result has since been replaced — augmentations, and the markers naming them, are scoped to one query result (FR-WEB-27) and do not survive its replacement.

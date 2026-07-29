@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import type { ReactNode } from 'react';
 import type { Augmentation, Hotspot } from '../api/types';
+import { hotspotElementId } from '../utils/hotspot';
 import { ConvergenceIcon } from './ConvergenceIcon';
 import { HotspotCard } from './HotspotCard';
 
@@ -24,6 +26,16 @@ export function HotspotList({
   onSearchChange,
   onSelect,
 }: Props) {
+  // Brings the selected card into view when selection changes from outside
+  // this list (specs/interfaces/web-viewer.md FR-WEB-30) — e.g. a chat
+  // marker click. `block: 'nearest'` is a no-op when the card is already
+  // visible, so this is safe on every selection change, including an
+  // ordinary click on a card already in view.
+  useEffect(() => {
+    if (!selectedRegionId) return;
+    document.getElementById(hotspotElementId(selectedRegionId))?.scrollIntoView({ block: 'nearest' });
+  }, [selectedRegionId]);
+
   return (
     <section className="hotspot-rail">
       {hasResult && (

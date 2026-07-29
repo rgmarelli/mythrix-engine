@@ -32,7 +32,10 @@ export const DEFAULT_MIN_SCORE = 0.6;
 
 export type ThreadItem =
   | { kind: 'user'; id: string; text: string }
-  | { kind: 'ai'; id: string; text: string; instructions: AgentInstruction[] }
+  // `regionMarkers` maps a region marker (e.g. "[R1]") this item's text
+  // carries to the region it names, scoped to this item alone
+  // (specs/interfaces/web-viewer.md FR-WEB-28).
+  | { kind: 'ai'; id: string; text: string; instructions: AgentInstruction[]; regionMarkers: Record<string, string> }
   | { kind: 'reset'; id: string; label: string }
   | { kind: 'error'; id: string; text: string };
 
@@ -207,6 +210,20 @@ export function useTabs(capabilities: AgentCapabilities | null = null) {
     });
   }, [activeTab.queryResult, activeTab.selectedSourceId, activeTab.selectedInterpretant, activeTab.hotspotSearch]);
 
+  // Selects a region named by a chat marker
+  // (specs/interfaces/web-viewer.md FR-WEB-31). Only clears the
+  // source/interpretant/search filters when the region is excluded from the
+  // *current* display by one of them — a region already on the list is
+  // selected exactly as `setRegionId` would, leaving the user's filters
+  // alone.
+  const navigateToRegion = (regionId: string) => {
+    if (rankedHotspots.some((hotspot) => hotspot.regionId === regionId)) {
+      updateActiveTab({ selectedRegionId: regionId });
+      return;
+    }
+    updateActiveTab({ selectedSourceId: null, selectedInterpretant: null, hotspotSearch: '', selectedRegionId: regionId });
+  };
+
   // Each facet row's counts are scoped to the *other* facet's current selection
   // (never its own), so selecting a Source narrows the Interpretants counts and
   // vice versa — mirrors `rankedHotspots`' predicate, one clause at a time.
@@ -338,18 +355,34 @@ export function useTabs(capabilities: AgentCapabilities | null = null) {
       // so the backend reproduces none of that filtering.
       const visibleRegions = rankedHotspots.map((hotspot) => hotspot.regionId);
 
+      // Accumulates this run's marker -> region map for the consolidation
+      // item below; `lastMessageItemId` lets the paired instruction event
+      // patch the region's own progress item with its one marker
+      // (specs/interfaces/web-viewer.md FR-WEB-28, FR-AU-23's
+      // message-then-instruction pairing per region).
+      const regionMarkers: Record<string, string> = {};
+      let lastMessageItemId: string | null = null;
+
       const result = await streamAgentTurn(tab.agentSessionId, trimmed, uiSelection, visibleRegions, (event) => {
         // Progress, delivered as it happens (FR-AU-23). Applied straight away
         // rather than collected, so a long run is visible while it runs.
         if (event.event === 'message') {
-          const item: ThreadItem = { kind: 'ai', id: itemId(), text: event.text, instructions: [] };
+          const id = itemId();
+          lastMessageItemId = id;
+          const item: ThreadItem = { kind: 'ai', id, text: event.text, instructions: [], regionMarkers: {} };
           updateTab(tabId, (t) => ({ agentItems: [...t.agentItems, item] }));
           return;
         }
         const augmented = augmentationOf(event.instruction);
         if (augmented) {
+          regionMarkers[augmented.augmentation.label] = augmented.regionId;
           updateTab(tabId, (t) => ({
             augmentations: { ...t.augmentations, [augmented.regionId]: augmented.augmentation },
+            agentItems: t.agentItems.map((item) =>
+              item.id === lastMessageItemId && item.kind === 'ai'
+                ? { ...item, regionMarkers: { ...item.regionMarkers, [augmented.augmentation.label]: augmented.regionId } }
+                : item,
+            ),
           }));
         }
       });
@@ -358,6 +391,7 @@ export function useTabs(capabilities: AgentCapabilities | null = null) {
         id: itemId(),
         text: result.replyText,
         instructions: result.instructions,
+        regionMarkers,
       };
       updateTab(tabId, (t) => {
         if (result.threadReset) {
@@ -404,6 +438,7 @@ export function useTabs(capabilities: AgentCapabilities | null = null) {
     setInterpretantSearch,
     setHotspotSearch,
     setRegionId,
+    navigateToRegion,
     runQuery,
     rankedHotspots,
     sourceFacetOptions,

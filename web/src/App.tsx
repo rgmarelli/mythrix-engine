@@ -59,6 +59,7 @@ function App() {
     setInterpretantSearch,
     setHotspotSearch,
     setRegionId,
+    navigateToRegion,
     runQuery,
     rankedHotspots,
     sourceFacetOptions,
@@ -160,6 +161,10 @@ function App() {
       isSending={activeTab.agentSending}
       onSend={sendAgentMessage}
       onClear={clearAgentThread}
+      onNavigateRegion={(regionId) => {
+        navigateToRegion(regionId);
+        setReaderOpen(true);
+      }}
       selectedHotspot={selectedHotspot}
       capabilities={capabilities}
     />
