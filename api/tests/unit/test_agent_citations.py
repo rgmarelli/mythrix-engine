@@ -1,8 +1,9 @@
 """Unit tests for `agent/citations.py` — marker extraction and validation over
-the `[G#]`/`[S#]`/`[C#]` vocabulary `agent/prompts.py`'s `SYSTEM_PROMPT`
-defines, checked against a caller-supplied set of valid identifiers."""
+the `[G#]`/`[S#]`/`[C#]`/`[R#]` vocabulary, checked against a caller-supplied
+set of valid identifiers, plus the split between what is validated and what is
+stripped from a visible reply."""
 
-from mythrix.agent.citations import extract_markers, find_invalid_markers, strip_markers
+from mythrix.agent.citations import extract_markers, find_invalid_markers, strip_all_markers, strip_markers
 
 
 def test_extract_markers_finds_all_distinct_markers_in_order() -> None:
@@ -43,3 +44,24 @@ def test_strip_markers_removes_valid_and_invalid_markers_alike() -> None:
     """The agent never shows marker syntax in a visible reply, regardless of
     validation outcome."""
     assert strip_markers("Upheaval [S1] and something fabricated [S9].") == "Upheaval  and something fabricated ."
+
+
+def test_region_markers_are_validated_like_every_other_kind() -> None:
+    text = "Joy recurs [R1][R3], but not here [R9]."
+
+    assert extract_markers(text) == ("R1", "R3", "R9")
+    assert find_invalid_markers(text, {"R1", "R3"}) == ("R9",)
+
+
+def test_region_markers_survive_stripping_while_the_others_do_not() -> None:
+    """FR-DS-23: a region marker names a section of the reply itself, so it is
+    what the reader follows — unlike a segment marker, which names an item
+    inside a tool result the reader never sees."""
+    assert strip_markers("Joy recurs [R1] in the passage [S1].") == "Joy recurs [R1] in the passage ."
+
+
+def test_strip_all_markers_removes_region_markers_too() -> None:
+    """For generated text composed *into* a larger reply: its markers were
+    emitted against a vocabulary it was never given, so a surviving `[R#]`
+    would name a section it knows nothing about (FR-DS-25)."""
+    assert strip_all_markers("Sara laughs [S1] here [G2], per [R7].") == "Sara laughs  here , per ."

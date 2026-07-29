@@ -138,6 +138,11 @@ export interface AgentTurnRequestWire {
   session_id: string;
   message: string;
   ui_selection: AgentContextWire;
+  // The regions the viewer is currently displaying, in display order
+  // (specs/interfaces/augmentation.md FR-AU-12) — a sibling of `ui_selection`,
+  // not a field on it: this changes on every keystroke in the hotspot search
+  // box, and a changed `ui_selection` is what resets the thread.
+  visible_regions: string[];
 }
 
 // An agent instruction (specs/interfaces/agnostic-query.md FR-AQ-07,
@@ -217,12 +222,28 @@ export interface AgentCapabilities {
   bindings: Record<string, InstructionBinding | null>;
 }
 
+// A turn is a sequence of events ending in exactly one `turn` event
+// (augmentation.md FR-AU-22, ADR-015), so a run that takes minutes can report
+// progress as it goes. An ordinary turn is the terminal event alone.
 export interface AgentTurnResponseWire {
+  event: 'turn';
   context: AgentContextWire;
   reply_text: string;
   instructions: AgentInstructionWire[];
   thread_reset: boolean;
 }
+
+export interface AgentMessageEventWire {
+  event: 'message';
+  text: string;
+}
+
+export interface AgentInstructionEventWire {
+  event: 'instruction';
+  instruction: AgentInstructionWire;
+}
+
+export type AgentTurnEventWire = AgentMessageEventWire | AgentInstructionEventWire | AgentTurnResponseWire;
 
 // --- View model (as the UI consumes it — see client.ts) ---
 
@@ -244,4 +265,12 @@ export interface AgentTurnResult {
   replyText: string;
   instructions: AgentInstruction[];
   threadReset: boolean;
+}
+
+// One region's generated reading, held against the region it names for as
+// long as that region is displayed (augmentation.md FR-AU-26). `label` is the
+// `[R#]` marker the consolidation cites it by.
+export interface Augmentation {
+  label: string;
+  text: string;
 }

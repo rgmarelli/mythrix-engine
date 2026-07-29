@@ -11,13 +11,14 @@ import time
 from pathlib import Path
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel
 
 from mythrix.agent.capabilities import AGENT_CAPABILITIES, AgentCapabilities
 from mythrix.agent.context import AgentContext
 from mythrix.agent.sessions import SessionStore
-from mythrix.agent.turn_service import AgentTurnResponse, run_chat_turn
+from mythrix.agent.turn_service import stream_chat_turn
 from mythrix.api.dependencies import get_agent_graph, get_agent_sessions, get_stores
 from mythrix.core.bootstrap import Stores
 from mythrix.core.config import Settings
@@ -225,28 +226,45 @@ class AgentTurnRequest(BaseModel):
     session_id: str
     message: str
     ui_selection: AgentContext
+    # The consumer's current display, ordered as it displays it (FR-AU-12).
+    # A sibling of `ui_selection` rather than a field on it: it changes on
+    # every keystroke in a search box, and `AgentContext` changing is what
+    # detects a thread reset.
+    visible_regions: list[str] = []
 
 
-@router.post("/agent", response_model=AgentTurnResponse)
+@router.post("/agent")
 def agent_turn(
     payload: AgentTurnRequest,
     sessions: SessionStore = Depends(get_agent_sessions),
     graph: CompiledStateGraph = Depends(get_agent_graph),
-) -> AgentTurnResponse:
-    """One turn of the in-app chat panel (`specs/interfaces/agent.md` FR-AG-14–FR-AG-22):
-    the browser sends its message plus its current UI selection, as-is, each
-    turn; the backend detects a thread reset, runs the agent loop, and
-    returns the updated context and grounded reply text plus `thread_reset`.
-    `ModelUnavailableError`/
-    `ModelRequestError` raised by `get_agent_graph`'s lazy build are handled
-    by the same registered `MythrixError` exception handler as every other
-    route (502)."""
+) -> StreamingResponse:
+    """One turn of the in-app chat panel (`specs/interfaces/agent.md`
+    FR-AG-14–FR-AG-22), delivered as newline-delimited JSON: the browser sends
+    its message, its current UI selection and its visible regions, as-is, each
+    turn; the backend detects a thread reset, runs the agent loop, and streams
+    the turn's events.
+
+    Every turn uses this shape — an ordinary one is a single terminal event
+    (FR-AU-22) — so there is one turn transport rather than a streaming one
+    and a non-streaming one that must be kept equal (ADR-015).
+
+    `ModelUnavailableError`/`ModelRequestError` raised by `get_agent_graph`'s
+    lazy build still reach the registered `MythrixError` exception handler as
+    a 502: FastAPI resolves dependencies before the response body begins. A
+    failure after that point is reported within the event sequence instead
+    (FR-AU-25), the status code being already committed."""
     settings = Settings()
-    return run_chat_turn(
+    events = stream_chat_turn(
         graph=graph,
         sessions=sessions,
         session_id=payload.session_id,
         message=payload.message,
         ui_selection=payload.ui_selection,
+        visible_regions=payload.visible_regions,
         max_tool_iterations=settings.agent_max_tool_iterations,
+    )
+    return StreamingResponse(
+        (f"{event.model_dump_json()}\n" for event in events),
+        media_type="application/x-ndjson",
     )

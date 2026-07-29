@@ -19,15 +19,18 @@ from langgraph.prebuilt import ToolNode
 
 from mythrix.agent import commands
 from mythrix.agent.graph.nodes.adhoc import execute_query_node, parse_query_node
+from mythrix.agent.graph.nodes.augment import plan_augment_node, run_augment_node
 from mythrix.agent.graph.nodes.llm import agent_node, clarify_node, route_after_agent, route_after_tools
 from mythrix.agent.graph.nodes.summary import summarize_node
 from mythrix.agent.graph.state import AgentState
+from mythrix.agent.tools import ToolSet
 
 
 def route_input(state: AgentState) -> str:
     """Dispatches the turn's incoming message: the two ad-hoc-query commands
-    (specs/interfaces/agnostic-query.md FR-AQ-01, FR-AQ-08) and `/summarize`
-    (agent.md FR-AG-33, ADR-012) go to their own deterministic nodes,
+    (specs/interfaces/agnostic-query.md FR-AQ-01, FR-AQ-08), `/summarize`
+    (agent.md FR-AG-33, ADR-012) and the two augmentation commands
+    (augmentation.md FR-AU-10, ADR-015) go to their own deterministic nodes,
     everything else to the model. This is the only place command dispatch
     happens."""
     message_text = str(state["messages"][-1].content)
@@ -38,15 +41,26 @@ def route_input(state: AgentState) -> str:
         return "parse_query"
     if command == commands.summarize.SUMMARIZE_COMMAND:
         return "summarize"
+    if command == commands.augment.AUGMENT_COMMAND:
+        return "plan_augment"
+    if command == commands.augment.AUGMENT_CONFIRM_COMMAND:
+        return "run_augment"
     return "agent"
 
 
-def compile_agent_graph(llm_with_tools, tools: list) -> CompiledStateGraph:  # noqa: ANN001 - Runnable, no shared base type worth importing
+def compile_agent_graph(  # noqa: ANN001 - Runnable, no shared base type worth importing
+    llm_with_tools,
+    toolset: ToolSet,
+    *,
+    augment_max_regions: int,
+) -> CompiledStateGraph:
     """Compiles the turn's state machine given an already tool-bound chat
     model. `route_input` dispatches the incoming message: an ad-hoc-query
-    command goes to `parse_query`/`execute_query`, and `/summarize` goes to
-    `summarize` (ADR-012) — each straight on to `END`, reaching neither the
-    model nor `ToolNode` (agnostic-query.md FR-AQ-01; agent.md FR-AG-33);
+    command goes to `parse_query`/`execute_query`, `/summarize` goes to
+    `summarize`, and an augmentation command goes to
+    `plan_augment`/`run_augment` (ADR-012, ADR-015) — each straight on to
+    `END`, reaching neither the model nor `ToolNode` (agnostic-query.md
+    FR-AQ-01; agent.md FR-AG-33; augmentation.md FR-AU-10);
     everything else goes to `agent`. `agent` (system prompt prepended fresh on
     every call, alongside any `context_summary`) routes to `tools` (a
     `ToolNode` over the fixed read-only tool set) whenever the model's response
@@ -56,19 +70,28 @@ def compile_agent_graph(llm_with_tools, tools: list) -> CompiledStateGraph:  # n
     answers without calling a tool.
 
     `llm_with_tools` is already bound, so a test can inject a stub
-    tool-calling model with no live Ollama involved.
+    tool-calling model with no live Ollama involved. It is bound to
+    `toolset.model_tools` alone, which is also what `ToolNode` executes;
+    `toolset.node_tools` is reachable only by the deterministic nodes' name
+    lookup, so region reading and its generation steps are absent from the
+    model's tool schema (FR-AU-11, ADR-015).
 
     The per-turn tool-call bound (FR-AG-12) is a runtime concern, not a
     compile-time one — `runner.run_turn` applies it via LangGraph's
     `recursion_limit` when it invokes the compiled graph, so a single
-    compiled graph is reusable across turns with no reconstruction."""
+    compiled graph is reusable across turns with no reconstruction.
+    `augment_max_regions` is not that bound and does not substitute for it:
+    it bounds a deterministic node's own generation fan-out, on a path the
+    model's tool loop never enters (FR-AU-21)."""
     builder = StateGraph(AgentState)
     builder.add_node("agent", lambda state: agent_node(state, llm_with_tools))
-    builder.add_node("tools", ToolNode(tools))
+    builder.add_node("tools", ToolNode(toolset.model_tools))
     builder.add_node("clarify", clarify_node)
     builder.add_node("parse_query", parse_query_node)
     builder.add_node("execute_query", execute_query_node)
-    builder.add_node("summarize", lambda state: summarize_node(state, tools))
+    builder.add_node("summarize", lambda state: summarize_node(state, toolset.all))
+    builder.add_node("plan_augment", lambda state: plan_augment_node(state, max_regions=augment_max_regions))
+    builder.add_node("run_augment", lambda state: run_augment_node(state, toolset.all, max_regions=augment_max_regions))
     builder.add_conditional_edges(
         START,
         route_input,
@@ -76,12 +99,16 @@ def compile_agent_graph(llm_with_tools, tools: list) -> CompiledStateGraph:  # n
             "parse_query": "parse_query",
             "execute_query": "execute_query",
             "summarize": "summarize",
+            "plan_augment": "plan_augment",
+            "run_augment": "run_augment",
             "agent": "agent",
         },
     )
     builder.add_edge("parse_query", END)
     builder.add_edge("execute_query", END)
     builder.add_edge("summarize", END)
+    builder.add_edge("plan_augment", END)
+    builder.add_edge("run_augment", END)
     builder.add_conditional_edges("agent", route_after_agent, {"tools": "tools", END: END})
     builder.add_conditional_edges("tools", route_after_tools, {"agent": "agent", "clarify": "clarify"})
     builder.add_edge("clarify", END)

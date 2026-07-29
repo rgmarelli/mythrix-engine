@@ -12,8 +12,16 @@ const CAPABILITIES: AgentCapabilities = {
     { name: '/summarize', args: null, summary: 'Summarize this region', handledBy: 'server', listed: true },
     { name: '/query', args: 'term[:exact|:filter], …', summary: 'Search on your own terms', handledBy: 'server', listed: true },
     { name: '/query-confirm', args: '<id>', summary: 'Run a parsed ad-hoc query', handledBy: 'server', listed: false },
+    {
+      name: '/discover',
+      args: '"what to look for", term[:exact|:filter], …',
+      summary: 'Search, read every result against a question, and consolidate',
+      handledBy: 'server',
+      listed: true,
+    },
+    { name: '/augment-confirm', args: '<id>', summary: 'Run a parsed discovery', handledBy: 'server', listed: false },
   ],
-  bindings: { confirm_query: null },
+  bindings: { confirm_query: null, confirm_augment: null },
 };
 
 function renderPanel(overrides: Partial<ComponentProps<typeof AgentChatPanel>> = {}) {
@@ -252,4 +260,58 @@ it('shows no confirm affordance on an ordinary reply', () => {
   const items: ThreadItem[] = [{ kind: 'ai', id: '1', text: 'It signifies vitality.', instructions: [] }];
   renderPanel({ items });
   expect(screen.queryByRole('button', { name: 'Run this query' })).not.toBeInTheDocument();
+});
+
+it('the discovery confirm affordance sends the instruction command verbatim', async () => {
+  const onSend = vi.fn();
+  const items: ThreadItem[] = [
+    {
+      kind: 'ai',
+      id: '1',
+      text: 'Parsed discovery: where joy is',
+      instructions: [
+        {
+          type: 'confirm_augment',
+          payload: { discovery_id: '7f3a1c', confirm_command: '/augment-confirm 7f3a1c' },
+        },
+      ],
+    },
+  ];
+  renderPanel({ items, onSend });
+
+  await userEvent.click(screen.getByRole('button', { name: 'Run this augmentation' }));
+
+  expect(onSend).toHaveBeenCalledWith('/augment-confirm 7f3a1c');
+});
+
+it('labels each confirmation chip by its own instruction type', () => {
+  const items: ThreadItem[] = [
+    {
+      kind: 'ai',
+      id: '1',
+      text: 'Two things to confirm',
+      instructions: [
+        { type: 'confirm_query', payload: { confirm_command: '/query-confirm aaa' } },
+        { type: 'confirm_augment', payload: { confirm_command: '/augment-confirm bbb' } },
+      ],
+    },
+  ];
+  renderPanel({ items });
+
+  expect(screen.getByRole('button', { name: 'Run this query' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Run this augmentation' })).toBeInTheDocument();
+});
+
+it('renders no chip for an instruction type this build does not know', () => {
+  const items: ThreadItem[] = [
+    {
+      kind: 'ai',
+      id: '1',
+      text: 'Something new',
+      instructions: [{ type: 'confirm_something_else', payload: { confirm_command: '/whatever 1' } }],
+    },
+  ];
+  renderPanel({ items });
+
+  expect(screen.queryByRole('button', { name: /^Run this/ })).not.toBeInTheDocument();
 });

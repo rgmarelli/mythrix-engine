@@ -1,6 +1,12 @@
 """The operator system prompt (specs/interfaces/agent.md FR-AG-05, FR-AG-06,
 FR-AG-09), which defines the `[G#]`/`[S#]` marker vocabulary `citations.py`
-validates against, plus the one ad-hoc prompt a tool renders."""
+validates against, plus the ad-hoc prompts the generative tools render.
+
+Each renderable prompt belongs to exactly one tool. They deliberately do not
+share a template: a summary of a selected passage, a reading of a retrieved
+passage against a user's question, and a consolidation across readings differ
+in what they are allowed to use and what they must say when they have nothing
+to say (ADR-015)."""
 
 from __future__ import annotations
 
@@ -31,3 +37,51 @@ def render_passage_summary_prompt(text: str, concepts: tuple[str, ...]) -> str:
     path itself)."""
     concept_list = ", ".join(concepts)
     return f'Summarize the following passage, focusing on the concepts: {concept_list}.\n\nPassage:\n"{text}"'
+
+
+def render_augmentation_prompt(text: str, focus: str) -> str:
+    """One region's reading against the user's own question (FR-AU-19).
+
+    The retrieval terms are deliberately absent: a region reaches a run
+    because the user is looking at it, not because a term matched, so naming
+    terms here would invite the model to answer about them instead of about
+    the focus."""
+    return (
+        f"Analyze the following passage for this analytical task: {focus}\n\n"
+        "Base your analysis exclusively on the passage itself. "
+        "Interpret the passage directly and make reasonable inferences "
+        "when they are supported by the text. "
+        "Do not introduce external facts or context.\n\n"
+        "If the passage provides relevant evidence for the requested analysis, "
+        "describe it. If the evidence is ambiguous, explain the ambiguity. "
+        "Only say that the passage is not relevant when it genuinely provides "
+        "no basis for the requested analysis.\n\n"
+        f'Passage:\n"{text}"'
+    )
+
+
+def render_consolidation_prompt(focus: str, augmentations: tuple[tuple[str, str], ...]) -> str:
+    """The single answer across a run's augmentations (FR-AU-20). Given the
+    augmentations and their labels only — never raw passage text, which this
+    invocation has no way to cite and no need to re-read."""
+    rendered = "\n\n".join(f"{label}\n{augmentation}" for label, augmentation in augmentations)
+
+    return (
+        "The user requested the following analysis:\n\n"
+        f"{focus}\n\n"
+        "The passages were analyzed independently. "
+        "Below are the resulting analyses, each identified by its region label.\n\n"
+        f"{rendered}\n\n"
+        "Synthesize these analyses to answer the requested analytical task. "
+        "Do not replace the requested analysis with a relevance check, "
+        "keyword comparison, or search summary. "
+        "Report the patterns, differences, and relevant evidence that emerge "
+        "from the individual analyses. "
+        "If the passages genuinely provide little or no evidence for the task, "
+        "say so, but do not infer irrelevance merely because the requested "
+        "analysis is not explicitly mentioned in the passages.\n\n"
+        "Use only the analyses above. "
+        "Cite the regions supporting each claim by their label in square brackets, "
+        "e.g. [R1] or [R1][R3]. "
+        "Never cite a label that does not appear above."
+    )

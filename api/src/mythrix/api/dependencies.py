@@ -51,7 +51,11 @@ def get_agent_graph(request: Request) -> CompiledStateGraph:
             base_url=settings.ollama_base_url,
             num_ctx=settings.generation_num_ctx,
         )
-        tools = build_tools(stores, settings, OllamaChatClient(llm))
+        toolset = build_tools(stores, settings, OllamaChatClient(llm))
         agent_llm = derive_chat_model(llm, num_predict=_AGENT_NUM_PREDICT)
-        request.app.state.agent_graph = compile_agent_graph(agent_llm.bind_tools(tools), tools)
+        request.app.state.agent_graph = compile_agent_graph(
+            agent_llm.bind_tools(toolset.model_tools),
+            toolset,
+            augment_max_regions=settings.augment_max_regions,
+        )
     return request.app.state.agent_graph

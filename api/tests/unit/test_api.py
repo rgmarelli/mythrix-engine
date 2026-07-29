@@ -5,17 +5,18 @@
 real `KuzuGraphStore`/`ChromaVectorStore` against `tmp_path`, a fake
 embedder. Mirrors `tests/unit/test_cli_query.py`'s fixture pattern."""
 
+import json
 import logging
 from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from graph_helpers import compile_graph
 from langchain_core.messages import AIMessage
 from langchain_core.tools import tool
 
 from mythrix.agent.commands.adhoc import execute_query_instruction
-from mythrix.agent.graph import compile_agent_graph
 from mythrix.agent.sessions import SessionStore
 from mythrix.api.app import create_app
 from mythrix.api.dependencies import get_agent_graph, get_agent_sessions, get_stores
@@ -500,9 +501,7 @@ class _ScriptedLLM:
 def _agent_client(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore, script: list[AIMessage]) -> TestClient:
     client = _client(graph_store, vector_store)
     client.app.dependency_overrides[get_agent_sessions] = lambda: SessionStore()
-    client.app.dependency_overrides[get_agent_graph] = lambda: compile_agent_graph(
-        _ScriptedLLM(script), [_fake_get_sign]
-    )
+    client.app.dependency_overrides[get_agent_graph] = lambda: compile_graph(_ScriptedLLM(script), [_fake_get_sign])
     return client
 
 
@@ -541,7 +540,7 @@ def test_agent_turn_reset_on_hotspot_change(graph_store: KuzuGraphStore, vector_
     client = _agent_client(graph_store, vector_store, script)
     sessions = SessionStore()
     client.app.dependency_overrides[get_agent_sessions] = lambda: sessions
-    client.app.dependency_overrides[get_agent_graph] = lambda: compile_agent_graph(
+    client.app.dependency_overrides[get_agent_graph] = lambda: compile_graph(
         _ScriptedLLM(script + [AIMessage(content="Hi again.")]), [_fake_get_sign]
     )
 
@@ -567,7 +566,7 @@ def test_agent_turn_ambiguous_tradition_asks_with_no_second_model_call(
     )
     client = _client(graph_store, vector_store)
     client.app.dependency_overrides[get_agent_sessions] = lambda: SessionStore()
-    client.app.dependency_overrides[get_agent_graph] = lambda: compile_agent_graph(llm, [_fake_get_sign])
+    client.app.dependency_overrides[get_agent_graph] = lambda: compile_graph(llm, [_fake_get_sign])
 
     response = client.post(
         "/api/agent",
@@ -597,3 +596,75 @@ def test_agent_turn_unavailable_model_is_502(graph_store: KuzuGraphStore, vector
 
     assert response.status_code == 502
     assert "detail" in response.json()
+
+
+def test_agent_turn_is_delivered_as_ndjson(graph_store: KuzuGraphStore, vector_store: ChromaVectorStore) -> None:
+    """FR-AU-22: every turn uses the streaming shape, so there is one turn
+    transport rather than two that must be kept equal (ADR-015)."""
+    client = _agent_client(graph_store, vector_store, [AIMessage(content="Hi there.")])
+
+    response = client.post("/api/agent", json={"session_id": "s1", "message": "hi", "ui_selection": {}})
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/x-ndjson")
+    lines = [json.loads(line) for line in response.text.splitlines() if line]
+    assert [line["event"] for line in lines] == ["turn"]
+
+
+def test_an_augmentation_run_streams_one_line_per_region_then_the_turn(
+    graph_store: KuzuGraphStore, vector_store: ChromaVectorStore
+) -> None:
+    """FR-AU-23: the per-region results reach the consumer as they land, on
+    the same connection, ahead of the consolidation."""
+
+    @tool
+    def read_region(region_id: str) -> dict:
+        """Fake read_region."""
+        return {
+            "region_id": region_id,
+            "source": "Douay-Rheims",
+            "source_id": "waite",
+            "locator": "Genesis 21:6",
+            "text": "God hath made a laughter for me.",
+        }
+
+    @tool
+    def augment_passage(passage_text: str, focus: str) -> dict:
+        """Fake augment_passage."""
+        return {"augmentation": "a reading"}
+
+    @tool
+    def consolidate_augmentations(focus: str, augmentations: list[dict]) -> dict:
+        """Fake consolidate_augmentations."""
+        return {"consolidation": "Joy recurs [R1]."}
+
+    client = _agent_client(graph_store, vector_store, [])
+    sessions = SessionStore()
+    client.app.dependency_overrides[get_agent_sessions] = lambda: sessions
+    client.app.dependency_overrides[get_agent_graph] = lambda: compile_graph(
+        _ScriptedLLM([]),
+        [_fake_get_sign],
+        node_tools=[read_region, augment_passage, consolidate_augmentations],
+    )
+
+    plan = client.post(
+        "/api/agent",
+        json={
+            "session_id": "s1",
+            "message": "/augment where is joy",
+            "ui_selection": {},
+            "visible_regions": ["waite::0-1"],
+        },
+    )
+    assert plan.status_code == 200
+    augmentation_id = sessions.get_or_create("s1").pending_augmentation.id
+
+    run = client.post(
+        "/api/agent",
+        json={"session_id": "s1", "message": f"/augment-confirm {augmentation_id}", "ui_selection": {}},
+    )
+
+    lines = [json.loads(line) for line in run.text.splitlines() if line]
+    assert [line["event"] for line in lines] == ["message", "instruction", "turn"]
+    assert lines[1]["instruction"]["payload"]["region_id"] == "waite::0-1"
+    assert lines[2]["reply_text"].startswith("Joy recurs [R1].")

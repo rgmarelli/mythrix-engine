@@ -11,6 +11,7 @@ it('shows the "no query yet" empty state when hasResult is false', () => {
       hotspots={[]}
       selectedRegionId={null}
       search=""
+      augmentations={{}}
       onSearchChange={vi.fn()}
       onSelect={vi.fn()}
     />,
@@ -26,6 +27,7 @@ it('shows the "no matches" empty state when hasResult is true but hotspots is em
       hotspots={[]}
       selectedRegionId={null}
       search=""
+      augmentations={{}}
       onSearchChange={vi.fn()}
       onSelect={vi.fn()}
     />,
@@ -42,6 +44,7 @@ it('renders the header and one card per hotspot when populated', () => {
       hotspots={hotspots}
       selectedRegionId="r1"
       search=""
+      augmentations={{}}
       onSearchChange={vi.fn()}
       onSelect={vi.fn()}
     />,
@@ -60,6 +63,7 @@ it('marks the selected hotspot active and calls onSelect with its regionId', asy
       hotspots={hotspots}
       selectedRegionId="r1"
       search=""
+      augmentations={{}}
       onSearchChange={vi.fn()}
       onSelect={onSelect}
     />,
@@ -82,6 +86,7 @@ it('renders the search box only when hasResult, and reports typed text via onSea
       hotspots={[]}
       selectedRegionId={null}
       search=""
+      augmentations={{}}
       onSearchChange={onSearchChange}
       onSelect={vi.fn()}
     />,
@@ -95,6 +100,7 @@ it('renders the search box only when hasResult, and reports typed text via onSea
       hotspots={[]}
       selectedRegionId={null}
       search=""
+      augmentations={{}}
       onSearchChange={onSearchChange}
       onSelect={vi.fn()}
     />,

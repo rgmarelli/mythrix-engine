@@ -1,12 +1,12 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { fetchBoundRegions, fetchQuery, postAgentTurn } from '../api/client';
+import { fetchBoundRegions, fetchQuery, streamAgentTurn } from '../api/client';
 import { DEFAULT_MIN_SCORE, useTabs } from './useTabs';
 import { makeHotspot } from '../test/fixtures';
 import type { AgentCapabilities, AgentInstruction, HotspotQueryResult } from '../api/types';
 
 vi.mock('../api/client', () => ({
   fetchQuery: vi.fn(),
-  postAgentTurn: vi.fn(),
+  streamAgentTurn: vi.fn(),
   fetchBoundRegions: vi.fn(),
 }));
 
@@ -288,7 +288,7 @@ describe('runQuery', () => {
 
 describe('sendAgentMessage', () => {
   it('appends a user item then an AI reply on success', async () => {
-    vi.mocked(postAgentTurn).mockResolvedValueOnce({
+    vi.mocked(streamAgentTurn).mockResolvedValueOnce({
       context: {
         semioticSystem: null,
         sign: null,
@@ -316,7 +316,7 @@ describe('sendAgentMessage', () => {
   });
 
   it('appends an error item on rejection', async () => {
-    vi.mocked(postAgentTurn).mockRejectedValueOnce(new Error('agent unavailable'));
+    vi.mocked(streamAgentTurn).mockRejectedValueOnce(new Error('agent unavailable'));
 
     const { result } = renderHook(() => useTabs());
     await act(async () => {
@@ -333,11 +333,11 @@ describe('sendAgentMessage', () => {
       await result.current.sendAgentMessage('   ');
     });
     expect(result.current.activeTab.agentItems).toHaveLength(0);
-    expect(postAgentTurn).not.toHaveBeenCalled();
+    expect(streamAgentTurn).not.toHaveBeenCalled();
   });
 
   it('replaces the thread with a reset divider when threadReset is true', async () => {
-    vi.mocked(postAgentTurn).mockResolvedValueOnce({
+    vi.mocked(streamAgentTurn).mockResolvedValueOnce({
       context: {
         semioticSystem: null,
         sign: null,
@@ -366,8 +366,8 @@ describe('sendAgentMessage', () => {
   });
 
   it('does not send a second message while one is in flight', async () => {
-    let resolveFirst!: (value: Awaited<ReturnType<typeof postAgentTurn>>) => void;
-    vi.mocked(postAgentTurn).mockReturnValueOnce(
+    let resolveFirst!: (value: Awaited<ReturnType<typeof streamAgentTurn>>) => void;
+    vi.mocked(streamAgentTurn).mockReturnValueOnce(
       new Promise((resolve) => {
         resolveFirst = resolve;
       }),
@@ -383,7 +383,7 @@ describe('sendAgentMessage', () => {
     await act(async () => {
       await result.current.sendAgentMessage('second');
     });
-    expect(postAgentTurn).toHaveBeenCalledTimes(1);
+    expect(streamAgentTurn).toHaveBeenCalledTimes(1);
 
     await act(async () => {
       resolveFirst({
@@ -408,7 +408,7 @@ describe('sendAgentMessage', () => {
 
 describe('clearAgentThread', () => {
   it('empties agentItems and rotates the session id', async () => {
-    vi.mocked(postAgentTurn).mockResolvedValueOnce({
+    vi.mocked(streamAgentTurn).mockResolvedValueOnce({
       context: {
         semioticSystem: null,
         sign: null,
@@ -442,6 +442,7 @@ describe('agent instructions', () => {
     commands: [],
     bindings: {
       confirm_query: null,
+      confirm_augment: null,
       execute_query: { method: 'QUERY', path: '/api/query/adhoc', body: 'payload', result: 'regions' },
     },
   };
@@ -465,7 +466,7 @@ describe('agent instructions', () => {
 
   it('loads a regions result into the tab the turn was sent from, after a tab switch', async () => {
     const hotspot = makeHotspot({ regionId: 'waite::9-9' });
-    vi.mocked(postAgentTurn).mockResolvedValueOnce(turnWith([EXECUTE_QUERY]));
+    vi.mocked(streamAgentTurn).mockResolvedValueOnce(turnWith([EXECUTE_QUERY]));
     vi.mocked(fetchBoundRegions).mockResolvedValueOnce({
       facets: { sources: [], interpretants: [] },
       hotspots: [hotspot],
@@ -490,7 +491,7 @@ describe('agent instructions', () => {
   });
 
   it('empties the query form so nothing in it appears to describe the ad-hoc result', async () => {
-    vi.mocked(postAgentTurn).mockResolvedValueOnce(turnWith([EXECUTE_QUERY]));
+    vi.mocked(streamAgentTurn).mockResolvedValueOnce(turnWith([EXECUTE_QUERY]));
     vi.mocked(fetchBoundRegions).mockResolvedValueOnce({
       facets: { sources: [], interpretants: [] },
       hotspots: [makeHotspot()],
@@ -519,7 +520,7 @@ describe('agent instructions', () => {
       facets: { sources: [], interpretants: [] },
       hotspots: [makeHotspot({ regionId: 'waite::1-1' })],
     });
-    vi.mocked(postAgentTurn).mockResolvedValueOnce(turnWith([{ type: 'render_chart', payload: {} }]));
+    vi.mocked(streamAgentTurn).mockResolvedValueOnce(turnWith([{ type: 'render_chart', payload: {} }]));
 
     const { result } = renderHook(() => useTabs(CAPABILITIES));
     await act(async () => {
@@ -535,7 +536,7 @@ describe('agent instructions', () => {
   });
 
   it('runs nothing for a confirm_query instruction — its affordance sends a command instead', async () => {
-    vi.mocked(postAgentTurn).mockResolvedValueOnce(
+    vi.mocked(streamAgentTurn).mockResolvedValueOnce(
       turnWith([{ type: 'confirm_query', payload: { confirm_command: '/query-confirm 7f3a1c9e' } }]),
     );
 
@@ -546,5 +547,154 @@ describe('agent instructions', () => {
 
     expect(fetchBoundRegions).not.toHaveBeenCalled();
     expect(result.current.activeTab.agentItems.at(-1)).toMatchObject({ kind: 'ai' });
+  });
+
+  it('runs nothing for a confirm_augment instruction, and reports no error', async () => {
+    // Declared with a null binding, so it is known-but-unexecutable rather
+    // than undeclared (FR-CAP-13, FR-AU-32) — the difference between the panel
+    // rendering a chip and an error bubble appearing beside the plan.
+    vi.mocked(streamAgentTurn).mockResolvedValueOnce(
+      turnWith([{ type: 'confirm_augment', payload: { confirm_command: '/augment-confirm 7f3a1c' } }]),
+    );
+
+    const { result } = renderHook(() => useTabs(CAPABILITIES));
+    await act(async () => {
+      await result.current.sendAgentMessage('/augment where is joy');
+    });
+
+    expect(fetchBoundRegions).not.toHaveBeenCalled();
+    expect(result.current.activeTab.agentItems.at(-1)).toMatchObject({ kind: 'ai' });
+  });
+});
+
+describe('augmentations', () => {
+  const CAPABILITIES: AgentCapabilities = {
+    commands: [],
+    bindings: { confirm_query: null, confirm_augment: null, augment_region: null },
+  };
+
+  const EMPTY_CONTEXT = {
+    semioticSystem: null,
+    sign: null,
+    tradition: null,
+    sourceId: null,
+    interpretant: null,
+    minScore: null,
+    regionId: null,
+    locator: null,
+  };
+
+  function augmentRegion(regionId: string, label: string, text: string): AgentInstruction {
+    return { type: 'augment_region', payload: { region_id: regionId, label, augmentation: text } };
+  }
+
+  async function queried(hotspots: ReturnType<typeof makeHotspot>[]) {
+    vi.mocked(fetchQuery).mockResolvedValueOnce({ facets: { sources: [], interpretants: [] }, hotspots });
+    const { result } = renderHook(() => useTabs(CAPABILITIES));
+    await act(async () => {
+      await result.current.runQuery();
+    });
+    return result;
+  }
+
+  it('sends the regions it is displaying, in display order', async () => {
+    const result = await queried([
+      makeHotspot({ regionId: 'src::1-2', convergenceCount: 1 }),
+      makeHotspot({ regionId: 'src::5-6', convergenceCount: 3 }),
+    ]);
+    vi.mocked(streamAgentTurn).mockResolvedValueOnce({
+      context: EMPTY_CONTEXT,
+      replyText: 'ok',
+      instructions: [],
+      threadReset: false,
+    });
+
+    await act(async () => {
+      await result.current.sendAgentMessage('/augment where is joy');
+    });
+
+    // Ranked by convergence, so the order sent is the order rendered — not
+    // the order the query returned (FR-AU-12).
+    expect(vi.mocked(streamAgentTurn).mock.calls[0][3]).toEqual(['src::5-6', 'src::1-2']);
+  });
+
+  it('holds a streamed augmentation against the region it names', async () => {
+    const result = await queried([makeHotspot({ regionId: 'src::1-2' })]);
+    vi.mocked(streamAgentTurn).mockImplementationOnce(async (_s, _m, _u, _r, onEvent) => {
+      onEvent?.({ event: 'message', text: 'Augmented [R1] Douay-Rheims — Genesis 21:6' });
+      onEvent?.({
+        event: 'instruction',
+        instruction: augmentRegion('src::1-2', '[R1]', 'Sara laughs.') as never,
+      });
+      return { context: EMPTY_CONTEXT, replyText: 'Joy recurs [R1].', instructions: [], threadReset: false };
+    });
+
+    await act(async () => {
+      await result.current.sendAgentMessage('/augment-confirm 7f3a1c');
+    });
+
+    expect(result.current.augmentations['src::1-2']).toEqual({ label: '[R1]', text: 'Sara laughs.' });
+  });
+
+  it('shows each region as it lands, ahead of the consolidation', async () => {
+    const result = await queried([makeHotspot({ regionId: 'src::1-2' })]);
+    vi.mocked(streamAgentTurn).mockImplementationOnce(async (_s, _m, _u, _r, onEvent) => {
+      onEvent?.({ event: 'message', text: 'Augmented [R1] Douay-Rheims — Genesis 21:6' });
+      return { context: EMPTY_CONTEXT, replyText: 'Joy recurs [R1].', instructions: [], threadReset: false };
+    });
+
+    await act(async () => {
+      await result.current.sendAgentMessage('/augment-confirm 7f3a1c');
+    });
+
+    const texts = result.current.activeTab.agentItems.map((item) => ('text' in item ? item.text : ''));
+    expect(texts).toEqual([
+      '/augment-confirm 7f3a1c',
+      'Augmented [R1] Douay-Rheims — Genesis 21:6',
+      'Joy recurs [R1].',
+    ]);
+  });
+
+  it('reports no error for an augment_region instruction in the terminal event', async () => {
+    const result = await queried([makeHotspot({ regionId: 'src::1-2' })]);
+    vi.mocked(streamAgentTurn).mockResolvedValueOnce({
+      context: EMPTY_CONTEXT,
+      replyText: 'ok',
+      instructions: [augmentRegion('src::1-2', '[R1]', 'Sara laughs.')],
+      threadReset: false,
+    });
+
+    await act(async () => {
+      await result.current.sendAgentMessage('/augment-confirm 7f3a1c');
+    });
+
+    expect(result.current.activeTab.agentItems.some((item) => item.kind === 'error')).toBe(false);
+    expect(result.current.augmentations['src::1-2'].text).toBe('Sara laughs.');
+  });
+
+  it('discards augmentations when a new query replaces the result', async () => {
+    const result = await queried([makeHotspot({ regionId: 'src::1-2' })]);
+    vi.mocked(streamAgentTurn).mockResolvedValueOnce({
+      context: EMPTY_CONTEXT,
+      replyText: 'ok',
+      instructions: [augmentRegion('src::1-2', '[R1]', 'Sara laughs.')],
+      threadReset: false,
+    });
+    await act(async () => {
+      await result.current.sendAgentMessage('/augment-confirm 7f3a1c');
+    });
+    expect(result.current.augmentations['src::1-2']).toBeDefined();
+
+    // FR-AU-29: the reading describes one focus over one result set, so it
+    // must not follow a different one onto the screen.
+    vi.mocked(fetchQuery).mockResolvedValueOnce({
+      facets: { sources: [], interpretants: [] },
+      hotspots: [makeHotspot({ regionId: 'src::1-2' })],
+    });
+    await act(async () => {
+      await result.current.runQuery();
+    });
+
+    expect(result.current.augmentations).toEqual({});
   });
 });

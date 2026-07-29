@@ -1,4 +1,4 @@
-import { fetchCapabilities, fetchQuery, fetchSegments, fetchSigns, fetchTraditions, postAgentTurn } from './client';
+import { fetchCapabilities, fetchQuery, fetchSegments, fetchSigns, fetchTraditions, streamAgentTurn } from './client';
 import type { AgentTurnResponseWire, RegionQueryResult } from './types';
 import { makeRegion, makeSignSummary, makeTradition } from '../test/fixtures';
 
@@ -8,6 +8,31 @@ function jsonResponse(body: unknown, ok = true, status = 200): Response {
     status,
     json: () => Promise.resolve(body),
   } as Response;
+}
+
+// An NDJSON body delivered as the given raw chunks, so a test can put a chunk
+// boundary anywhere — including mid-line, which is the case the reader's
+// buffering exists for.
+function ndjsonResponse(chunks: string[], ok = true, status = 200): Response {
+  const encoder = new TextEncoder();
+  let index = 0;
+  return {
+    ok,
+    status,
+    json: () => Promise.resolve(null),
+    body: {
+      getReader: () => ({
+        read: () =>
+          Promise.resolve(
+            index < chunks.length ? { done: false, value: encoder.encode(chunks[index++]) } : { done: true },
+          ),
+      }),
+    },
+  } as unknown as Response;
+}
+
+function ndjsonLines(...events: unknown[]): Response {
+  return ndjsonResponse(events.map((event) => `${JSON.stringify(event)}\n`));
 }
 
 beforeEach(() => {
@@ -106,7 +131,7 @@ describe('fetchSegments', () => {
   });
 });
 
-describe('postAgentTurn', () => {
+describe('streamAgentTurn', () => {
   const uiSelection = {
     semioticSystem: 'tarot',
     sign: 'the-sun',
@@ -118,20 +143,32 @@ describe('postAgentTurn', () => {
     locator: 'Ecclesiasticus 43:1',
   };
 
-  it('POSTs a snake_case request body', async () => {
-    const wire: AgentTurnResponseWire = {
-      context: { ...uiSelection, semiotic_system: 'tarot', source_id: null, min_score: null, region_id: 'region-1' } as never,
-      reply_text: 'hello',
-      instructions: [],
-      thread_reset: false,
-    };
-    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(wire));
-    await postAgentTurn('session-1', 'hi', uiSelection);
+  const turnEvent: AgentTurnResponseWire = {
+    event: 'turn',
+    context: {
+      semiotic_system: 'tarot',
+      sign: 'the-sun',
+      tradition: 'rider-waite',
+      source_id: null,
+      interpretant: null,
+      min_score: null,
+      region_id: 'region-1',
+      locator: 'Ecclesiasticus 43:1',
+    },
+    reply_text: 'hello',
+    instructions: [],
+    thread_reset: false,
+  };
+
+  it('POSTs a snake_case request body carrying the visible regions', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(ndjsonLines(turnEvent));
+
+    await streamAgentTurn('session-1', 'hi', uiSelection, ['src::1-2', 'src::5-6']);
+
     const [url, init] = vi.mocked(fetch).mock.calls[0];
     expect(url).toBe('/api/agent');
     expect(init?.method).toBe('POST');
-    const body = JSON.parse(init?.body as string);
-    expect(body).toEqual({
+    expect(JSON.parse(init?.body as string)).toEqual({
       session_id: 'session-1',
       message: 'hi',
       ui_selection: {
@@ -144,34 +181,63 @@ describe('postAgentTurn', () => {
         region_id: 'region-1',
         locator: 'Ecclesiasticus 43:1',
       },
+      visible_regions: ['src::1-2', 'src::5-6'],
     });
   });
 
-  it('translates the response context and thread_reset', async () => {
-    const wire: AgentTurnResponseWire = {
-      context: {
-        semiotic_system: 'tarot',
-        sign: 'the-sun',
-        tradition: 'rider-waite',
-        source_id: null,
-        interpretant: null,
-        min_score: null,
-        region_id: 'region-1',
-        locator: 'Ecclesiasticus 43:1',
-      },
-      reply_text: 'hello',
-      instructions: [],
-      thread_reset: true,
-    };
-    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(wire));
-    const result = await postAgentTurn('session-1', 'hi', uiSelection);
+  it('returns the terminal event, translated', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(ndjsonLines({ ...turnEvent, thread_reset: true }));
+
+    const result = await streamAgentTurn('session-1', 'hi', uiSelection, []);
+
+    expect(result.replyText).toBe('hello');
     expect(result.threadReset).toBe(true);
     expect(result.context.regionId).toBe('region-1');
   });
 
+  it('delivers each non-terminal event to onEvent, in order', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      ndjsonLines(
+        { event: 'message', text: 'Augmented [R1] Douay-Rheims — Genesis 21:6' },
+        { event: 'instruction', instruction: { type: 'augment_region', payload: { region_id: 'src::1-2' } } },
+        turnEvent,
+      ),
+    );
+    const seen: string[] = [];
+
+    await streamAgentTurn('session-1', 'hi', uiSelection, [], (event) => seen.push(event.event));
+
+    expect(seen).toEqual(['message', 'instruction']);
+  });
+
+  it('parses a line split across two chunks', async () => {
+    const line = `${JSON.stringify(turnEvent)}\n`;
+    const cut = Math.floor(line.length / 2);
+    vi.mocked(fetch).mockResolvedValueOnce(ndjsonResponse([line.slice(0, cut), line.slice(cut)]));
+
+    const result = await streamAgentTurn('session-1', 'hi', uiSelection, []);
+
+    expect(result.replyText).toBe('hello');
+  });
+
+  it('delivers a final line that arrived without a trailing newline', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(ndjsonResponse([JSON.stringify(turnEvent)]));
+
+    const result = await streamAgentTurn('session-1', 'hi', uiSelection, []);
+
+    expect(result.replyText).toBe('hello');
+  });
+
+  it('throws when the stream ends without a terminal event', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(ndjsonLines({ event: 'message', text: 'started…' }));
+
+    await expect(streamAgentTurn('session-1', 'hi', uiSelection, [])).rejects.toThrow('without completing');
+  });
+
   it('throws the response detail message on a non-ok response', async () => {
     vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ detail: 'agent unavailable' }, false, 503));
-    await expect(postAgentTurn('session-1', 'hi', uiSelection)).rejects.toThrow('agent unavailable');
+
+    await expect(streamAgentTurn('session-1', 'hi', uiSelection, [])).rejects.toThrow('agent unavailable');
   });
 });
 

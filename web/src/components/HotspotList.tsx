@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { Hotspot } from '../api/types';
+import type { Augmentation, Hotspot } from '../api/types';
 import { ConvergenceIcon } from './ConvergenceIcon';
 import { HotspotCard } from './HotspotCard';
 
@@ -9,6 +9,7 @@ interface Props {
   hotspots: Hotspot[];
   selectedRegionId: string | null;
   search: string;
+  augmentations: Record<string, Augmentation>;
   onSearchChange: (value: string) => void;
   onSelect: (regionId: string) => void;
 }
@@ -19,6 +20,7 @@ export function HotspotList({
   hotspots,
   selectedRegionId,
   search,
+  augmentations,
   onSearchChange,
   onSelect,
 }: Props) {
@@ -59,6 +61,7 @@ export function HotspotList({
             key={hotspot.regionId}
             hotspot={hotspot}
             isActive={hotspot.regionId === selectedRegionId}
+            isAugmented={hotspot.regionId in augmentations}
             onSelect={() => onSelect(hotspot.regionId)}
           />
         ))}

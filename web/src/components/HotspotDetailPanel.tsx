@@ -1,13 +1,17 @@
 import { useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { fetchSegments } from '../api/client';
-import type { Hotspot, HotspotSegment } from '../api/types';
+import type { Augmentation, Hotspot, HotspotSegment } from '../api/types';
 import { convergenceLabel, hotspotTitle } from '../utils/hotspot';
 import { ConvergenceIcon } from './ConvergenceIcon';
+import { SparkleIcon } from './SparkleIcon';
 
 interface Props {
   hotspot: Hotspot | null;
   hasResult: boolean;
   activeInterpretant: string | null;
+  augmentation: Augmentation | null;
   onPrev: () => void;
   onNext: () => void;
   canGoPrev: boolean;
@@ -38,6 +42,7 @@ export function HotspotDetailPanel({
   hotspot,
   hasResult,
   activeInterpretant,
+  augmentation,
   onPrev,
   onNext,
   canGoPrev,
@@ -209,6 +214,21 @@ export function HotspotDetailPanel({
         </div>
         {activeInterpretant !== null && hasDimmedMatch && (
           <p className="dimmed-note">(dimmed = matched but outside current filter)</p>
+        )}
+
+        {/* Generated, and marked as such — placed above the actions so it
+            precedes the verbatim segment list and cannot read as part of the
+            source text (specs/interfaces/augmentation.md FR-AU-28). */}
+        {augmentation && (
+          <div className="augmented-section">
+            <div className="augmented-head">
+              <SparkleIcon />
+              <span>AI analysis</span>
+            </div>
+            <div className="augmented-body">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{augmentation.text}</ReactMarkdown>
+            </div>
+          </div>
         )}
 
         <div className="reader-actions">

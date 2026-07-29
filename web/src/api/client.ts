@@ -2,6 +2,9 @@ import type {
   AgentCapabilities,
   AgentCapabilitiesWire,
   AgentContext,
+  AgentInstructionEventWire,
+  AgentMessageEventWire,
+  AgentTurnEventWire,
   AgentTurnRequestWire,
   AgentTurnResponseWire,
   AgentTurnResult,
@@ -193,18 +196,48 @@ function toAgentContext(wire: AgentTurnResponseWire['context']): AgentContext {
   };
 }
 
-// The chat panel's one turn (specs/interfaces/agent.md FR-AG-14–FR-AG-22) — the browser sends
-// its message plus its current UI selection, as-is, each turn; the backend
-// returns the updated context and grounded reply text.
-export async function postAgentTurn(
+// Splits a byte stream into complete newline-delimited JSON values. A chunk
+// boundary can fall anywhere — including mid-line — so the partial tail is
+// buffered rather than parsed, and whatever remains after the stream closes is
+// delivered if the body did not end with a newline.
+async function* ndjson<T>(body: ReadableStream<Uint8Array>): AsyncGenerator<T> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? '';
+    for (const line of lines) {
+      if (line.trim()) yield JSON.parse(line) as T;
+    }
+  }
+  if (buffer.trim()) yield JSON.parse(buffer) as T;
+}
+
+// The chat panel's one turn (specs/interfaces/agent.md FR-AG-14–FR-AG-22) — the
+// browser sends its message, its current UI selection and the regions it is
+// displaying, as-is, each turn; the backend streams the turn's events
+// (augmentation.md FR-AU-22).
+//
+// `onEvent` receives every non-terminal event as it arrives; the terminal one
+// is returned, so a caller that only wants the reply can ignore the callback
+// entirely and still read this like an ordinary request.
+export async function streamAgentTurn(
   sessionId: string,
   message: string,
   uiSelection: AgentContext,
+  visibleRegions: string[],
+  onEvent?: (event: AgentMessageEventWire | AgentInstructionEventWire) => void,
 ): Promise<AgentTurnResult> {
   const requestBody: AgentTurnRequestWire = {
     session_id: sessionId,
     message,
     ui_selection: toAgentContextWire(uiSelection),
+    visible_regions: visibleRegions,
   };
   const response = await fetch(`${API_BASE_URL}/api/agent`, {
     method: 'POST',
@@ -215,11 +248,22 @@ export async function postAgentTurn(
     const body = (await response.json().catch(() => null)) as { detail?: string } | null;
     throw new Error(body?.detail ?? `Agent request failed (${response.status})`);
   }
-  const result = (await response.json()) as AgentTurnResponseWire;
+  if (!response.body) throw new Error('Agent request returned no body.');
+
+  let terminal: AgentTurnResponseWire | null = null;
+  for await (const event of ndjson<AgentTurnEventWire>(response.body)) {
+    if (event.event === 'turn') {
+      terminal = event;
+      continue;
+    }
+    onEvent?.(event);
+  }
+  if (!terminal) throw new Error('Agent request ended without completing the turn.');
+
   return {
-    context: toAgentContext(result.context),
-    replyText: result.reply_text,
-    instructions: result.instructions,
-    threadReset: result.thread_reset,
+    context: toAgentContext(terminal.context),
+    replyText: terminal.reply_text,
+    instructions: terminal.instructions,
+    threadReset: terminal.thread_reset,
   };
 }
