@@ -1,6 +1,10 @@
-"""Unit tests for `agent/runner.py::run_turn` — the UI-free turn driver.
+"""Unit tests for `agent/runner.py::stream_turn` — the UI-free turn driver.
 Drives a real compiled graph (via `compile_agent_graph`) with a stub
-tool-calling model, no live Ollama."""
+tool-calling model, no live Ollama.
+
+Most tests here care only about the turn's outcome, so they drain the stream
+through `run_turn`, the same collapse `turn_service` keeps for callers with no
+use for progress. `events` is for the ones that care about the sequence."""
 
 import logging
 
@@ -9,7 +13,23 @@ from graph_helpers import compile_graph
 from langchain_core.messages import AIMessage
 from langchain_core.tools import tool
 
-from mythrix.agent.runner import run_turn
+from mythrix.agent.runner import TurnResult, stream_turn
+
+
+def run_turn(*args, **kwargs) -> tuple[list, TurnResult]:
+    """`stream_turn` drained to `(history, result)`, discarding progress."""
+    result = next(item for item in stream_turn(*args, **kwargs) if isinstance(item, TurnResult))
+    return result.history, result
+
+
+def events(*args, **kwargs) -> tuple[list[dict], TurnResult]:
+    """Every payload a node emitted, in order, plus the terminal result."""
+    emitted: list[dict] = []
+    for item in stream_turn(*args, **kwargs):
+        if isinstance(item, TurnResult):
+            return emitted, item
+        emitted.append(item)
+    raise AssertionError("stream_turn ended without a TurnResult")
 
 
 @tool
@@ -146,26 +166,48 @@ def test_run_turn_logs_model_input_for_every_invocation(caplog: pytest.LogCaptur
     assert "hi" in input_lines[1]
 
 
-def test_run_turn_carries_a_pending_discovery_into_the_graph_and_back_out() -> None:
-    """FR-DS-08: the graph holds no state between turns, so the session's
-    outstanding discovery round-trips through `run_turn` like `pending_query`."""
+def test_run_turn_carries_a_pending_augmentation_into_the_graph_and_back_out() -> None:
+    """FR-AU-08: the graph holds no state between turns, so the session's
+    outstanding augmentation round-trips through the driver like
+    `pending_query`."""
     graph = compile_graph(ScriptedLLM(), [echo])
 
-    _, plan = run_turn(graph, [], '/discover "where joy is", laughter', max_tool_iterations=8)
+    _, plan = run_turn(graph, [], "/augment where joy is", max_tool_iterations=8, visible_regions=["src::1-2"])
 
-    assert plan.pending_discovery is not None
-    assert plan.pending_discovery.focus == "where joy is"
+    assert plan.pending_augmentation is not None
+    assert plan.pending_augmentation.focus == "where joy is"
+    assert plan.pending_augmentation.region_ids == ("src::1-2",)
     assert plan.backend_authored is True
 
     _, confirmed = run_turn(
         graph,
         [],
-        "/discover-confirm deadbeef",
+        "/augment-confirm deadbeef",
         max_tool_iterations=8,
-        pending_discovery=plan.pending_discovery,
+        pending_augmentation=plan.pending_augmentation,
     )
 
-    assert confirmed.pending_discovery is plan.pending_discovery
+    assert confirmed.pending_augmentation is plan.pending_augmentation
+
+
+def test_a_plan_turn_with_nothing_on_screen_holds_no_pending_augmentation() -> None:
+    """FR-AU-04: there is nothing to augment, so the turn refuses rather than
+    planning a run over an empty list."""
+    graph = compile_graph(ScriptedLLM(), [echo])
+
+    _, plan = run_turn(graph, [], "/augment where joy is", max_tool_iterations=8, visible_regions=[])
+
+    assert plan.pending_augmentation is None
+    assert "no regions on screen" in plan.reply.lower()
+
+
+def test_an_ordinary_turn_emits_no_intermediate_payloads() -> None:
+    """FR-AU-22: a turn that produces no progress is the terminal result
+    alone, so a consumer never has to special-case the common path."""
+    emitted, result = events(compile_graph(ScriptedLLM(), [echo]), [], "hello", max_tool_iterations=8)
+
+    assert emitted == []
+    assert result.reply == "reply to: hello"
 
 
 def test_run_turn_reports_an_ordinary_reply_as_model_authored() -> None:
@@ -179,7 +221,15 @@ def test_run_turn_reports_an_ordinary_reply_as_model_authored() -> None:
 def test_hitting_the_tool_budget_preserves_both_pending_records() -> None:
     graph = compile_graph(LoopingLLM(), [echo])
 
-    _, plan = run_turn(compile_graph(ScriptedLLM(), [echo]), [], '/discover "joy", laughter', max_tool_iterations=8)
-    _, result = run_turn(graph, [], "loop forever", max_tool_iterations=3, pending_discovery=plan.pending_discovery)
+    _, plan = run_turn(
+        compile_graph(ScriptedLLM(), [echo]),
+        [],
+        "/augment joy",
+        max_tool_iterations=8,
+        visible_regions=["src::1-2"],
+    )
+    _, result = run_turn(
+        graph, [], "loop forever", max_tool_iterations=3, pending_augmentation=plan.pending_augmentation
+    )
 
-    assert result.pending_discovery is plan.pending_discovery
+    assert result.pending_augmentation is plan.pending_augmentation

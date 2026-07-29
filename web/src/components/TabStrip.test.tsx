@@ -18,6 +18,7 @@ function makeTab(overrides: Partial<Tab> = {}): Tab {
     selectedInterpretant: null,
     selectedRegionId: null,
     interpretantSearch: '',
+    augmentations: {},
     hotspotSearch: '',
     agentSessionId: 'session-1',
     agentItems: [],

@@ -1,8 +1,29 @@
 import { useEffect, useMemo, useState } from 'react';
-import { fetchQuery, postAgentTurn } from '../api/client';
+import { fetchQuery, streamAgentTurn } from '../api/client';
 import { executeInstruction } from '../api/instructions';
-import type { AgentCapabilities, AgentContext, AgentInstruction, Hotspot, HotspotQueryResult } from '../api/types';
+import type {
+  AgentCapabilities,
+  AgentContext,
+  AgentInstruction,
+  Augmentation,
+  Hotspot,
+  HotspotQueryResult,
+} from '../api/types';
 import { hotspotTitle } from '../utils/hotspot';
+
+// An instruction that carries a result rather than requesting one
+// (augmentation.md FR-AU-26). Declared with no binding, so `executeInstruction`
+// returns null for it and the handling lives here, by type — the same shape
+// `confirm_query` already has, and no new `ResultKind` (FR-CAP-11).
+const AUGMENT_REGION = 'augment_region';
+
+function augmentationOf(instruction: AgentInstruction): { regionId: string; augmentation: Augmentation } | null {
+  if (instruction.type !== AUGMENT_REGION) return null;
+  const regionId = String(instruction.payload.region_id ?? '');
+  const text = String(instruction.payload.augmentation ?? '');
+  if (!regionId || !text) return null;
+  return { regionId, augmentation: { label: String(instruction.payload.label ?? ''), text } };
+}
 
 // Mirrors `Settings.retrieval_min_score`'s default (`src/mythrix/core/config.py`)
 // for display only — a `minScore` of `null` sends no `min_score` param at all,
@@ -41,6 +62,11 @@ export interface Tab {
   agentSessionId: string;
   agentItems: ThreadItem[];
   agentSending: boolean;
+  // Generated readings, keyed by the region each names (FR-AU-26). Scoped to
+  // this tab and discarded whenever `queryResult` is replaced (FR-AU-29): an
+  // augmentation describes one focus over one result set, so showing it beside
+  // a different one would misattribute it.
+  augmentations: Record<string, Augmentation>;
 }
 
 let nextTabId = 0;
@@ -63,6 +89,7 @@ function makeTab(): Tab {
     agentSessionId: crypto.randomUUID(),
     agentItems: [],
     agentSending: false,
+    augmentations: {},
   };
 }
 
@@ -140,7 +167,13 @@ export function useTabs(capabilities: AgentCapabilities | null = null) {
     const tab = tabs.find((t) => t.id === tabId);
     if (!tab) return;
 
-    updateTab(tabId, { isQuerying: true, queryError: null, selectedSourceId: null, selectedInterpretant: null });
+    updateTab(tabId, {
+      isQuerying: true,
+      queryError: null,
+      selectedSourceId: null,
+      selectedInterpretant: null,
+      augmentations: {},
+    });
 
     try {
       const result = await fetchQuery(tab.selectedSign, tab.selectedTradition, { minScore: tab.minScore ?? undefined });
@@ -232,6 +265,14 @@ export function useTabs(capabilities: AgentCapabilities | null = null) {
   // while the turn was in flight.
   async function runInstructions(instructions: AgentInstruction[], tabId: string) {
     for (const instruction of instructions) {
+      const augmented = augmentationOf(instruction);
+      if (augmented) {
+        updateTab(tabId, (t) => ({
+          augmentations: { ...t.augmentations, [augmented.regionId]: augmented.augmentation },
+        }));
+        continue;
+      }
+
       // A bound instruction issues a request, so the rail shows the same
       // pending state a form submission does.
       if (capabilities?.bindings[instruction.type]) updateTab(tabId, { isQuerying: true });
@@ -259,6 +300,7 @@ export function useTabs(capabilities: AgentCapabilities | null = null) {
         selectedSign: '',
         selectedTradition: '',
         minScore: null,
+        augmentations: {},
       });
     }
   }
@@ -291,7 +333,26 @@ export function useTabs(capabilities: AgentCapabilities | null = null) {
     updateTab(tabId, (t) => ({ agentItems: [...t.agentItems, userItem], agentSending: true }));
 
     try {
-      const result = await postAgentTurn(tab.agentSessionId, trimmed, uiSelection);
+      // The regions this tab is displaying, in display order (FR-AU-12) — the
+      // facets, the search box and the convergence sort are already applied,
+      // so the backend reproduces none of that filtering.
+      const visibleRegions = rankedHotspots.map((hotspot) => hotspot.regionId);
+
+      const result = await streamAgentTurn(tab.agentSessionId, trimmed, uiSelection, visibleRegions, (event) => {
+        // Progress, delivered as it happens (FR-AU-23). Applied straight away
+        // rather than collected, so a long run is visible while it runs.
+        if (event.event === 'message') {
+          const item: ThreadItem = { kind: 'ai', id: itemId(), text: event.text, instructions: [] };
+          updateTab(tabId, (t) => ({ agentItems: [...t.agentItems, item] }));
+          return;
+        }
+        const augmented = augmentationOf(event.instruction);
+        if (augmented) {
+          updateTab(tabId, (t) => ({
+            augmentations: { ...t.augmentations, [augmented.regionId]: augmented.augmentation },
+          }));
+        }
+      });
       const aiItem: ThreadItem = {
         kind: 'ai',
         id: itemId(),
@@ -349,6 +410,7 @@ export function useTabs(capabilities: AgentCapabilities | null = null) {
     interpretantFacetOptions,
     selectedHotspot,
     selectedIndex,
+    augmentations: activeTab.augmentations,
     sendAgentMessage,
     clearAgentThread,
   };

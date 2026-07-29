@@ -3,7 +3,7 @@
 from mythrix.agent.graph import compile_agent_graph
 from mythrix.agent.tools import ToolSet
 
-DISCOVER_MAX_REGIONS = 8
+AUGMENT_MAX_REGIONS = 8
 
 
 def compile_graph(llm, tools: list, *, node_tools: list | None = None):  # noqa: ANN001, ANN201
@@ -13,5 +13,5 @@ def compile_graph(llm, tools: list, *, node_tools: list | None = None):  # noqa:
     return compile_agent_graph(
         llm,
         ToolSet(model_tools=tools, node_tools=node_tools or []),
-        discover_max_regions=DISCOVER_MAX_REGIONS,
+        augment_max_regions=AUGMENT_MAX_REGIONS,
     )

@@ -79,10 +79,10 @@ def test_route_input_dispatches_summarize() -> None:
     assert route_input({"messages": [HumanMessage(content="/summarized")]}) == "agent"
 
 
-def test_route_input_dispatches_the_two_discovery_commands() -> None:
-    assert route_input({"messages": [HumanMessage(content='/discover "joy", laughter')]}) == "plan_discovery"
-    assert route_input({"messages": [HumanMessage(content="/discover-confirm 7f3a1c")]}) == "run_discovery"
-    assert route_input({"messages": [HumanMessage(content="/discovered")]}) == "agent"
+def test_route_input_dispatches_the_two_augmentation_commands() -> None:
+    assert route_input({"messages": [HumanMessage(content="/augment where is joy")]}) == "plan_augment"
+    assert route_input({"messages": [HumanMessage(content="/augment-confirm 7f3a1c")]}) == "run_augment"
+    assert route_input({"messages": [HumanMessage(content="/augmented")]}) == "agent"
 
 
 def test_compiled_graph_runs_the_tool_and_terminates() -> None:
@@ -182,37 +182,30 @@ def test_summarize_command_never_reaches_the_model() -> None:
 
 
 @tool
-def query_adhoc(terms: list[dict], limit: int) -> dict:
-    """Fake query_adhoc mirroring the real tool's shape."""
+def read_region(region_id: str) -> dict:
+    """Fake read_region mirroring the real tool's shape."""
     return {
-        "matched_count": 1,
-        "regions": [
-            {
-                "region_id": "waite::0-1",
-                "source": "Douay-Rheims",
-                "source_id": "waite",
-                "locator": "Genesis 21:6",
-                "score": 0.8,
-                "convergence_count": 1,
-                "matches": [],
-            }
-        ],
+        "region_id": region_id,
+        "source": "Douay-Rheims",
+        "source_id": "waite",
+        "locator": "Genesis 21:6",
+        "text": "God hath made a laughter for me.",
     }
 
 
 @tool
-def analyze_passage(passage_text: str, focus: str, concepts: list[str]) -> dict:
-    """Fake analyze_passage mirroring the real tool's shape."""
-    return {"finding": f"finding for {focus}"}
+def augment_passage(passage_text: str, focus: str) -> dict:
+    """Fake augment_passage mirroring the real tool's shape."""
+    return {"augmentation": f"reading for {focus}"}
 
 
 @tool
-def consolidate_findings(focus: str, findings: list[dict], concepts: list[str]) -> dict:
-    """Fake consolidate_findings mirroring the real tool's shape."""
+def consolidate_augmentations(focus: str, augmentations: list[dict]) -> dict:
+    """Fake consolidate_augmentations mirroring the real tool's shape."""
     return {"consolidation": "Joy recurs [R1]."}
 
 
-_DISCOVER_NODE_TOOLS = [query_adhoc, analyze_passage, consolidate_findings]
+_AUGMENT_NODE_TOOLS = [read_region, augment_passage, consolidate_augmentations]
 
 
 class ExplodingLLM:
@@ -220,43 +213,46 @@ class ExplodingLLM:
         raise AssertionError("model was invoked for a deterministic command turn")
 
 
-def test_the_discovery_commands_never_reach_the_model() -> None:
-    """FR-DS-09 as a structural property, mirroring
+def test_the_augmentation_commands_never_reach_the_model() -> None:
+    """FR-AU-10 as a structural property, mirroring
     `test_adhoc_commands_never_reach_the_model` — across both turns of the
     gated flow."""
-    graph = compile_graph(ExplodingLLM(), _SUMMARIZE_TOOLS, node_tools=_DISCOVER_NODE_TOOLS)
+    graph = compile_graph(ExplodingLLM(), _SUMMARIZE_TOOLS, node_tools=_AUGMENT_NODE_TOOLS)
 
     plan_state = None
     for state in graph.stream(
-        {"messages": [HumanMessage(content='/discover "where joy is", laughter')]},
+        {"messages": [HumanMessage(content="/augment where is joy")], "visible_regions": ["waite::0-1"]},
         config={"recursion_limit": 8},
         stream_mode="values",
     ):
         plan_state = state
 
-    pending = plan_state["pending_discovery"]
-    assert pending.focus == "where joy is"
+    pending = plan_state["pending_augmentation"]
+    assert pending.focus == "where is joy"
+    assert pending.region_ids == ("waite::0-1",)
 
     run_state = None
     for state in graph.stream(
         {
-            "messages": [HumanMessage(content=f"/discover-confirm {pending.id}")],
-            "pending_discovery": pending,
+            "messages": [HumanMessage(content=f"/augment-confirm {pending.id}")],
+            "pending_augmentation": pending,
         },
         config={"recursion_limit": 8},
         stream_mode="values",
     ):
         run_state = state
 
-    report = run_state["messages"][-1].content
-    assert "Joy recurs [R1]." in report
-    assert "### [R1] Douay-Rheims — Genesis 21:6" in report
+    reply = run_state["messages"][-1].content
+    assert reply.startswith("Joy recurs [R1].")
+    assert "Augmented 1 region on screen." in reply
+    # FR-AU-24: the reading went to its own region, not into the reply.
+    assert "reading for where is joy" not in reply
 
 
 def test_node_only_tools_are_absent_from_the_models_tool_node() -> None:
-    """FR-DS-10: `ToolNode` executes `model_tools` alone, so a model that
-    somehow named `query_adhoc` could not have it run."""
-    graph = compile_graph(ScriptedLLM(), _SUMMARIZE_TOOLS, node_tools=_DISCOVER_NODE_TOOLS)
+    """FR-AU-11: `ToolNode` executes `model_tools` alone, so a model that
+    somehow named `read_region` could not have it run."""
+    graph = compile_graph(ScriptedLLM(), _SUMMARIZE_TOOLS, node_tools=_AUGMENT_NODE_TOOLS)
 
     tool_node_names = {t.name for t in graph.nodes["tools"].bound.tools_by_name.values()}
 

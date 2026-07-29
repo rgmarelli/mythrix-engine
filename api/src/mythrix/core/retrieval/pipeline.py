@@ -330,7 +330,7 @@ class RetrievalPipeline:
                     Region(
                         region_id=region_id_of(source_id, cluster[0], cluster[-1]),
                         source=self._source_for(representative_hit),
-                        locator=_region_locator(tuple(region_segments)),
+                        locator=region_locator(tuple(region_segments)),
                         score=score,
                         convergence_count=len(distinct_interpretants),
                         segments=tuple(region_segments),
@@ -615,12 +615,19 @@ def parse_region_id(region_id: str) -> tuple[str, int, int]:
         raise ValueError(f"malformed region_id {region_id!r}: non-numeric ordinal range") from exc
 
 
-def _region_locator(segments: tuple[Segment, ...]) -> str:
-    """A single-segment region reuses that segment's own locator. A
+def region_locator(segments: tuple[Segment, ...]) -> str:
+    """The human-readable locator for a span of segments (FR-RT-05).
+
+    A single-segment region reuses that segment's own locator. A
     multi-segment region merges the first and last locator's trailing part
     when they share a common prefix (`"Genesis 21:5"` + `"Genesis 21:6"` ->
     `"Genesis 21:5–6"`); otherwise the two full locators are joined, still
-    unambiguous."""
+    unambiguous.
+
+    Public because a caller reading a region back by structural coordinate
+    must label it exactly as the query path did (FR-AU-15). The two agree
+    because a `region_id`'s start/end ordinals *are* its first and last
+    match-carrying ordinals, so both callers merge the same two locators."""
     if len(segments) == 1:
         return segments[0].locator
     first, last = segments[0].locator, segments[-1].locator

@@ -20,12 +20,12 @@ A domain-agnostic knowledge graph of signs, cross-referenced against real docume
 - **An in-app conversational agent**, served by the backend API and surfaced as a docked chat panel, operating the existing retrieval pipeline through a fixed set of read-only tools, grounding every claim in a tool result and its citation — see [Conversational Agent](interfaces/agent.md).
 - **An in-panel "Add Context" control** that progressively loads verbatim context around a hotspot's matched segments, bounded by the source's own chapter/section structure — see [Context Expansion](retrieval/context-expansion.md).
 - **A tabbed workspace** in the web viewer — multiple independent queries held open at once, each with its own facets/result/selected hotspot and its own grounded agent conversation.
-- **Corpus discovery** — one confirmation-gated command that queries the corpus on the user's own terms, reads every retrieved region against a free-text question, and consolidates the readings into a single answer citing the regions that support it; the sequence is fixed in code and its generation fan-out is bounded by configuration — see [Corpus Discovery](interfaces/discovery.md).
+- **Region augmentation** — one confirmation-gated command that reads every region the viewer is currently displaying against a free-text question, delivers each reading to the region it describes as it is produced, and consolidates the readings into a single answer citing the regions that support it; the sequence is fixed in code and its generation fan-out is bounded by configuration — see [Region Augmentation](interfaces/augmentation.md).
 
 ## 4. Non-Goals
 
 - Multi-sign or spread-style queries (e.g. interpreting several signs together in one request).
-- Conversational or free-text natural-language request parsing on the query path — v1 resolves a query from structured parameters only. The conversational agent ([interfaces/agent.md](interfaces/agent.md)) is a separate, additive layer and does not change this, with one narrow, explicitly-scoped exception: the ad-hoc interpretant query path ([interfaces/agnostic-query.md](interfaces/agnostic-query.md), [ADR-010](architecture-decisions/adr-010-agnostic-adhoc-interpretant-query.md)), reachable only via an explicit `/query` or `/discover` command and its matching confirmation command, parsed deterministically rather than by the generation model, and never from incidental conversation. A discovery's free-text analysis focus is an instruction to the generation model only and never becomes query text ([interfaces/discovery.md](interfaces/discovery.md) FR-DS-04).
+- Conversational or free-text natural-language request parsing on the query path — v1 resolves a query from structured parameters only. The conversational agent ([interfaces/agent.md](interfaces/agent.md)) is a separate, additive layer and does not change this, with one narrow, explicitly-scoped exception: the ad-hoc interpretant query path ([interfaces/agnostic-query.md](interfaces/agnostic-query.md), [ADR-010](architecture-decisions/adr-010-agnostic-adhoc-interpretant-query.md)), reachable only via an explicit `/query` command and its matching confirmation command, parsed deterministically rather than by the generation model, and never from incidental conversation. Region augmentation ([interfaces/augmentation.md](interfaces/augmentation.md)) retrieves nothing at all: its free-text focus is an instruction to the generation model only and never reaches the query path.
 - Hardening against adversarial input / prompt injection beyond baseline mitigations (data-not-instructions framing, citation-id validation). v1 assumes curator-supplied, not arbitrary, source documents.
 - Verifying that LLM paraphrases are faithful to their cited source, beyond confirming the citation marker refers to real, in-context material. Faithfulness/entailment checking is future work.
 - Concurrent multi-process write access to the graph store or vector store (see [interfaces/api.md](interfaces/api.md) for the specific CLI/API exclusion).
@@ -77,7 +77,7 @@ Subsystem-specific non-goals (e.g. no BM25 ranking, no cross-tradition compariso
 - **Ranking** — `region` (a contiguous span of segments), `hotspot` (the web viewer's term for a ranked region), `match floor`, `specificity weight`. Full vocabulary: [ranking.md](retrieval/ranking.md).
 - **Context expansion** — `matched segment` vs. `context segment`, `internal gap`, `leading/trailing edge`, `chapter boundary`. Full vocabulary: [context-expansion.md](retrieval/context-expansion.md).
 - **Agent** — `agent`, `tool`, `turn`, `session`, `tool trace`, `thread` (an agent session scoped to one hotspot). Full vocabulary: [agent.md](interfaces/agent.md).
-- **Corpus discovery** — `focus` (the analysis instruction, never query text), `finding` (one region's reading), `consolidation`, `report`, `run`. Full vocabulary: [discovery.md](interfaces/discovery.md).
+- **Region augmentation** — `focus` (the analysis instruction, never query text), `visible regions` (what the consumer is displaying), `augmentation` (one region's reading), `consolidation`, `run`, `turn event`. Full vocabulary: [augmentation.md](interfaces/augmentation.md).
 - **Web viewer** — `tab` (an isolated unit of workspace state: selection, facets, result, hotspot, agent thread). Full vocabulary: [web-viewer.md](interfaces/web-viewer.md).
 
 ### 5.3 End-to-End Data Flow
@@ -120,8 +120,8 @@ See [Agent](interfaces/agent.md)
 ### 6.10 Agnostic (Ad-hoc) Interpretant Query
 See [Agnostic Query](interfaces/agnostic-query.md)
 
-### 6.11 Corpus Discovery
-See [Corpus Discovery](interfaces/discovery.md)
+### 6.11 Region Augmentation
+See [Region Augmentation](interfaces/augmentation.md)
 
 ## 7. Architectural Constraints and Invariants
 
@@ -152,9 +152,9 @@ The web viewer submits a region query to the backend API ([api.md](interfaces/ap
 
 A user message in the docked chat panel is sent with the tab's context object. The agent selects and invokes read-only tools ([agent.md](interfaces/agent.md) FR-AG-03), grounding its reply in their results and surfacing a tool trace; the backend detects hotspot/context changes and resets the thread accordingly.
 
-### 8.5 Corpus Discovery
+### 8.5 Region Augmentation
 
-A `/discover` command carrying a quoted analysis focus and a term list is parsed and held under a generated id; the reply restates both inputs and names the command that runs it. The matching `/discover-confirm` runs the whole sequence server-side within the turn: one ad-hoc interpretant query, then — for each retrieved region in ranking order, up to a configured bound — a verbatim fetch of that region's full contiguous ordinal range and one generation call reading it against the focus, then one final generation call consolidating the readings. The reply is a backend-composed report: the consolidation, citing regions by `[R#]`, followed by one labeled section per region read ([discovery.md](interfaces/discovery.md)).
+An `/augment` command carrying a free-text focus is parsed and held under a generated id, alongside a snapshot of the regions the viewer is displaying; the reply restates the focus, states how many regions a run will read, and names the command that runs it. The matching `/augment-confirm` runs the whole sequence server-side within the turn: for each supplied region in display order, up to a configured bound, a verbatim read of that region's full contiguous ordinal range by structural coordinate and one generation call reading it against the focus — each delivered to the consumer as it lands — then one final generation call consolidating the readings. The turn's reply is the consolidation, citing regions by `[R#]` ([augmentation.md](interfaces/augmentation.md)).
 
 ### 8.6 Hotspot Context Expansion
 
@@ -183,7 +183,7 @@ The corpus document is not Waite's own text (see [corpus.md](retrieval/corpus.md
 | `FR-AG` | Conversational Agent | [interfaces/agent.md](interfaces/agent.md) | FR-AG-01–FR-AG-32 |
 | `FR-AQ` | Agnostic (Ad-hoc) Interpretant Query | [interfaces/agnostic-query.md](interfaces/agnostic-query.md) | FR-AQ-01–FR-AQ-22 |
 | `FR-CAP` | Agent Capabilities | [interfaces/agent-capabilities.md](interfaces/agent-capabilities.md) | FR-CAP-01–FR-CAP-16 |
-| `FR-DS` | Corpus Discovery | [interfaces/discovery.md](interfaces/discovery.md) | FR-DS-01–FR-DS-31 |
+| `FR-AU` | Region Augmentation | [interfaces/augmentation.md](interfaces/augmentation.md) | FR-AU-01–FR-AU-38 |
 | `CON-SYS` | System-wide constraints | this document, §7 | CON-SYS-01 |
 
 185 active requirements in total.

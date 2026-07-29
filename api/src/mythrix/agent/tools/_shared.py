@@ -88,16 +88,10 @@ def _render_graph_facts(facts: GraphFacts) -> dict:
     }
 
 
-def _render_regions(result: RegionQueryResult, *, include_segments: bool = True) -> dict:
+def _render_regions(result: RegionQueryResult) -> dict:
     """Compact rendering of a region query result — mirrors the shape
     `GET /api/query` returns, trimmed to what the agent needs to relay:
-    ranked regions with their matches, verbatim segments, and citations.
-
-    `include_segments=False` drops the passage text, leaving region identity,
-    locator and score. For a caller that re-reads each region's *full
-    contiguous* range by structural coordinate, the embedded segments are the
-    wrong text anyway — a region carries only its match-carrying ordinals
-    (FR-DS-29)."""
+    ranked regions with their matches, verbatim segments, and citations."""
     return {
         "regions": [
             {
@@ -116,16 +110,10 @@ def _render_regions(result: RegionQueryResult, *, include_segments: bool = True)
                     }
                     for match in region.matches
                 ],
-                **(
-                    {
-                        "segments": [
-                            {"ordinal": seg.ordinal, "locator": seg.locator, "section": seg.section, "text": seg.text}
-                            for seg in region.segments
-                        ]
-                    }
-                    if include_segments
-                    else {}
-                ),
+                "segments": [
+                    {"ordinal": seg.ordinal, "locator": seg.locator, "section": seg.section, "text": seg.text}
+                    for seg in region.segments
+                ],
             }
             for region in result.regions
         ]

@@ -11,10 +11,10 @@ rebuilt fresh per process rather than shared mutable state.
 
 The set is split by reachability (ADR-015): `model_tools` is bound to the
 orchestration model and executed by `ToolNode`; `node_tools` is reachable only
-by name lookup from a deterministic node. Ad-hoc retrieval and the analysis
+by name lookup from a deterministic node. Region reading and the generation
 steps built on it live in `node_tools`, so the model has no binding for them
-and cannot run or narrate an ad-hoc query of its own accord — a property of
-the tool schema rather than of prompt compliance (FR-DS-10, FR-AG-32).
+and cannot augment regions of its own accord — a property of the tool schema
+rather than of prompt compliance (FR-AU-11, FR-AG-32).
 
 Each tool returns compact, JSON-serializable data (dicts / lists of dicts) —
 never prose — so the LLM relays cited evidence rather than inventing it
@@ -28,15 +28,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from mythrix.agent.tools.analyze_passage import build_analyze_passage_tool
-from mythrix.agent.tools.consolidate_findings import build_consolidate_findings_tool
+from mythrix.agent.tools.augment_passage import build_augment_passage_tool
+from mythrix.agent.tools.consolidate_augmentations import build_consolidate_augmentations_tool
 from mythrix.agent.tools.fetch_segments import build_fetch_segments_tool
 from mythrix.agent.tools.get_sign import build_get_sign_tool
 from mythrix.agent.tools.list_semiotic_systems import build_list_semiotic_systems_tool
 from mythrix.agent.tools.list_signs import build_list_signs_tool
 from mythrix.agent.tools.list_traditions import build_list_traditions_tool
-from mythrix.agent.tools.query_adhoc import build_query_adhoc_tool
 from mythrix.agent.tools.query_sign import build_query_sign_tool
+from mythrix.agent.tools.read_region import build_read_region_tool
 from mythrix.agent.tools.summarize_passage import build_summarize_passage_tool
 from mythrix.core.bootstrap import Stores
 from mythrix.core.chat import ChatClient
@@ -62,7 +62,7 @@ class ToolSet:
 def build_tools(stores: Stores, settings: Settings, chat_client: ChatClient) -> ToolSet:
     """Returns the seven model-selectable read-only tools
     (specs/interfaces/agent.md FR-AG-03) plus the three reachable only from a
-    deterministic node (FR-DS-10)."""
+    deterministic node (FR-AU-11)."""
     return ToolSet(
         model_tools=[
             build_list_semiotic_systems_tool(stores),
@@ -74,8 +74,8 @@ def build_tools(stores: Stores, settings: Settings, chat_client: ChatClient) -> 
             build_summarize_passage_tool(chat_client),
         ],
         node_tools=[
-            build_query_adhoc_tool(stores, settings),
-            build_analyze_passage_tool(chat_client),
-            build_consolidate_findings_tool(chat_client),
+            build_read_region_tool(stores),
+            build_augment_passage_tool(chat_client),
+            build_consolidate_augmentations_tool(chat_client),
         ],
     )
