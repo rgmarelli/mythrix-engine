@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Unit tests for the `read_region` tool — the one place a supplied region
 identity becomes a source, a locator and a passage (FR-AU-15–FR-AU-18)."""
 

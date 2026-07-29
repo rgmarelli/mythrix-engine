@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Unit tests for `_resolve_citation`'s "Author, Title[, Locator]" parsing —
 regression coverage for a bug found while authoring the real T24 dataset: a
 locator containing its own comma (e.g. "Part II, XVI. The Tower") was

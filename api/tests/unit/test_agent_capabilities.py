@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Unit tests for `agent/capabilities.py`. The registry's whole purpose is that
 it cannot drift from the behavior it describes, so these tests check it against
 the code that implements each command and instruction — not against a second

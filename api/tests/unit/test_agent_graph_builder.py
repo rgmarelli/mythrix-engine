@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Unit tests for `agent/graph/builder.py`: `route_input` dispatch and
 `compile_agent_graph` assembly, driven end to end with a stub tool-calling
 model — no live Ollama — which this module accepts directly: construction

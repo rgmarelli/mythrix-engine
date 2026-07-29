@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """The build's declared command vocabulary and instruction execution bindings
 (specs/interfaces/agent-capabilities.md, ADR-011).
 

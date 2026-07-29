@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """One query, run through the retrieval pipeline — the logic behind
 `api/routes.py`'s query routes and the agent's `query_sign` tool. Every entry
 point here returns the region shape (ADR-013). `MythrixError` is never caught

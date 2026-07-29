@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Runtime configuration for the Mythrix core library.
 
 Precedence (highest to lowest): explicit constructor kwargs (how the CLI applies

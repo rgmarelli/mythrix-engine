@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Verify the Kùzu DDL in core.graph.schema applies cleanly and creates every table.
 
 Uses the real, pinned kuzu package against a throwaway on-disk database — no external

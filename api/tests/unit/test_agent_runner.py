@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Unit tests for `agent/runner.py::stream_turn` — the UI-free turn driver.
 Drives a real compiled graph (via `compile_agent_graph`) with a stub
 tool-calling model, no live Ollama.

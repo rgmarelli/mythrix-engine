@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Guido Marelli
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { useEffect, useState } from 'react';
 import { fetchCapabilities } from '../api/client';
 import type { AgentCapabilities } from '../api/types';

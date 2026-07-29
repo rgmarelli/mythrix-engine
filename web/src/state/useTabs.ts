@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Guido Marelli
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { useEffect, useMemo, useState } from 'react';
 import { fetchQuery, streamAgentTurn } from '../api/client';
 import { executeInstruction } from '../api/instructions';

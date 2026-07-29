@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """T8 — blocking risk check (see tasks.md, plan.md Risks).
 
 The alternative/competing-claims design for INTERSEMIOTIC (FR-DM-03) — e.g. two attribution

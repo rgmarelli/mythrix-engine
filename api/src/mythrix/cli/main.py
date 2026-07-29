@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """`mythrix` CLI entrypoint — registers the two ingestion commands:
 `load-signs`, `load-documents`. Querying is served by `/api/query`."""
 

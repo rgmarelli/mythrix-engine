@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Unit tests for `core/ollama.py` — the one construction point and the one
 failure mapping every Ollama-backed client in the system shares (FR-01, FR-02).
 

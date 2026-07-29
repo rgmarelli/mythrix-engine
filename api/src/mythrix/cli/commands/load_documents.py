@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """`mythrix load-documents`: wraps `document_loader.load_corpus_directory`
 (FR-CO-01, FR-CO-04).
 

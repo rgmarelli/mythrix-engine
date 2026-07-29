@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Unit tests for the document loader (T14): source validation and
 content-hash-based idempotent/updatable ingestion (FR-CO-04), plus corpus
 directory auto-discovery. Uses a fake `Embedder` — no Ollama needed."""

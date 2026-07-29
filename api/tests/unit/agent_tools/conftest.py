@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Shared fixtures for `agent/tools/` unit tests — real
 `KuzuGraphStore`/`ChromaVectorStore` against `tmp_path`, a fake embedder —
 mirrors `tests/unit/test_query_service.py`; no running Ollama needed."""

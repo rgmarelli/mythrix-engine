@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Unit tests for `api/dependencies.py::get_agent_graph` — the one place the
 agent's two model roles are derived (FR-03, FR-04, FR-05). A fake chat model
 stands in for `create_chat_model`, so no Ollama daemon is involved and the

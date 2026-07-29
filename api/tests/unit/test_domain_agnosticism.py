@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Domain-agnosticism guardrail (CON-SYS-01, T23): `src/mythrix/core` and
 `src/mythrix/cli` must never contain a domain-specific literal in actual code —
 domain content belongs only in `data/` and `tests/fixtures/`.

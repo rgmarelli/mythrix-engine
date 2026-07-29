@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """`RetrievalPipeline`: turns deterministic graph facts into grounding document
 passages (FR-CO-02, FR-CO-03, FR-RT-05).
 

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Loads a directory of human-authored structured-data YAML (see
 `sign_schema.py`) into a `KuzuGraphStore`, resolving name-based references
 (FR-SD-03), validating referential integrity *before* writing anything (FR-SD-01, FR-SD-02),

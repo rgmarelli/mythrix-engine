@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """`MythrixError`-family to HTTP status mapping (`specs/interfaces/api.md`).
 Covers every route directly, including
 `/api/query`, which returns its whole response in one JSON payload — no

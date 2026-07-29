@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Guido Marelli
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { fetchBoundRegions, fetchQuery, streamAgentTurn } from '../api/client';
 import { DEFAULT_MIN_SCORE, useTabs } from './useTabs';

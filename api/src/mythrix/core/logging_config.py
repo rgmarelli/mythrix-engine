@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Shared INFO-level, human-readable logging setup for the API process
 (Agent Pipeline Logging and Query Endpoint Logging specs). `configure_logging()`
 is called once, from `mythrix/api/app.py::create_app()`; every module's own

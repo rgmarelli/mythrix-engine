@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Unit tests for the structured-data loader (T11): name resolution, referential
 integrity validated before any write, and idempotent upserts against a real
 KuzuGraphStore."""

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Guido Marelli
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { fetchCapabilities, fetchQuery, fetchSegments, fetchSigns, fetchTraditions, streamAgentTurn } from './client';
 import type { AgentTurnResponseWire, RegionQueryResult } from './types';
 import { makeRegion, makeSignSummary, makeTradition } from '../test/fixtures';

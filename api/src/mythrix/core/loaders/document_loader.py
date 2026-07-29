@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Ingests primary-source documents into the vector store, each keyed to a
 `Source` declared in the Sign Graph (FR-CO-01).
 

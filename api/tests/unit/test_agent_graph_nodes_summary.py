@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Unit tests for `agent/graph/nodes/summary.py`: the `/summarize` deterministic
 node (agent.md FR-AG-33–FR-AG-36)."""
 

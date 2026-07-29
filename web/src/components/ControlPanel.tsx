@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Guido Marelli
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import type { SignSummary, Tradition } from '../api/types';
 import { FacetRow } from './FacetRow';
 import { SignTraditionPicker } from './SignTraditionPicker';

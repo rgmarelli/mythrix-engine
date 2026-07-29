@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """The Mythrix conversational operator (`specs/interfaces/agent.md`): a LangGraph
 tool-calling loop over Mythrix's existing, read-only operations. Powers the
 in-app agent chat panel via `mythrix.api`, self-contained from the `mythrix`

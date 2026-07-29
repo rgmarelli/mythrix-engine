@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Unit tests for T22's `run_load_documents`, called directly (no Typer
 machinery, no Ollama needed — dry-run needs no embedder at all, and the real
 ingest path is given a fake one). Auto-discovers corpus sources under a

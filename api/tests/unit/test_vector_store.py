@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Unit tests for ChromaVectorStore (T13): add/query/delete against a real
 embedded Chroma instance, using fake (hand-built) embeddings — no Ollama needed."""
 

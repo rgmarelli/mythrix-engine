@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Unit tests for `agent/graph/nodes/adhoc.py`: the `parse_query`/`execute_query`
 deterministic nodes (specs/interfaces/agnostic-query.md FR-AQ-03–FR-AQ-12)."""
 

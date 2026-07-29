@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Domain-agnostic error types raised across the Mythrix core library.
 
 All Mythrix-specific errors subclass `MythrixError` so callers (notably the CLI) can

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Citation-marker extraction over the `[G#]`/`[S#]`/`[C#]`/`[R#]` vocabulary —
 the code guarantee (FR-RT-04) behind the instruction to use it. A prompt can
 *ask* a model to cite only real markers; this is what checks it did.

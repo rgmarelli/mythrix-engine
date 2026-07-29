@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Unit tests for `agent/commands/augment.py` — parsing, labelling and
 rendering, with no graph and no model involved."""
 

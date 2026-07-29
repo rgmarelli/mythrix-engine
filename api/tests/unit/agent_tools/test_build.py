@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Unit tests for `build_tools` itself — the composition of the tool set and
 its split by reachability (ADR-015)."""
 

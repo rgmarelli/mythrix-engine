@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """The chat panel's structured working memory (specs/interfaces/agent.md FR-AG-17) —
 distinct from the raw per-turn message history the generation model already
 sees via `AgentState["messages"]`. `AgentContext` is the single class used for

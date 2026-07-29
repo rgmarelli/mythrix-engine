@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """The agent's fixed, read-only tool set (specs/interfaces/agent.md FR-AG-03, FR-AG-04) — every
 tool is a thin wrapper over an existing Mythrix service function; none of this
 package implements retrieval, graph, embedding, or synthesis logic of its own.

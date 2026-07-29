@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Shared embedding abstraction — used by both the document loader (embedding
 chunks at ingestion time) and the retrieval pipeline (embedding query text at
 query time), so both go through the identical interface and a test can inject

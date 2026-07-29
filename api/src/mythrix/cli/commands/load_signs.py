@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """`mythrix load-signs`: wraps `sign_loader` (FR-SD-01, FR-SD-02).
 
 `--dry-run` calls `build_plan()` only — the same validation pass `load_directory`

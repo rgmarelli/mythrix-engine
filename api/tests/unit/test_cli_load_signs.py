@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Unit tests for `run_load_signs`, called directly (no Typer
 machinery) against the same fixtures used in `test_sign_loader.py`."""
 

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Unit tests for core.config.Settings: defaults, env-var override, and kwarg precedence."""
 
 import pytest

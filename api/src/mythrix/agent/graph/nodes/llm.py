@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """The model-driven agent turn: the `agent` node itself, routing around it,
 and the deterministic `clarify` node that intercepts a tool result needing
 more input before it ever reaches the model (ADR-006)."""

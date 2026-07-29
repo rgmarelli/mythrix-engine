@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Structure-aware chunking for source documents ingested into the vector store.
 
 Chunk size/overlap are measured in whitespace-delimited words, used as a

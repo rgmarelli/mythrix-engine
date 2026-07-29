@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Package exposing deterministic agent slash-commands (`/query`,
 `/query-confirm`, `/summarize`, `/augment`, `/augment-confirm`). Pure
 parsing/detection only — no LangGraph import anywhere under this package."""

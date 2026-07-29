@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Real-Ollama coverage for the consolidated construction path — opt-in, since
 it needs a running local Ollama daemon with the model pulled. Not run as part
 of the default `pytest tests/unit` suite; run explicitly with

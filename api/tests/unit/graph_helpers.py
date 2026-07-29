@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Helpers shared by the unit tests that compile a real agent graph."""
 
 from mythrix.agent.graph import compile_agent_graph

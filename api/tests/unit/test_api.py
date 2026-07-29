@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Unit tests for `mythrix.api`: `fastapi.testclient.TestClient` against
 `create_app()`, `Stores` injected via `app.dependency_overrides[get_stores]`
 — no `with TestClient(...) as client:` (that would trigger the real

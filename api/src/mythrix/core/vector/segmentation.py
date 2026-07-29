@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Structural segmenters (FR-CO-05–FR-CO-06).
 
 Each scheme below turns a source's raw text into one `Chunk` (segment) per

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Deterministic handling of the `/query` and `/query-confirm` chat commands
 (specs/interfaces/agnostic-query.md FR-AQ-01–FR-AQ-14): term parsing,
 confirmation rendering, and instruction building — no generation model is

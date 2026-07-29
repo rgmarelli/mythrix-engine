@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Domain-agnostic core models shared across graph storage, retrieval, and the API.
 
 No domain-specific literals (tarot, Kabbalah, etc.) belong in this module — see

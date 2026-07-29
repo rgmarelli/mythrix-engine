@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Pydantic models mirroring the human-authored YAML structured-data format
 (`specs/domain/structured-data.md`).
 

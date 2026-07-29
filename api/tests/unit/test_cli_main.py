@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Smoke tests for the actual Typer app wiring — just `--help` on every
 command, which exercises real Typer argument parsing without needing a running
 Kùzu/Chroma/Ollama."""

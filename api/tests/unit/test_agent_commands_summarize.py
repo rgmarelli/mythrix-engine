@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Unit tests for `agent/commands/summarize.py`: `/summarize` detection, focus/
 concept resolution, and hotspot-coordinate parsing (specs/interfaces/agent.md
 FR-AG-33–FR-AG-36). Pure functions — nothing here touches a store, a graph, or

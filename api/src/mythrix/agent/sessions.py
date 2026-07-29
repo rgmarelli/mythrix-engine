@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Per-browser-session conversation + context state (specs/interfaces/agent.md FR-AG-20:
 retained only for the life of the backend process, never persisted to disk)."""
 

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """The `rollup_augmentations` tool — node-only (ADR-015, ADR-016)."""
 
 from __future__ import annotations

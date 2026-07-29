@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Unit tests for `agent/citations.py` — marker extraction and validation over
 the `[G#]`/`[S#]`/`[C#]`/`[R#]` vocabulary, checked against a caller-supplied
 set of valid identifiers, plus the split between what is validated and what is

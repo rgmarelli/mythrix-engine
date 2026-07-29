@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Unit tests for `core/chat.py::OllamaChatClient` — the adapter's surface and
 its error mapping over an injected chat model. Construction and daemon
 validation live in `core/ollama.py` and are tested in `test_ollama.py`; no

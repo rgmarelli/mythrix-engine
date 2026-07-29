@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """UI-free turn driver — streams one compiled agent graph through one turn,
 yielding whatever a node emits as it goes and ending with a `TurnResult`. Kept
 terminal-free so it is testable without stdin and reusable by any surface."""

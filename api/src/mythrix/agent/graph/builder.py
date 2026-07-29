@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Assembles the agent's LangGraph state machine (ADR-006): an `agent` node
 bound to a fixed read-only tool set, looping through a `tools` node until the
 model answers without a further tool call.

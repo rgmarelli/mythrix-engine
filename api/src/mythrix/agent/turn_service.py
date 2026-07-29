@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Composes one full `POST /api/agent` turn out of the existing agent
 primitives: thread-reset detection (`agent/context.py`), the LangGraph turn
 driver (`agent/runner.py`), and citation validation (`agent/citations.py`).

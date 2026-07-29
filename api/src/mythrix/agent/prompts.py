@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """The operator system prompt (specs/interfaces/agent.md FR-AG-05, FR-AG-06,
 FR-AG-09), which defines the `[G#]`/`[S#]` marker vocabulary `citations.py`
 validates against, plus the ad-hoc prompts the generative tools render.

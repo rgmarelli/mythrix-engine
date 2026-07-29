@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Guido Marelli
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import type { CommandSpec } from '../api/types';
 
 // Composer command completion (specs/interfaces/web-viewer.md FR-WEB-18/22/23).

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Unit tests for structure-aware chunking (T12)."""
 
 from mythrix.core.vector.chunking import chunk_text

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Guido Marelli
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import type { Hotspot, HotspotMatch, HotspotSegment, Region, SignSummary, Source, Tradition } from '../api/types';
 
 export function makeSource(overrides: Partial<Source> = {}): Source {

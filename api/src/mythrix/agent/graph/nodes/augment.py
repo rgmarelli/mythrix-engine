@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Deterministic nodes for the `/augment` and `/augment-confirm` commands
 (specs/interfaces/augmentation.md FR-AU-05–FR-AU-25, FR-AU-39–FR-AU-41,
 ADR-012, ADR-015, ADR-016).

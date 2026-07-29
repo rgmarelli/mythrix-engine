@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Unit tests for RetrievalPipeline: multi-query text construction from graph
 facts only — one query per *individual atomic concept*, no identity query and
 no `type:` label (one per interpretant value — split further on commas, since a

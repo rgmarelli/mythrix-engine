@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Deterministic node for the `/summarize` command (agent.md
 FR-AG-33–FR-AG-36, ADR-012)."""
 

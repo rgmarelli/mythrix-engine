@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Guido Marelli
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { useEffect } from 'react';
 import type { ReactNode } from 'react';
 import type { Augmentation, Hotspot } from '../api/types';

@@ -79,3 +79,15 @@ Rules:
 - Do not add yourself as an author or co-author of the commits.
 - All commit messages and logs must be reviewed and explicitly approved by the user before execution.
 
+## Licensing
+
+- Every new source code file must include the following SPDX header at the top of the file:
+
+```text
+SPDX-FileCopyrightText: 2026 Guido Marelli
+SPDX-License-Identifier: AGPL-3.0-or-later
+```
+
+- Apply this only to source code files (e.g. `.py`, `.java`, `.cpp`, `.go`, `.sh`).
+- Do not add SPDX headers to documentation files (`README.md`, `docs/*.md`, `CHANGELOG.md`, etc.).
+- Preserve existing SPDX headers when modifying files.

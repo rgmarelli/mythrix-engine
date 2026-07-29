@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Unit tests for `agent/graph/nodes/llm.py`: routing around the model-driven
 agent turn and the deterministic `clarify_node` (ADR-006, agent.md FR-AG-18)."""
 

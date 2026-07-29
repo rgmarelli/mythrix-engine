@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Deterministic handling of the `/summarize` chat command
 (specs/interfaces/agent.md FR-AG-33–FR-AG-36): command detection, focus/concept
 resolution, and hotspot-coordinate parsing — no generation model or LangGraph

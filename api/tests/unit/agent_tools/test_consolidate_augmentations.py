@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Unit tests for the `consolidate_augmentations` tool — the single answer
 across a run's readings (FR-AU-20)."""
 

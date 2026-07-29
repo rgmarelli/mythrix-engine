@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Deterministic nodes for the `/query` and `/query-confirm` commands
 (specs/interfaces/agnostic-query.md FR-AQ-01, FR-AQ-08). Calls no model —
 each reply is built entirely from what the user supplied and the pending

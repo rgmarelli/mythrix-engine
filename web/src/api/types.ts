@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Guido Marelli
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Wire types mirror the region-centric query response shape `routes.py`/
 // `query_regions` emit (`core/models.py::RegionQueryResult`,
 // `.model_dump(mode="json")`) — denormalized: every region carries its own

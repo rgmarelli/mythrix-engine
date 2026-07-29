@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Guido Marelli
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { executeInstruction } from './instructions';
 import type { AgentCapabilities, AgentInstruction, RegionQueryResult } from './types';
 import { makeRegion } from '../test/fixtures';

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Guido Marelli
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 /** Marks generated analysis, wherever it appears (specs/interfaces/augmentation.md
  * FR-AU-27, FR-AU-28) — one glyph shared by the rail's card mark and the
  * reader's block header, so the two cannot drift apart. */

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Guido Marelli
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { convergenceLabel, hotspotTitle, segmentForMatch } from './hotspot';
 import { makeHotspot, makeMatch, makeSegment, makeSource } from '../test/fixtures';
 

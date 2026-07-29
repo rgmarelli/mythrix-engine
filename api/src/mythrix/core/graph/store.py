@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """KuzuGraphStore: deterministic, parametrized access to the Sign Graph.
 
 Retrieval methods here are the concrete implementation of the anti-hallucination

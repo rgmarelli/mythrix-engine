@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Unit tests for `agent/commands/adhoc.py`: the deterministic `/query` and
 `/query-confirm` parsing, rendering, and instruction building
 (specs/interfaces/agnostic-query.md FR-AQ-02, FR-AQ-03, FR-AQ-06, FR-AQ-07,

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Unit tests for `agent/prompts.py`'s renderable prompt — the one prompt a
 tool builds rather than the fixed `SYSTEM_PROMPT`."""
 

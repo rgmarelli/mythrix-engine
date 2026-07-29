@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """`Stores` is built once at process startup (`app.py`'s `lifespan`) and
 read from `app.state` per request — never rebuilt per request."""
 

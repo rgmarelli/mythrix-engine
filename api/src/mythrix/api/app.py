@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """`FastAPI()` factory: builds `Stores` once at process startup (`lifespan`),
 registers the `/api` router before the conditional `web/dist` static mount
 (mount order matters — a `Mount("/")` registered first shadows `/api/*`),

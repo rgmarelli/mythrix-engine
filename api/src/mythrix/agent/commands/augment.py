@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Deterministic handling of the `/augment` and `/augment-confirm` chat
 commands (specs/interfaces/augmentation.md FR-AU-01–FR-AU-09, FR-AU-24): focus
 parsing, confirmation rendering, instruction building and reply composition —

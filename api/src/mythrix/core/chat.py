@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Ollama chat client (FR-RT-02) used by the conversational agent layer
 (`mythrix.agent`) — the query path itself invokes no generation model at all
 (FR-RT-10). `OllamaChatClient` only ever sends prompt text and reads back

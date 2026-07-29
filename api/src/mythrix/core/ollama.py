@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Guido Marelli
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """The single point of contact with the local Ollama daemon: the only module
 that imports `langchain_ollama` or `ollama`, and the only definition of how a
 daemon failure becomes a `MythrixError`.
