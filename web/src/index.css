@@ -1258,6 +1258,13 @@ button {
   background: var(--agent-line);
 }
 
+.agent-dock .msg.ai .chips {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .agent-dock .confirm-query {
   font-family: var(--f-mono);
   font-size: 10.5px;
