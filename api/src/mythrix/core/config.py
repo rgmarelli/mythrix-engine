@@ -66,8 +66,11 @@ class Settings(BaseSettings):
     `augment_max_regions` (FR-AU-14) bounds how many of the consumer's visible
     regions one augmentation run reads. `agent_max_tool_iterations` does not
     apply: it governs the orchestration model's own tool loop, which a
-    deterministic run never enters (ADR-015). Kept small because the calls are
-    sequential and hold the turn's connection open.
+    deterministic run never enters (ADR-015). Default raised from a small
+    bound to `1000` once hierarchical consolidation (ADR-016) removed the
+    single flat-prompt consolidation call as the constraint on how many
+    regions a run can read; `augment_consolidation_group_size` now bounds the
+    per-call prompt size regardless of how large a run gets.
 
     `augment_consolidation_group_size` (FR-AU-40) bounds how many augmentations
     or prior consolidation results one consolidation invocation may be given.

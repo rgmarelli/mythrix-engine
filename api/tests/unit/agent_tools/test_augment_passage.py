@@ -50,9 +50,7 @@ def test_augment_passage_prompt_carries_the_passage_and_the_focus(
     assert "where is joy" in prompt
 
 
-def test_augment_passage_prompt_carries_the_reference(
-    stores: Stores, settings: Settings, tools_by_name
-) -> None:  # noqa: ANN001
+def test_augment_passage_prompt_carries_the_reference(stores: Stores, settings: Settings, tools_by_name) -> None:  # noqa: ANN001
     """The invocation is told what passage it is reading, so it never has to
     guess a reference from the text — and, when guessing anyway, get it wrong."""
     client = RecordingChatClient()

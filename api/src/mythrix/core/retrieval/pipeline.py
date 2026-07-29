@@ -37,7 +37,11 @@ of raw similarity scores.
 one entry point over `_search_deep_pools`: matches clearing the floor are
 rolled up over contiguous segments of one source and ranked by a
 specificity-weighted convergence score (FR-RK-01–FR-RK-10). Convergence is a
-ranking signal, not a separate result group.
+ranking signal, not a separate result group — except that a `"filter"`-kind
+match is never, on its own, enough to make a region eligible: a region
+matched exclusively by `"filter"` matches is excluded regardless of count
+(ADR-017). `"concept"` and `"exact"`-directive matches remain eligible in
+isolation as before.
 """
 
 from __future__ import annotations
@@ -245,13 +249,17 @@ class RetrievalPipeline:
         compete with, since it is never embedded (FR-EX-01). That single
         best match still anchors to the specific segment it occurred at
         (FR-RK-09). A region is eligible when its count of distinct matching
-        interpretants — of any kind, `"concept"` and `"exact"`/`"filter"`
-        alike — reaches `region_min_interpretants` (FR-RK-03/05); the default
-        of 1 makes an isolated match a valid, rankable region on its own,
-        including one reached only by an `"exact"`-directive token with no
-        nearby concept match at all — the whole point of `"exact"` is that
-        every literal occurrence surfaces, not only the ones that happen to
-        sit next to a semantic match."""
+        interpretants reaches `region_min_interpretants` (FR-RK-03/05) *and*
+        at least one of those matches is `"concept"` or `"exact"` kind — the
+        default count of 1 makes an isolated `"concept"` or `"exact"` match a
+        valid, rankable region on its own, including one reached only by an
+        `"exact"`-directive token with no nearby concept match at all (the
+        whole point of `"exact"` is that every literal occurrence surfaces,
+        not only the ones that happen to sit next to a semantic match). A
+        region matched exclusively by one or more `"filter"`-kind matches,
+        with no `"concept"` or `"exact"` match within it, is never eligible
+        (ADR-017): `"filter"` only ever contributes to a region some other
+        match already made eligible, never on its own."""
         deep_hits_by_concept, filter_token_chunk_ids, hit_by_chunk_id, token_kind_by_value = self._search_deep_pools(
             graph_facts
         )
@@ -318,6 +326,8 @@ class RetrievalPipeline:
                 region_matches = list(best_match_by_interpretant.values())
                 distinct_interpretants = {match.interpretant for match in region_matches}
                 if len(distinct_interpretants) < self._region_min_interpretants:
+                    continue
+                if all(match.kind == "filter" for match in region_matches):
                     continue
 
                 score = sum(

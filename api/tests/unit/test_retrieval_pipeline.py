@@ -1035,6 +1035,74 @@ def test_retrieve_regions_exact_match_scores_by_fixed_presence_strength(graph_st
     assert filter_match.exact_value is True
 
 
+def test_retrieve_regions_lone_filter_directive_match_is_not_eligible(graph_store: KuzuGraphStore) -> None:
+    """ADR-017/FR-RT-20: unlike an `"exact"`-directive match, a `"filter"`-
+    directive match with no `"concept"` match converging in the same region
+    does not make that region eligible on its own. Here "Fish"'s own
+    similarity falls below the default floor, so the only surviving match at
+    this segment is the filter-token one ("100") — and now no region
+    survives at all, unlike an isolated `"exact"`-directive match reached the
+    same way (`test_retrieve_regions_lone_exact_directive_match_is_eligible_on_its_own`)."""
+    graph_facts = _gematria_intersemiotic_graph_facts()
+    weak_hit = _make_segment_hit("waite-pictorial-key::1", ordinal=1, locator="Genesis 21:5", distance=1.9)
+    # 4 calls: Fire(None), Fire(hundred), Fish(None), Fish(hundred) — hit only
+    # returned by Fish's filtered query, and its similarity (1 - 1.9 = -0.9)
+    # falls below the default floor, so "Fish" contributes no concept match.
+    vector_store = SequencedVectorStore(
+        [[], [], [], [weak_hit]], corpus_size=200, document_frequencies={"Fish": 10, "hundred": 10}
+    )
+    pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
+
+    result = pipeline.retrieve_regions(graph_facts)
+
+    assert result.regions == ()
+
+
+def test_retrieve_regions_filter_plus_exact_is_eligible_without_a_concept(graph_store: KuzuGraphStore) -> None:
+    """ADR-017: a region reached by a `"filter"` match together with an
+    `"exact"` match — no `"concept"` match anywhere in it — remains eligible:
+    the `"exact"` match satisfies FR-RT-20 on its own, and the `"filter"`
+    match still contributes its fixed strength to the score and
+    `convergence_count`, exactly as before this decision."""
+    graph_facts = _gematria_intersemiotic_graph_facts()
+    graph_facts = graph_facts.model_copy(
+        update={
+            "manifestation": graph_facts.manifestation.model_copy(
+                update={
+                    "interpretants": (
+                        Interpretant(
+                            id="interp-numeric-value-exact",
+                            type="numeric_value",
+                            value="2",
+                            query=QueryDirective(directive="exact"),
+                        ),
+                    )
+                }
+            )
+        }
+    )
+    weak_hit = _make_segment_hit("waite-pictorial-key::1", ordinal=1, locator="Genesis 21:5", distance=1.9)
+    exact_hit = _make_segment_hit("waite-pictorial-key::1", ordinal=1, locator="Genesis 21:5", distance=1.9)
+    # Only "Fish" remains a concept (the manifestation's own interpretant is
+    # now the exact directive, contributing no embeddable query): 2 calls,
+    # Fish(None) -> [], Fish(hundred) -> [weak_hit], its similarity below the
+    # floor so "Fish" contributes no concept match either.
+    vector_store = SequencedVectorStore(
+        [[], [weak_hit]],
+        corpus_size=200,
+        document_frequencies={"Fish": 10, "hundred": 10},
+        document_matches_by_term={"2": [exact_hit]},
+    )
+    pipeline = RetrievalPipeline(graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
+
+    result = pipeline.retrieve_regions(graph_facts)
+
+    assert len(result.regions) == 1
+    region = result.regions[0]
+    assert {m.kind for m in region.matches} == {"filter", "exact"}
+    assert region.convergence_count == 2
+
+
 def test_retrieve_regions_exact_directive_reports_membership_only_no_score(
     graph_store: KuzuGraphStore,
 ) -> None:

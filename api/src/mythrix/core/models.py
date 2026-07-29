@@ -338,9 +338,11 @@ class Region(MythrixModel):
     scored unit the query path returns. `score` is the specificity-weighted
     convergence score (FR-RK-05);
     `convergence_count` is the number of distinct interpretants matching
-    within the region — a region matched by exactly one interpretant (an
-    isolated match) is a valid, rankable region (FR-RK-03), not a filtered-out
-    case."""
+    within the region — a region matched by exactly one `"concept"` or
+    `"exact"`-directive interpretant (an isolated match) is a valid, rankable
+    region (FR-RK-03), not a filtered-out case. A region matched exclusively
+    by one or more `"filter"`-directive interpretants never appears here at
+    all (FR-RT-20, ADR-017)."""
 
     region_id: str
     source: Source

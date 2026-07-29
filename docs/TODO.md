@@ -13,8 +13,6 @@
   Let's start by fetching these signs.
   ``` 
 
-* [ ] **Querying: Filter** seems to not work anymore; at least when running a query, it returns "standalone" results.
-
 * [ ] **Refactor: stream_chat_turn**. The current design is overly coupled with command handling (e.g., session.pending_query = result.pending_query, session.pending_augmentation = result.pending_augmentation).
 
 ## Features

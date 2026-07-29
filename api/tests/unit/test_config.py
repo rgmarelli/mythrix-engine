@@ -16,7 +16,7 @@ def test_defaults() -> None:
     assert settings.generation_num_ctx == 8192
     assert settings.region_window_size == 3
     assert settings.region_min_interpretants == 1
-    assert settings.augment_max_regions == 8
+    assert settings.augment_max_regions == 1000
     assert settings.augment_consolidation_group_size == 8
 
 
