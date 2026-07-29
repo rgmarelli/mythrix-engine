@@ -77,24 +77,37 @@ function contextStripText(hotspot: Hotspot | null): string {
   return interpretants ? `reading ${hotspotTitle(hotspot)} · interpretants: ${interpretants}` : `reading ${hotspotTitle(hotspot)}`;
 }
 
-// A `confirm_query` instruction carries the exact command a human would type
-// (agnostic-query.md FR-AQ-07); this button sends that same string, so the
-// affordance and the typed command are one path, not two (FR-WEB-21).
+// The confirmation instruction types, and what a chip for each says. Both are
+// declared with no binding (FR-CAP-07), so `executeInstruction` returns null
+// for them and this renders the affordance instead — the one place an
+// instruction is handled by type rather than by result kind, which is exactly
+// what "no binding" means.
+const CONFIRM_LABELS: Record<string, string> = {
+  confirm_query: 'Run this query',
+  confirm_discovery: 'Run this discovery',
+};
+
+// A confirmation instruction carries the exact command a human would type
+// (agnostic-query.md FR-AQ-07, discovery.md FR-DS-31); this button sends that
+// same string, so the affordance and the typed command are one path, not two
+// (FR-WEB-21). An instruction of an unknown type, or one missing its command,
+// renders nothing here rather than a dead chip.
 function ConfirmActions({ instructions, onSend }: { instructions: AgentInstruction[]; onSend: (m: string) => void }) {
-  const confirmations = instructions.filter((instruction) => instruction.type === 'confirm_query');
+  const confirmations = instructions
+    .map((instruction) => ({
+      label: CONFIRM_LABELS[instruction.type],
+      command: String(instruction.payload.confirm_command ?? ''),
+    }))
+    .filter((confirmation) => confirmation.label && confirmation.command);
   if (confirmations.length === 0) return null;
 
   return (
     <div className="chips">
-      {confirmations.map((instruction, index) => {
-        const command = String(instruction.payload.confirm_command ?? '');
-        if (!command) return null;
-        return (
-          <button type="button" className="confirm-query" key={index} onClick={() => onSend(command)}>
-            Run this query
-          </button>
-        );
-      })}
+      {confirmations.map(({ label, command }, index) => (
+        <button type="button" className="confirm-query" key={index} onClick={() => onSend(command)}>
+          {label}
+        </button>
+      ))}
     </div>
   );
 }

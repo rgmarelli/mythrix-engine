@@ -4,11 +4,11 @@ tool-calling model through `compile_agent_graph`, no live Ollama involved."""
 import logging
 
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage
+from graph_helpers import compile_graph
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import tool
 
 from mythrix.agent.context import AgentContext
-from mythrix.agent.graph import compile_agent_graph
 from mythrix.agent.sessions import SessionStore
 from mythrix.agent.turn_service import AgentInstruction, run_chat_turn
 from mythrix.core.errors import ModelRequestError
@@ -79,7 +79,7 @@ class ScriptedLLM:
 
 
 def _graph(script: list[AIMessage]):
-    return compile_agent_graph(ScriptedLLM(script), _TOOLS)
+    return compile_graph(ScriptedLLM(script), _TOOLS)
 
 
 def test_normal_turn_grounds_the_reply_and_backfills_context() -> None:
@@ -237,7 +237,7 @@ def test_ambiguous_tradition_short_circuits_with_no_second_model_call() -> None:
     llm = ScriptedLLM(
         [AIMessage(content="", tool_calls=[{"name": "get_sign", "args": {"sign": "The Magician"}, "id": "c1"}])]
     )
-    graph = compile_agent_graph(llm, _TOOLS)
+    graph = compile_graph(llm, _TOOLS)
     sessions = SessionStore()
 
     response = run_chat_turn(
@@ -329,7 +329,7 @@ def test_summarize_command_with_no_hotspot_asks_the_user_to_select_one_without_c
             raise AssertionError("model was invoked for a /summarize turn with no active hotspot")
 
     sessions = SessionStore()
-    graph = compile_agent_graph(ExplodingLLM(), _TOOLS)
+    graph = compile_graph(ExplodingLLM(), _TOOLS)
 
     response = run_chat_turn(
         graph=graph,
@@ -352,7 +352,7 @@ def test_summarize_command_with_no_hotspot_calls_no_tool() -> None:
         raise AssertionError("fetch_segments was invoked for a /summarize turn with no active hotspot")
 
     sessions = SessionStore()
-    graph = compile_agent_graph(ScriptedLLM([]), [exploding_fetch_segments, summarize_passage])
+    graph = compile_graph(ScriptedLLM([]), [exploding_fetch_segments, summarize_passage])
 
     run_chat_turn(
         graph=graph,
@@ -417,7 +417,7 @@ class ExplodingLLM:
 
 
 def _adhoc_graph():  # noqa: ANN202 - CompiledStateGraph, matching `_graph` above
-    return compile_agent_graph(ExplodingLLM(), _TOOLS)
+    return compile_graph(ExplodingLLM(), _TOOLS)
 
 
 def _turn(graph, sessions: SessionStore, message: str, **overrides):  # noqa: ANN001, ANN003, ANN202
@@ -466,7 +466,7 @@ def test_an_ordinary_turn_after_a_query_command_sees_history_as_if_it_never_happ
 
     script = [AIMessage(content="Hello there.")]
     llm = ScriptedLLM(script)
-    _turn(compile_agent_graph(llm, _TOOLS), sessions, "hello")
+    _turn(compile_graph(llm, _TOOLS), sessions, "hello")
 
     history = sessions.get_or_create("s1").history
     assert [m.content for m in history if isinstance(m, HumanMessage)] == ["hello"]
@@ -573,7 +573,7 @@ def test_plain_turn_logs_start_context_and_outcome(caplog: pytest.LogCaptureFixt
 
 
 def test_tool_failure_logs_and_returns_fallback(caplog: pytest.LogCaptureFixture) -> None:
-    graph = compile_agent_graph(RaisingLLM(), _TOOLS)
+    graph = compile_graph(RaisingLLM(), _TOOLS)
     sessions = SessionStore()
 
     with caplog.at_level(logging.INFO, logger="mythrix.agent.turn_service"):
@@ -609,3 +609,130 @@ def test_citation_failure_logs_and_returns_fallback(caplog: pytest.LogCaptureFix
     assert "[G9]" not in response.reply_text
     messages = [record.getMessage() for record in caplog.records]
     assert any("turn failed" in m and "citation validation" in m for m in messages)
+
+
+# --- corpus discovery (discovery.md FR-DS-22–FR-DS-28) --------------------
+
+
+@tool
+def query_adhoc(terms: list[dict], limit: int) -> dict:
+    """Fake query_adhoc mirroring the real tool's shape."""
+    return {
+        "matched_count": 2,
+        "regions": [
+            {
+                "region_id": f"waite::{i * 10}-{i * 10 + 1}",
+                "source": "Douay-Rheims",
+                "source_id": "waite",
+                "locator": f"Genesis {i + 1}:6",
+                "score": 0.8,
+                "convergence_count": 1,
+                "matches": [],
+            }
+            for i in range(2)
+        ],
+    }
+
+
+@tool
+def analyze_passage(passage_text: str, focus: str, concepts: list[str]) -> dict:
+    """Fake analyze_passage mirroring the real tool's shape."""
+    return {"finding": "a finding"}
+
+
+def _discovery_graph(consolidation: str):  # noqa: ANN202 - CompiledStateGraph
+    @tool
+    def consolidate_findings(focus: str, findings: list[dict], concepts: list[str]) -> dict:
+        """Fake consolidate_findings returning a scripted consolidation."""
+        return {"consolidation": consolidation}
+
+    return compile_graph(ExplodingLLM(), _TOOLS, node_tools=[query_adhoc, analyze_passage, consolidate_findings])
+
+
+def _plan_and_confirm(graph, sessions: SessionStore, consolidation_graph=None):  # noqa: ANN001, ANN202
+    plan = _turn(graph, sessions, '/discover "where joy is", laughter')
+    discovery_id = sessions.get_or_create("s1").pending_discovery.id
+    return plan, _turn(consolidation_graph or graph, sessions, f"/discover-confirm {discovery_id}")
+
+
+def test_a_discovery_run_keeps_its_region_markers_in_the_delivered_reply() -> None:
+    """FR-DS-23: `[R#]` is validated like every other marker but retained, so
+    a consolidated claim can be traced to the section supporting it."""
+    sessions = SessionStore()
+
+    _, run = _plan_and_confirm(_discovery_graph("Joy recurs as reversal [R1][R2]."), sessions)
+
+    assert "Joy recurs as reversal [R1][R2]." in run.reply_text
+    assert "### [R1] Douay-Rheims — Genesis 1:6" in run.reply_text
+
+
+def test_a_consolidation_citing_a_region_that_does_not_exist_fails_the_turn() -> None:
+    """FR-DS-22: region markers are validated exactly as graph-fact and
+    segment markers are — two regions were read, so `[R9]` names nothing."""
+    sessions = SessionStore()
+
+    _, run = _plan_and_confirm(_discovery_graph("Joy recurs [R9]."), sessions)
+
+    assert "[R9]" not in run.reply_text
+    assert "couldn't actually back up" in run.reply_text
+
+
+def test_a_marker_shaped_focus_does_not_fail_the_plan_turn() -> None:
+    """FR-DS-24: the plan reply is entirely backend-composed, so validation
+    does not apply — the alternative is a user's own words failing their turn.
+    The marker is still stripped from the visible reply, as every `[S#]` is."""
+    sessions = SessionStore()
+
+    plan = _turn(_discovery_graph("unused"), sessions, '/discover "what does [S1] mean", laughter')
+
+    assert "couldn't actually back up" not in plan.reply_text
+    assert "Parsed discovery:" in plan.reply_text
+    assert sessions.get_or_create("s1").pending_discovery is not None
+
+
+def test_a_run_records_only_the_retrieval_step_and_the_report_in_history() -> None:
+    """FR-DS-28: the per-region fetches and analyses are observable in the
+    log, not in the thread the next turn replays."""
+    sessions = SessionStore()
+
+    _plan_and_confirm(_discovery_graph("Joy recurs [R1]."), sessions)
+
+    history = sessions.get_or_create("s1").history
+    assert [m.name for m in history if isinstance(m, ToolMessage)] == ["query_adhoc"]
+    # FR-DS-27: both turns are recorded, and each stored user message is the
+    # literal text the user sent rather than a rewritten directive.
+    user_messages = [str(m.content) for m in history if isinstance(m, HumanMessage)]
+    assert user_messages[0] == '/discover "where joy is", laughter'
+    assert user_messages[1].startswith("/discover-confirm ")
+
+
+def test_a_confirmed_discovery_is_cleared_from_the_session() -> None:
+    sessions = SessionStore()
+
+    _plan_and_confirm(_discovery_graph("Joy recurs [R1]."), sessions)
+
+    assert sessions.get_or_create("s1").pending_discovery is None
+
+
+def test_a_pending_discovery_survives_an_unrelated_turn() -> None:
+    sessions = SessionStore()
+    graph = _discovery_graph("unused")
+    _turn(graph, sessions, '/discover "where joy is", laughter')
+    pending = sessions.get_or_create("s1").pending_discovery
+
+    _turn(compile_graph(ScriptedLLM([AIMessage(content="Hello there.")]), _TOOLS), sessions, "hello")
+
+    assert sessions.get_or_create("s1").pending_discovery is pending
+
+
+def test_a_thread_reset_clears_the_pending_discovery() -> None:
+    """FR-DS-08, matching `pending_query`'s existing lifecycle."""
+    sessions = SessionStore()
+    graph = _discovery_graph("unused")
+    _turn(graph, sessions, '/discover "where joy is", laughter', ui_selection=AgentContext(sign="the-tower"))
+    assert sessions.get_or_create("s1").pending_discovery is not None
+
+    plain = compile_graph(ScriptedLLM([AIMessage(content="Hello there.")]), _TOOLS)
+    _turn(plain, sessions, "hello", ui_selection=AgentContext(sign="the-magician"))
+
+    assert sessions.get_or_create("s1").pending_discovery is None

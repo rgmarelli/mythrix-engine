@@ -137,6 +137,6 @@ def settings() -> Settings:
 @pytest.fixture
 def tools_by_name():
     def _build(stores: Stores, settings: Settings, chat_client) -> dict:  # noqa: ANN001
-        return {t.name: t for t in build_tools(stores, settings, chat_client)}
+        return {t.name: t for t in build_tools(stores, settings, chat_client).all}
 
     return _build

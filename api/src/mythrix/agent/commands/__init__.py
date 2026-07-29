@@ -1,16 +1,17 @@
 """Package exposing deterministic agent slash-commands (`/query`,
-`/query-confirm`, `/summarize`). Pure parsing/detection only — no LangGraph
-import anywhere under this package."""
+`/query-confirm`, `/summarize`, `/discover`, `/discover-confirm`). Pure
+parsing/detection only — no LangGraph import anywhere under this package."""
 
 from __future__ import annotations
 
-from mythrix.agent.commands import adhoc, summarize
+from mythrix.agent.commands import adhoc, discover, summarize
 
-__all__ = ["adhoc", "summarize", "resolve_command"]
+__all__ = ["adhoc", "discover", "summarize", "resolve_command"]
 
 _HANDLERS = (
     adhoc.command_of,
     summarize.command_of,
+    discover.command_of,
 )
 
 

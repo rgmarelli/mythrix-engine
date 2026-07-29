@@ -1,6 +1,12 @@
 """The operator system prompt (specs/interfaces/agent.md FR-AG-05, FR-AG-06,
 FR-AG-09), which defines the `[G#]`/`[S#]` marker vocabulary `citations.py`
-validates against, plus the one ad-hoc prompt a tool renders."""
+validates against, plus the ad-hoc prompts the generative tools render.
+
+Each renderable prompt belongs to exactly one tool. They deliberately do not
+share a template: a summary of a selected passage, a reading of a retrieved
+passage against a user's question, and a consolidation across readings differ
+in what they are allowed to use and what they must say when they have nothing
+to say (ADR-015)."""
 
 from __future__ import annotations
 
@@ -31,3 +37,99 @@ def render_passage_summary_prompt(text: str, concepts: tuple[str, ...]) -> str:
     path itself)."""
     concept_list = ", ".join(concepts)
     return f'Summarize the following passage, focusing on the concepts: {concept_list}.\n\nPassage:\n"{text}"'
+
+
+def old_render_passage_analysis_prompt(text: str, focus: str, concepts: tuple[str, ...]) -> str:
+    """One retrieved region read against the run's own analysis focus — the
+    `analyze_passage` tool (FR-DS-16).
+
+    Unlike `render_passage_summary_prompt`, this asks a question rather than
+    for a summary, and it names the grounding rule explicitly: the passage
+    alone, and say so plainly when the passage does not bear on the question.
+    A run consolidates these, so a reading that quietly invents relevance
+    would carry into the answer."""
+    concept_list = ", ".join(concepts)
+    return (
+        f"A corpus search for these terms retrieved the passage below: {concept_list}.\n\n"
+        f"Read the passage and answer this question about it: {focus}\n\n"
+        "Use only what the passage itself says. Do not draw on anything outside it. "
+        "If the passage does not bear on the question, say so plainly in one sentence "
+        "and stop — do not manufacture a connection.\n\n"
+        f'Passage:\n"{text}"'
+    )
+
+def render_passage_analysis_prompt(text: str, focus: str, concepts: tuple[str, ...]) -> str:
+    return (
+        f"Analyze the following passage for this analytical task: {focus}\n\n"
+        "Base your analysis exclusively on the passage itself. "
+        "Interpret the passage directly and make reasonable inferences "
+        "when they are supported by the text. "
+        "Do not introduce external facts or context.\n\n"
+        "If the passage provides relevant evidence for the requested analysis, "
+        "describe it. If the evidence is ambiguous, explain the ambiguity. "
+        "Only say that the passage is not relevant when it genuinely provides "
+        "no basis for the requested analysis.\n\n"
+        f'Passage:\n"{text}"'
+    )
+
+def old_render_discovery_consolidation_prompt(
+    focus: str, findings: tuple[tuple[str, str], ...], concepts: tuple[str, ...]
+) -> str:
+    """The single answer across every reading in a run — the
+    `consolidate_findings` tool (FR-DS-17, FR-DS-21).
+
+    Receives the readings under their region labels and nothing else: no
+    passage text reaches this call, so it cannot re-read the corpus and can
+    only report on what the per-region readings said. The `[R#]` labels are
+    the marker vocabulary for this prompt, and the only markers the report
+    carries (FR-DS-25)."""
+    concept_list = ", ".join(concepts)
+    rendered = "\n\n".join(f"{label}\n{finding}" for label, finding in findings)
+    count = f"{len(findings)} passage was" if len(findings) == 1 else f"{len(findings)} passages were"
+    return (
+        f"{count} retrieved from a corpus for these terms: {concept_list}. "
+        f"Each was read separately against this question: {focus}\n\n"
+        f"Here is one reading per passage, under its region label.\n\n{rendered}\n\n"
+        f"Now answer the question across all of them: {focus}\n\n"
+        "Name what recurs across the readings, and say where they diverge or fall silent. "
+        "Use only the readings above. "
+        "Cite the regions supporting each claim by their label in square brackets, "
+        "e.g. [R1] or [R1][R3]. Never cite a label that does not appear above."
+    )
+
+def render_discovery_consolidation_prompt(
+    focus: str, findings: tuple[tuple[str, str], ...], concepts: tuple[str, ...]
+) -> str:
+    rendered = "\n\n".join(
+        f"{label}\n{finding}" for label, finding in findings
+    )
+
+    return (
+        "The user requested the following analysis:\n\n"
+        f"{focus}\n\n"
+        "The passages were analyzed independently. "
+        "Below are the resulting analyses, each identified by its region label.\n\n"
+        f"{rendered}\n\n"
+        "Synthesize these analyses to answer the requested analytical task. "
+        "Do not replace the requested analysis with a relevance check, "
+        "keyword comparison, or search summary. "
+        "Do not assume that the retrieval terms are the subject of the analysis. "
+        "Report the patterns, differences, and relevant evidence that emerge "
+        "from the individual analyses. "
+        "If the passages genuinely provide little or no evidence for the task, "
+        "say so, but do not infer irrelevance merely because the requested "
+        "analysis is not explicitly mentioned in the passages.\n\n"
+        "Use only the analyses above. "
+        "Cite the regions supporting each claim by their label in square brackets, "
+        "e.g. [R1] or [R1][R3]. "
+        "Never cite a label that does not appear above."
+    )
+
+"""
+
+/discover "Analyze the emotional tone, affective states, and attitudes expressed or implied by the passage. Identify positive, negative, mixed, or ambiguous emotional content and explain the textual evidence supporting the interpretation.", laughter, child, hundred:filter
+
+/discover "Analyze the emotional tone and affective states", laughter, child, hundred:filter
+
+
+"""

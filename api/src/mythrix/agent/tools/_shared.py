@@ -2,12 +2,27 @@
 
 from __future__ import annotations
 
+from mythrix.core.chat import ChatClient
 from mythrix.core.errors import MythrixError
 from mythrix.core.models import GraphFacts, RegionQueryResult, Tradition
 
 
 def _error(exc: MythrixError) -> dict:
     return {"error": str(exc)}
+
+
+def _generated(chat_client: ChatClient, prompt: str, key: str) -> dict:
+    """One generation call rendered as a tool result: the model's text under
+    `key`, or the `{"error": ...}` mapping every tool shares (FR-AG-11).
+
+    The single place a tool invokes the narrow `ChatClient`. Each generative
+    tool differs only in the prompt it renders and the key it returns under —
+    sharing the prompt too would couple commands whose instructions genuinely
+    differ."""
+    try:
+        return {key: chat_client.invoke(prompt)}
+    except MythrixError as exc:
+        return _error(exc)
 
 
 def _resolve_sign(signs, sign: str):  # noqa: ANN001, ANN201 - SignSummary | None; avoids importing it just for this
@@ -73,10 +88,16 @@ def _render_graph_facts(facts: GraphFacts) -> dict:
     }
 
 
-def _render_regions(result: RegionQueryResult) -> dict:
+def _render_regions(result: RegionQueryResult, *, include_segments: bool = True) -> dict:
     """Compact rendering of a region query result — mirrors the shape
     `GET /api/query` returns, trimmed to what the agent needs to relay:
-    ranked regions with their matches, verbatim segments, and citations."""
+    ranked regions with their matches, verbatim segments, and citations.
+
+    `include_segments=False` drops the passage text, leaving region identity,
+    locator and score. For a caller that re-reads each region's *full
+    contiguous* range by structural coordinate, the embedded segments are the
+    wrong text anyway — a region carries only its match-carrying ordinals
+    (FR-DS-29)."""
     return {
         "regions": [
             {
@@ -95,10 +116,16 @@ def _render_regions(result: RegionQueryResult) -> dict:
                     }
                     for match in region.matches
                 ],
-                "segments": [
-                    {"ordinal": seg.ordinal, "locator": seg.locator, "section": seg.section, "text": seg.text}
-                    for seg in region.segments
-                ],
+                **(
+                    {
+                        "segments": [
+                            {"ordinal": seg.ordinal, "locator": seg.locator, "section": seg.section, "text": seg.text}
+                            for seg in region.segments
+                        ]
+                    }
+                    if include_segments
+                    else {}
+                ),
             }
             for region in result.regions
         ]
