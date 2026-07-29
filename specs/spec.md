@@ -35,14 +35,20 @@ Subsystem-specific non-goals (e.g. no BM25 ranking, no cross-tradition compariso
 
 ## 5. System Overview
 
+The sections below describe how the architecture realizes the objectives in
+§2–§3: retrieval and ranking are code, never model output, so every result
+traces to a cited primary source; the one exception — text generation — is
+confined to the agent layer (chat, region augmentation) and is itself bounded
+and citation-validated rather than free-running.
+
 ### 5.1 Architecture at a Glance
 
 ```
 ┌──────────────┐     ┌──────────────────────────┐     ┌────────────────────┐
 │ CLI (loaders)│     │  Backend API (FastAPI)   │     │ Web viewer (React) │
 └──────┬───────┘     └────────────┬─────────────┘     └─────────┬──────────┘
-       │                          │                              │
-       └──────────────┬───────────┴──────────────────────────────┘
+       │                          │                             │
+       └────-──────────┬──────────┴─────────────────────────────┘
                        │
               ┌────────▼────────────┐
               │   Core library      │   deterministic retrieval & ranking —
@@ -50,18 +56,19 @@ Subsystem-specific non-goals (e.g. no BM25 ranking, no cross-tradition compariso
               │  chat, loaders)     │
               └────────┬────────────┘
                        │
-         ┌─────────────┼──────────────────┐
+         ┌─────────────┴──────────────────┐
          │                                │
    ┌─────▼───────┐              ┌─────────▼──────┐
    │ Kuzu graph  │              │ Chroma vector  │
    │(Sign Graph) │              │ store (corpus) │
    └─────────────┘              └────────────────┘
 
-              ┌────────────────────────────┐
-              │  Conversational agent      │  local Ollama model,
-              │  (tool-calling loop)       │  read-only tools only,
-              │  served by the backend API │  citation-validated
-              └────────────────────────────┘
+              ┌───────────────────────────────┐
+              │  Conversational agent         │  local Ollama daemon,
+              │  (tool-calling loop +         │  read-only tools only,
+              │  region augmentation)         │  citation-validated
+              │  served by the backend API    │
+              └───────────────────────────────┘
 ```
 
 - **Sign Graph** ([Kuzu](https://kuzudb.com)) — signs, traditions, tradition-scoped manifestations, interpretants, and typed, attributable cross-domain correspondences. No domain-specific field is baked into the schema — enforced by an automated check (§7).
@@ -69,6 +76,8 @@ Subsystem-specific non-goals (e.g. no BM25 ranking, no cross-tradition compariso
 - **Retrieval** — two matching channels (dense embedding similarity + exact-token containment), matched live per interpretant at query time — no precomputed match matrix.
 - **Ranking** — regions scored by summed, specificity-weighted match strength (a from-scratch lexical-IDF scheme, deliberately not BM25 — [ADR-002](architecture-decisions/adr-002-dense-plus-exact-token-no-bm25.md), [ADR-004](architecture-decisions/adr-004-absolute-floor-and-lexical-specificity-ranking.md)).
 - **Agent** — a bounded tool-calling loop over a fixed, read-only tool set; retrieval stays deterministic even when a model is in the orchestration loop ([ADR-006](architecture-decisions/adr-006-conversational-agent-orchestration-boundary.md)).
+- **Region augmentation** — a deterministic, code-driven fan-out over the regions a consumer is currently displaying, layered on the agent's chat panel rather than the query path: one generation call reads each region's own verbatim passage against a free-text focus, and the resulting per-region readings are reduced to one answer through **hierarchical map-reduce consolidation** — grouped into bounded batches, consolidated batch by batch, and re-grouped until one result remains — rather than one flat prompt whose synthesis quality degrades as the region count grows. Every citation marker (`[R#]`) is assigned once, at the first (leaf) consolidation level, and carried forward unchanged through every level above it, so the final answer's citations always resolve to a real displayed region regardless of how many consolidation levels produced the text ([ADR-015](architecture-decisions/adr-015-deterministic-augmentation-over-viewer-regions.md), [ADR-016](architecture-decisions/adr-016-hierarchical-map-reduce-augmentation-consolidation.md)).
+- **Models** — everything runs against a **local Ollama daemon**; no hosted/cloud model is ever called ([ADR-006](architecture-decisions/adr-006-conversational-agent-orchestration-boundary.md)). Two independent model roles exist: an **embedding model** (`nomic-embed-text` by default), used by both document ingestion and query-time matching so vectors stay comparable, and never involved in retrieval decisions themselves; and a **generation model**, used only by the agent layer (chat turns, region augmentation reads and consolidations) and never by the query path (FR-RT-10). The generation model has no hardcoded default — installed Ollama models vary by machine — so it is explicitly configured per deployment (`MYTHRIX_GENERATION_MODEL`, e.g. `llama3.2`) and a missing or unreachable model fails with an actionable error rather than silently guessing a fallback.
 
 ### 5.2 Core Concepts
 
@@ -154,7 +163,7 @@ A user message in the docked chat panel is sent with the tab's context object. T
 
 ### 8.5 Region Augmentation
 
-An `/augment` command carrying a free-text focus is parsed and held under a generated id, alongside a snapshot of the regions the viewer is displaying; the reply restates the focus, states how many regions a run will read, and names the command that runs it. The matching `/augment-confirm` runs the whole sequence server-side within the turn: for each supplied region in display order, up to a configured bound, a verbatim read of that region's full contiguous ordinal range by structural coordinate and one generation call reading it against the focus — each delivered to the consumer as it lands — then one final generation call consolidating the readings. The turn's reply is the consolidation, citing regions by `[R#]` ([augmentation.md](interfaces/augmentation.md)).
+An `/augment` command carrying a free-text focus is parsed and held under a generated id, alongside a snapshot of the regions the viewer is displaying; the reply restates the focus, states how many regions a run will read, and names the command that runs it. The matching `/augment-confirm` runs the whole sequence server-side within the turn: for each supplied region in display order, up to a configured bound, a verbatim read of that region's full contiguous ordinal range by structural coordinate and one generation call reading it against the focus — each delivered to the consumer as it lands — then hierarchical map-reduce consolidation of the resulting readings into one answer, grouped and re-grouped in bounded batches until a single result remains (exactly one consolidation call when the run is at or under the batch size). The turn's reply is the consolidation, citing regions by `[R#]` carried forward unchanged from whichever level first assigned them ([augmentation.md](interfaces/augmentation.md), [ADR-016](architecture-decisions/adr-016-hierarchical-map-reduce-augmentation-consolidation.md)).
 
 ### 8.6 Hotspot Context Expansion
 
@@ -183,10 +192,10 @@ The corpus document is not Waite's own text (see [corpus.md](retrieval/corpus.md
 | `FR-AG` | Conversational Agent | [interfaces/agent.md](interfaces/agent.md) | FR-AG-01–FR-AG-32 |
 | `FR-AQ` | Agnostic (Ad-hoc) Interpretant Query | [interfaces/agnostic-query.md](interfaces/agnostic-query.md) | FR-AQ-01–FR-AQ-22 |
 | `FR-CAP` | Agent Capabilities | [interfaces/agent-capabilities.md](interfaces/agent-capabilities.md) | FR-CAP-01–FR-CAP-16 |
-| `FR-AU` | Region Augmentation | [interfaces/augmentation.md](interfaces/augmentation.md) | FR-AU-01–FR-AU-38 |
+| `FR-AU` | Region Augmentation | [interfaces/augmentation.md](interfaces/augmentation.md) | FR-AU-01–FR-AU-41 |
 | `CON-SYS` | System-wide constraints | this document, §7 | CON-SYS-01 |
 
-185 active requirements in total.
+188 active requirements in total.
 
 `FR-RT-07`, `FR-RT-08`, and `FR-RT-09` were retired when region rollup became the sole query result shape ([ADR-013](architecture-decisions/adr-013-region-rollup-sole-query-shape.md)). Unlike the retirements below, they are marked in place in [retrieval.md](retrieval/retrieval.md) rather than removed: the surrounding identifiers stay live and renumbering them would invalidate references in accepted, immutable ADRs. The identifiers are not reused.
 

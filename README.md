@@ -416,11 +416,12 @@ Mythrix is currently built with:
 
 * **Python**
 * **LangGraph** for conversational agent orchestration
-* **Kùzu** for symbolic graph storage
+* **Kuzu** for symbolic graph storage
 * **Chroma** for corpus and vector retrieval
 * **FastAPI** for the application API
 * **CLI** for direct interaction
 * **Web UI** for interactive exploration
+* **Ollama**, running locally, for both the embedding model (retrieval) and the generation model (interpretation) — no hosted or cloud model is ever called
 
 The deterministic query engine is designed to remain usable independently of the conversational agent.
 
@@ -431,6 +432,7 @@ The deterministic query engine is designed to remain usable independently of the
 Mythrix is developed using specification-driven development, with system requirements and architectural decisions documented alongside the implementation.
 
 * [Setup Guide](docs/SETUP.md) — Run Mythrix locally and explore the system.
+* [Architecture](docs/architecture.md) — How the system is built: the retrieval pipeline, region augmentation, the agent, and the web viewer, with diagrams and links into the code.
 * [System Specification](specs/spec.md) — Goals, non-goals, requirements, architecture, constraints, and end-to-end flows.
 * [Architecture Decision Records](specs/architecture-decisions) — The reasoning behind key architectural decisions.
 
