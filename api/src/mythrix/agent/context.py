@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 
-from langchain_core.messages import AIMessage, ToolMessage
+from langchain_core.messages import ToolMessage
 from pydantic import BaseModel
 
 # Session-scoped fields (specs/interfaces/agent.md FR-AG-17's Context object) whose change
@@ -96,43 +96,32 @@ def backfill_from_tool_results(context: AgentContext, new_messages: list) -> Age
     (ADR-006). No involvement from the generation model in deciding what to
     backfill.
 
-    Mapping: `get_sign` (result carries no `needs_tradition`) backfills all
-    three fields straight from its own result payload (which already
-    includes `sign`/`tradition`/`semiotic_system`). `query_sign` backfills
-    `sign`/`tradition` from the *call's own arguments* (its result payload
-    carries region/segment data, not sign identity). `list_traditions`/
-    `list_signs`/`list_semiotic_systems` never backfill (discovery only).
-    `fetch_segments`/`summarize_passage` never backfill sign/tradition
-    (operate on coordinates/text, not sign identity)."""
+    Values come from a result payload's identity keys, which carry slugs —
+    never from the arguments the model supplied for the call, which carry
+    whatever wording the user happened to use (ADR-014). This is what makes a
+    field the agent resolved from chat and the same field set by the browser's
+    picker the same string for the same entity.
+
+    Mapping: `get_sign` (result carries no `needs_tradition`) and `query_sign`
+    both backfill from their own result payloads, which identify the entities
+    they resolved. `list_traditions`/`list_signs`/`list_semiotic_systems` never
+    backfill (discovery only). `fetch_segments`/`summarize_passage` never
+    backfill sign/tradition (operate on coordinates/text, not sign identity)."""
     updates: dict[str, str] = {}
-    pending_call_args: dict[str, dict] = {}
 
     for message in new_messages:
-        if isinstance(message, AIMessage) and message.tool_calls:
-            for call in message.tool_calls:
-                pending_call_args[call["id"]] = call
-            continue
-
         if not isinstance(message, ToolMessage):
+            continue
+        if message.name not in ("get_sign", "query_sign"):
             continue
 
         payload = _safe_json_loads(message.content)
-        call = pending_call_args.get(message.tool_call_id)
+        if not isinstance(payload, dict) or payload.get("needs_tradition"):
+            continue
 
-        if message.name == "get_sign":
-            if isinstance(payload, dict) and not payload.get("needs_tradition"):
-                if payload.get("sign"):
-                    updates["sign"] = payload["sign"]
-                if payload.get("tradition"):
-                    updates["tradition"] = payload["tradition"]
-                if payload.get("semiotic_system"):
-                    updates["semiotic_system"] = payload["semiotic_system"]
-        elif message.name == "query_sign" and call is not None:
-            args = call.get("args", {})
-            if args.get("sign"):
-                updates["sign"] = args["sign"]
-            if args.get("tradition"):
-                updates["tradition"] = args["tradition"]
+        for field_name in ("sign", "tradition", "semiotic_system"):
+            if payload.get(field_name):
+                updates[field_name] = payload[field_name]
 
     if not updates:
         return context

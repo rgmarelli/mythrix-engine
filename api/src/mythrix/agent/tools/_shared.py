@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from mythrix.core.errors import MythrixError
-from mythrix.core.models import GraphFacts, RegionQueryResult
+from mythrix.core.models import GraphFacts, RegionQueryResult, Tradition
 
 
 def _error(exc: MythrixError) -> dict:
@@ -23,25 +23,46 @@ def _resolve_sign(signs, sign: str):  # noqa: ANN001, ANN201 - SignSummary | Non
     )
 
 
+def _resolve_tradition(traditions: tuple[Tradition, ...], tradition: str) -> Tradition | None:
+    """Matches `tradition` against a tradition's slug or name,
+    case/whitespace-insensitive — the tradition counterpart to
+    `_resolve_sign`, and needed for the same reason: a request names its
+    tradition in the user's own words ("Tarot de Marseille") before any tool
+    has surfaced the slug ("marseille"), and the two are unrelated strings.
+    Resolving here keeps display names out of the store, which accepts slugs
+    only (ADR-014)."""
+    normalized = tradition.strip().casefold()
+    return next((t for t in traditions if t.slug.casefold() == normalized or t.name.casefold() == normalized), None)
+
+
 def _render_graph_facts(facts: GraphFacts) -> dict:
     """Compact rendering of one sign's graph facts — the `get_sign`
     counterpart to `_render_regions`, built from the same `GraphFacts`
-    `KuzuGraphStore.get_manifestation` already returns."""
+    `KuzuGraphStore.get_manifestation` already returns.
+
+    A key naming an entity carries that entity's slug; its `*_name` companion
+    carries the display name (ADR-014). `display_name` is not one of those
+    pairs — it is the manifestation's tradition-scoped name ("Le Bateleur"),
+    a different fact from the sign's own `sign_name` ("The Magician")."""
     sign, manifestation = facts.sign, facts.manifestation
     return {
-        "sign": sign.canonical_name,
+        "sign": sign.slug,
+        "sign_name": sign.canonical_name,
         "semiotic_system": sign.semiotic_system,
         "sign_type": sign.sign_type,
         "properties": [{"key": p.key, "value": p.value} for p in sign.properties],
-        "tradition": manifestation.tradition.name,
+        "tradition": manifestation.tradition.slug,
+        "tradition_name": manifestation.tradition.name,
         "display_name": manifestation.display_name,
         "denotation": manifestation.denotation,
         "interpretants": [{"type": i.type, "value": i.value} for i in manifestation.interpretants],
         "correspondences": [
             {
                 "relationship": ii.relationship,
-                "target_sign": ii.target_sign.canonical_name,
-                "according_to": ii.according_to.name,
+                "target_sign": ii.target_sign.slug,
+                "target_sign_name": ii.target_sign.canonical_name,
+                "according_to": ii.according_to.slug,
+                "according_to_name": ii.according_to.name,
                 "description": ii.description,
             }
             for ii in sign.intersemiotic_interpretants

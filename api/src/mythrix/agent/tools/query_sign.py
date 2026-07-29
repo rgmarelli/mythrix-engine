@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from langchain_core.tools import tool
 
-from mythrix.agent.tools._shared import _error, _render_regions, _resolve_sign
+from mythrix.agent.tools._shared import _error, _render_regions, _resolve_sign, _resolve_tradition
 from mythrix.core.bootstrap import Stores
 from mythrix.core.config import Settings
 from mythrix.core.errors import MythrixError
@@ -32,10 +32,13 @@ def build_query_sign_tool(stores: Stores, settings: Settings):
         summary = _resolve_sign(stores.graph_store.list_signs(), sign)
         if summary is None:
             return {"error": f"unknown sign {sign!r}"}
+        resolved = _resolve_tradition(stores.graph_store.list_traditions(), tradition)
+        if resolved is None:
+            return {"error": f"unknown tradition {tradition!r}"}
         try:
             result = query_regions(
                 sign=summary.slug,
-                tradition=tradition,
+                tradition=resolved.slug,
                 graph_store=stores.graph_store,
                 vector_store=stores.vector_store,
                 embedder=stores.embedder,
@@ -46,6 +49,12 @@ def build_query_sign_tool(stores: Stores, settings: Settings):
             )
         except MythrixError as exc:
             return _error(exc)
-        return _render_regions(result)
+        return {
+            "sign": summary.slug,
+            "sign_name": summary.canonical_name,
+            "tradition": resolved.slug,
+            "tradition_name": resolved.name,
+            **_render_regions(result),
+        }
 
     return query_sign

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from langchain_core.tools import tool
 
-from mythrix.agent.tools._shared import _error, _render_graph_facts, _resolve_sign
+from mythrix.agent.tools._shared import _error, _render_graph_facts, _resolve_sign, _resolve_tradition
 from mythrix.core.bootstrap import Stores
 from mythrix.core.errors import MythrixError
 
@@ -25,21 +25,31 @@ def build_get_sign_tool(stores: Stores):
         returns the choices under needs_tradition instead of facts — ask the
         user which one, and once they answer (even a bare tradition name),
         call get_sign again with the same sign and that tradition;
-        do not switch to query_sign for that follow-up."""
+        do not switch to query_sign for that follow-up.
+
+        In the result, `sign` and `tradition` identify the entities and
+        `sign_name`/`tradition_name` are how to refer to them in a reply."""
         summary = _resolve_sign(stores.graph_store.list_signs(), sign)
         if summary is None:
             return {"error": f"unknown sign {sign!r}"}
         if tradition is None:
             if len(summary.tradition_slugs) == 1:
-                tradition = summary.tradition_slugs[0]
+                tradition_slug = summary.tradition_slugs[0]
             else:
+                names = {t.slug: t.name for t in stores.graph_store.list_traditions()}
                 return {
                     "needs_tradition": True,
-                    "sign": summary.canonical_name,
-                    "traditions": list(summary.tradition_slugs),
+                    "sign": summary.slug,
+                    "sign_name": summary.canonical_name,
+                    "traditions": [{"slug": slug, "name": names.get(slug, slug)} for slug in summary.tradition_slugs],
                 }
+        else:
+            resolved = _resolve_tradition(stores.graph_store.list_traditions(), tradition)
+            if resolved is None:
+                return {"error": f"unknown tradition {tradition!r}"}
+            tradition_slug = resolved.slug
         try:
-            facts = stores.graph_store.get_manifestation(summary.slug, tradition)
+            facts = stores.graph_store.get_manifestation(summary.slug, tradition_slug)
         except MythrixError as exc:
             return _error(exc)
         return _render_graph_facts(facts)

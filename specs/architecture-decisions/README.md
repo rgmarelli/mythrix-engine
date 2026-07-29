@@ -26,6 +26,7 @@ changed decision is a new ADR that supersedes an earlier one, not an edit.
 | [ADR-011](adr-011-backend-declared-agent-capabilities.md) | One backend-served capabilities document declares the command vocabulary and how each instruction type is executed (method, path, body mode, result kind); consumers implement result kinds, not instruction types | Accepted |
 | [ADR-012](adr-012-deterministic-command-nodes-bypass-tool-selection.md) | A command whose tool sequence is fully determined by context is handled by a dedicated graph node that calls tools directly, in code; the model is invoked only for a step that is genuinely generative | Accepted |
 | [ADR-013](adr-013-region-rollup-sole-query-shape.md) | Region rollup is the only aggregation the retrieval pipeline exposes; per-concept and concept-pair results are retired, superseding ADR-007's geometric-mean pair scoring | Accepted |
+| [ADR-014](adr-014-slug-as-agent-entity-identity.md) | The slug is the only entity identity across the agent boundary — context fields and tool-result identity keys carry slugs, display names travel in separate display keys, and every entity-valued tool argument resolves either form to a slug | Accepted |
 
 Primary sources for these records: `specs/retrieval/corpus.md`, `specs/retrieval/retrieval.md`,
 and `specs/retrieval/ranking.md` (the factual requirements these decisions produced,
