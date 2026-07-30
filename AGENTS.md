@@ -71,6 +71,7 @@ Rules:
 
 ## Git
 
+- Follow the Conventional Commits specification (e.g. `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`).
 - Keep commit messages concise.
 - The first line should summarize the primary change.
 - Commit bodies should explain intent and major impacts, not enumerate every modified file or implementation detail.
