@@ -12,7 +12,7 @@ sign:
     - type: numeric_value
       value: '9'
       query:
-        directive: exact
+        directive: filter
         as_token: nine
     - type: meaning
       value: Inclination

@@ -12,7 +12,7 @@ sign:
     - type: numeric_value
       value: '5'
       query:
-        directive: exact
+        directive: filter
         as_token: five
     - type: meaning
       value: To sow
