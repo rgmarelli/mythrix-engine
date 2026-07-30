@@ -289,6 +289,183 @@ describe('runQuery', () => {
   });
 });
 
+describe('extended context persistence (specs/tmp/hotspot-context-expansion-agent)', () => {
+  function makeExtension(overrides: Partial<{ regionId: string; locator: string }> = {}) {
+    return {
+      regionId: 'r-a-extended',
+      locator: 'Ecclesiasticus 43:1-2',
+      segments: [{ ordinal: 1, locator: '43:1', text: 'a', section: '' }],
+      leadingBounded: false,
+      trailingBounded: false,
+      ...overrides,
+    };
+  }
+
+  it('restores activeExtendedRegion after navigating to a different hotspot and back', async () => {
+    const hotspotA = makeHotspot({ regionId: 'r-a' });
+    const hotspotB = makeHotspot({ regionId: 'r-b' });
+    vi.mocked(fetchQuery).mockResolvedValueOnce({
+      facets: { sources: [], interpretants: [] },
+      hotspots: [hotspotA, hotspotB],
+    });
+
+    const { result } = renderHook(() => useTabs());
+    act(() => {
+      result.current.setSign('the-sun');
+      result.current.setTradition('rider-waite');
+    });
+    await act(async () => {
+      await result.current.runQuery();
+    });
+    expect(result.current.activeTab.selectedRegionId).toBe('r-a');
+    expect(result.current.activeExtendedRegion).toBeNull();
+
+    const extension = makeExtension();
+    act(() => {
+      result.current.setExtendedRegion('r-a', extension);
+    });
+    expect(result.current.activeExtendedRegion).toEqual(extension);
+
+    act(() => {
+      result.current.setRegionId('r-b');
+    });
+    expect(result.current.activeTab.selectedRegionId).toBe('r-b');
+    expect(result.current.activeExtendedRegion).toBeNull();
+
+    act(() => {
+      result.current.setRegionId('r-a');
+    });
+    expect(result.current.activeTab.selectedRegionId).toBe('r-a');
+    expect(result.current.activeExtendedRegion).toEqual(extension);
+  });
+
+  it('regression: widening a second hotspot must not clobber the first hotspot\'s own remembered extension', async () => {
+    const hotspotA = makeHotspot({ regionId: 'r-a' });
+    const hotspotB = makeHotspot({ regionId: 'r-b' });
+    vi.mocked(fetchQuery).mockResolvedValueOnce({
+      facets: { sources: [], interpretants: [] },
+      hotspots: [hotspotA, hotspotB],
+    });
+
+    const { result } = renderHook(() => useTabs());
+    act(() => {
+      result.current.setSign('the-sun');
+      result.current.setTradition('rider-waite');
+    });
+    await act(async () => {
+      await result.current.runQuery();
+    });
+
+    const extensionA = makeExtension({ regionId: 'r-a-extended' });
+    act(() => {
+      result.current.setExtendedRegion('r-a', extensionA);
+    });
+
+    act(() => {
+      result.current.setRegionId('r-b');
+    });
+    expect(result.current.activeExtendedRegion).toBeNull();
+
+    const extensionB = makeExtension({ regionId: 'r-b-extended', locator: 'Ecclesiasticus 44:1' });
+    act(() => {
+      result.current.setExtendedRegion('r-b', extensionB);
+    });
+    expect(result.current.activeExtendedRegion).toEqual(extensionB);
+
+    act(() => {
+      result.current.setRegionId('r-a');
+    });
+    expect(result.current.activeExtendedRegion).toEqual(extensionA);
+
+    act(() => {
+      result.current.setRegionId('r-b');
+    });
+    expect(result.current.activeExtendedRegion).toEqual(extensionB);
+  });
+
+  it('a new query clears every hotspot\'s remembered extension', async () => {
+    const hotspotA = makeHotspot({ regionId: 'r-a' });
+    vi.mocked(fetchQuery).mockResolvedValueOnce({ facets: { sources: [], interpretants: [] }, hotspots: [hotspotA] });
+
+    const { result } = renderHook(() => useTabs());
+    act(() => {
+      result.current.setSign('the-sun');
+      result.current.setTradition('rider-waite');
+    });
+    await act(async () => {
+      await result.current.runQuery();
+    });
+    act(() => {
+      result.current.setExtendedRegion('r-a', makeExtension());
+    });
+    expect(result.current.activeExtendedRegion).not.toBeNull();
+
+    vi.mocked(fetchQuery).mockResolvedValueOnce({ facets: { sources: [], interpretants: [] }, hotspots: [hotspotA] });
+    await act(async () => {
+      await result.current.runQuery();
+    });
+
+    expect(result.current.activeExtendedRegion).toBeNull();
+  });
+
+  it('regression: a thread reset from chatting must not clear other hotspots\' remembered extensions', async () => {
+    const hotspotA = makeHotspot({ regionId: 'r-a' });
+    const hotspotB = makeHotspot({ regionId: 'r-b' });
+    vi.mocked(fetchQuery).mockResolvedValueOnce({
+      facets: { sources: [], interpretants: [] },
+      hotspots: [hotspotA, hotspotB],
+    });
+
+    const { result } = renderHook(() => useTabs());
+    act(() => {
+      result.current.setSign('the-sun');
+      result.current.setTradition('rider-waite');
+    });
+    await act(async () => {
+      await result.current.runQuery();
+    });
+
+    const extensionA = makeExtension({ regionId: 'r-a-extended' });
+    act(() => {
+      result.current.setExtendedRegion('r-a', extensionA);
+    });
+
+    act(() => {
+      result.current.setRegionId('r-b');
+    });
+
+    // Chatting about hotspot B triggers a thread reset (FR-AG-16: region_id
+    // changed since the prior stored context) — an ordinary, expected part
+    // of switching hotspots and continuing to chat, unrelated to hotspot
+    // A's remembered context.
+    vi.mocked(streamAgentTurn).mockResolvedValueOnce({
+      context: {
+        semioticSystem: null,
+        sign: null,
+        tradition: null,
+        sourceId: null,
+        interpretant: null,
+        minScore: null,
+        regionId: 'r-b',
+        locator: null,
+        extendedRegionId: null,
+        extendedLocator: null,
+      },
+      replyText: 'Noted.',
+      instructions: [],
+      threadReset: true,
+    });
+    await act(async () => {
+      await result.current.sendAgentMessage('tell me about this one');
+    });
+
+    act(() => {
+      result.current.setRegionId('r-a');
+    });
+    expect(result.current.activeExtendedRegion).toEqual(extensionA);
+  });
+});
+
 describe('sendAgentMessage', () => {
   it('appends a user item then an AI reply on success', async () => {
     vi.mocked(streamAgentTurn).mockResolvedValueOnce({
@@ -301,6 +478,8 @@ describe('sendAgentMessage', () => {
         minScore: null,
         regionId: null,
         locator: null,
+        extendedRegionId: null,
+        extendedLocator: null,
       },
       replyText: 'The sun signifies vitality.',
       instructions: [],
@@ -350,6 +529,8 @@ describe('sendAgentMessage', () => {
         minScore: null,
         regionId: null,
         locator: null,
+        extendedRegionId: null,
+        extendedLocator: null,
       },
       replyText: 'Starting fresh.',
       instructions: [],
@@ -399,6 +580,8 @@ describe('sendAgentMessage', () => {
           minScore: null,
           regionId: null,
           locator: null,
+          extendedRegionId: null,
+          extendedLocator: null,
         },
         replyText: 'ok',
         instructions: [],
@@ -421,6 +604,8 @@ describe('clearAgentThread', () => {
         minScore: null,
         regionId: null,
         locator: null,
+        extendedRegionId: null,
+        extendedLocator: null,
       },
       replyText: 'hi',
       instructions: [],
@@ -459,6 +644,8 @@ describe('agent instructions', () => {
     minScore: null,
     regionId: null,
     locator: null,
+    extendedRegionId: null,
+    extendedLocator: null,
   };
 
   function turnWith(instructions: AgentInstruction[]) {
@@ -585,6 +772,8 @@ describe('augmentations', () => {
     minScore: null,
     regionId: null,
     locator: null,
+    extendedRegionId: null,
+    extendedLocator: null,
   };
 
   function augmentRegion(regionId: string, label: string, text: string): AgentInstruction {

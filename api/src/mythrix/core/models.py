@@ -364,3 +364,22 @@ class RegionQueryResult(MythrixModel):
 
     facets: Facets
     regions: tuple[Region, ...] = ()
+
+
+class ExtendedRegion(MythrixModel):
+    """A region's window after the web viewer's Add Context action has grown
+    it past its original, match-derived span (`hotspot-context-expansion`) —
+    what `GET /api/regions/extend-context` returns. Unlike `Region`, this is not a
+    ranked retrieval hit: it carries no `score`/`convergence_count`/`matches`,
+    just a wider verbatim read around the same source.
+
+    `leading_bounded`/`trailing_bounded` report whether the leading/trailing
+    edge has already reached the source's own first/last segment or a
+    declared section boundary, so a caller knows growing that edge further
+    would be a no-op."""
+
+    region_id: str
+    locator: str
+    segments: tuple[Segment, ...]
+    leading_bounded: bool
+    trailing_bounded: bool

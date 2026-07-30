@@ -27,8 +27,8 @@ from mythrix.core.bootstrap import Stores
 from mythrix.core.config import Settings
 from mythrix.core.errors import MythrixError
 from mythrix.core.loaders.sign_loader import load_directory, summarize_plan
-from mythrix.core.models import AdhocTerm, RegionQueryResult, Segment, SignSummary, Tradition
-from mythrix.core.query_service import execute_adhoc_query, fetch_source_segments, query_regions
+from mythrix.core.models import AdhocTerm, ExtendedRegion, RegionQueryResult, Segment, SignSummary, Tradition
+from mythrix.core.query_service import execute_adhoc_query, extend_context, fetch_source_segments, query_regions
 
 logger = logging.getLogger(__name__)
 
@@ -179,6 +179,38 @@ def source_segments(
             graph_store=stores.graph_store,
             vector_store=stores.vector_store,
         )
+    )
+
+
+@router.get("/regions/extend-context", response_model=ExtendedRegion)
+def regions_extend_context(
+    source_id: str,
+    start_ordinal: int,
+    end_ordinal: int,
+    loaded_count: int,
+    stores: Stores = Depends(get_stores),
+) -> ExtendedRegion:
+    """One Add Context activation over `[start_ordinal, end_ordinal]` — the
+    server-side boundary logic behind the web UI's Add Context action
+    (`specs/retrieval/context-expansion.md`, `specs/tmp/hotspot-context-expansion-agent`).
+    Fills an internal gap first when one exists (`loaded_count`, the number
+    of segments the caller currently holds in this range, is fewer than the
+    range's full span) and only that; otherwise extends the window by one
+    segment past each edge that can still extend. Same coordinate-read
+    primitive as `/api/segments`, plus the recomputed `region_id`/`locator`
+    and per-edge bounded flags a caller needs to keep growing the window
+    across repeated calls.
+
+    An unknown `source_id`, or a range that resolves to no segments at all,
+    is handled by the registered `MythrixError` exception handler (404).
+    """
+    return extend_context(
+        source_id=source_id,
+        start_ordinal=start_ordinal,
+        end_ordinal=end_ordinal,
+        loaded_count=loaded_count,
+        graph_store=stores.graph_store,
+        vector_store=stores.vector_store,
     )
 
 

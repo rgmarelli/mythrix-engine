@@ -231,7 +231,12 @@ def stream_chat_turn(
                 max_tool_iterations=max_tool_iterations,
                 context_summary=full_context_summary,
                 pending=session.pending,
-                region_id=context.region_id,
+                # `/summarize` (agent/graph/nodes/summary.py) reads only this
+                # one value to decide what passage to fetch — preferring the
+                # user's widened context, when present, over the hotspot's
+                # own narrower span is the entire fix for that command
+                # (specs/tmp/hotspot-context-expansion-agent).
+                region_id=context.extended_region_id or context.region_id,
                 interpretant=context.interpretant,
                 visible_regions=visible_regions or [],
             ):

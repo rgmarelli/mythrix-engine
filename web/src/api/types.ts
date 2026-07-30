@@ -120,6 +120,39 @@ export interface HotspotQueryResult {
   hotspots: Hotspot[];
 }
 
+// --- Hotspot context expansion (specs/tmp/hotspot-context-expansion-agent) ---
+// Wire/view-model pair for `GET /api/regions/extend` — the server-side
+// boundary logic behind the detail panel's Add Context action. Unlike
+// `Region`/`Hotspot`, this is not a ranked retrieval hit: no score,
+// convergence count, or matches, just a wider verbatim read plus whether
+// each edge has already reached its bound.
+
+export interface ExtendedRegionWire {
+  region_id: string;
+  locator: string;
+  segments: RegionSegment[];
+  leading_bounded: boolean;
+  trailing_bounded: boolean;
+}
+
+export interface ExtendedRegion {
+  regionId: string;
+  locator: string;
+  segments: HotspotSegment[];
+  leadingBounded: boolean;
+  trailingBounded: boolean;
+}
+
+// A widened hotspot context, as lifted up to tab-level state so it survives
+// navigating away and back to that hotspot (specs/tmp/hotspot-context-expansion-agent).
+// `null` clears it (nothing grew past the hotspot's own original span, or the
+// user explicitly cleared it via "Clear Context"). Carries the full displayed
+// state, not just the coordinate/locator sent to the agent, so returning to a
+// hotspot restores exactly what was on screen rather than only its original
+// segments. Identical in shape to `ExtendedRegion` — a distinct alias only so
+// call sites read as "the currently active one for this hotspot, or none".
+export type ExtendedRegionRef = ExtendedRegion | null;
+
 // --- Agent chat (specs/interfaces/agent.md FR-AG-14–FR-AG-22) ---
 // Wire shapes mirror `api/routes.py`'s `AgentContext`/`AgentTurnRequest`/
 // `AgentTurnResponse` — snake_case, as
@@ -135,6 +168,13 @@ export interface AgentContextWire {
   min_score: number | null;
   region_id: string | null;
   locator: string | null;
+  // The active hotspot's widened structural coordinate/citation, once Add
+  // Context has grown it (specs/tmp/hotspot-context-expansion-agent) — null
+  // whenever the user hasn't widened the active hotspot's context. Additive
+  // to `region_id`/`locator`, never a replacement: those remain the
+  // hotspot's own identity.
+  extended_region_id: string | null;
+  extended_locator: string | null;
 }
 
 export interface AgentTurnRequestWire {
@@ -259,6 +299,8 @@ export interface AgentContext {
   minScore: number | null;
   regionId: string | null;
   locator: string | null;
+  extendedRegionId: string | null;
+  extendedLocator: string | null;
 }
 
 export type AgentInstruction = AgentInstructionWire;

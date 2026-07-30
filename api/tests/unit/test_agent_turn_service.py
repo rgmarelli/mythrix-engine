@@ -326,6 +326,26 @@ def test_summarize_command_with_active_hotspot_fetches_and_summarizes_determinis
     assert [m.content for m in human_messages] == ["/summarize"]
 
 
+def test_summarize_command_prefers_the_extended_region_over_the_base_hotspot() -> None:
+    """specs/tmp/hotspot-context-expansion-agent FR-HCE-05: once the user has
+    widened the active hotspot's context, `/summarize` scopes to the widened
+    span, not the narrower original hotspot."""
+    sessions = SessionStore()
+
+    response = run_chat_turn(
+        graph=_graph([]),
+        sessions=sessions,
+        session_id="s1",
+        message="/summarize",
+        ui_selection=AgentContext(
+            region_id="waite::0-1", locator="The Fool", extended_region_id="waite::0-3", extended_locator="The Fool"
+        ),
+        max_tool_iterations=8,
+    )
+
+    assert response.reply_text == "Summary of: text 0\n\ntext 1\n\ntext 2\n\ntext 3 ()"
+
+
 def test_summarize_command_with_no_hotspot_asks_the_user_to_select_one_without_calling_the_model() -> None:
     class ExplodingLLM:
         def invoke(self, messages: list) -> AIMessage:

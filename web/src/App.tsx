@@ -62,6 +62,7 @@ function App() {
     setInterpretantSearch,
     setHotspotSearch,
     setRegionId,
+    setExtendedRegion,
     navigateToRegion,
     runQuery,
     rankedHotspots,
@@ -69,6 +70,7 @@ function App() {
     interpretantFacetOptions,
     selectedHotspot,
     selectedIndex,
+    activeExtendedRegion,
     augmentations,
     sendAgentMessage,
     clearAgentThread,
@@ -155,6 +157,8 @@ function App() {
         }}
         onBack={() => setReaderOpen(false)}
         open={readerOpen}
+        initialExtendedRegion={activeExtendedRegion}
+        onContextExtended={(region) => selectedHotspot && setExtendedRegion(selectedHotspot.regionId, region)}
       />
     </div>
 

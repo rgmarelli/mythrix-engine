@@ -40,6 +40,20 @@ class SourceNotFoundError(MythrixError):
         super().__init__(f"No source found with id {source_id!r}. Load it via the structured-data loader first.")
 
 
+class RegionNotFoundError(MythrixError):
+    """Raised when an ordinal range within a known source resolves to no
+    segments at all — e.g. a hotspot's coordinates have gone stale under a
+    source that was since re-ingested with fewer segments."""
+
+    def __init__(self, source_id: str, start_ordinal: int, end_ordinal: int) -> None:
+        self.source_id = source_id
+        self.start_ordinal = start_ordinal
+        self.end_ordinal = end_ordinal
+        super().__init__(
+            f"No segments found for source {source_id!r} in ordinal range [{start_ordinal}, {end_ordinal}]."
+        )
+
+
 class ManifestationNotFoundError(MythrixError):
     """Raised when both the sign and tradition exist, but the sign has no
     manifestation recorded within that specific tradition."""

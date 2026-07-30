@@ -11,10 +11,11 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from mythrix.core.embedding import Embedder
-from mythrix.core.errors import AdhocQueryValidationError
+from mythrix.core.errors import AdhocQueryValidationError, RegionNotFoundError
 from mythrix.core.graph.store import KuzuGraphStore
 from mythrix.core.models import (
     AdhocTerm,
+    ExtendedRegion,
     GraphFacts,
     Interpretant,
     Manifestation,
@@ -24,7 +25,7 @@ from mythrix.core.models import (
     Sign,
     Tradition,
 )
-from mythrix.core.retrieval.pipeline import RetrievalPipeline
+from mythrix.core.retrieval.pipeline import RetrievalPipeline, region_id_of, region_locator
 from mythrix.core.vector.store import ChromaVectorStore
 
 _ADHOC_TRADITION = Tradition(id="adhoc", slug="adhoc", name="Ad-hoc", domain="adhoc")
@@ -133,4 +134,86 @@ def fetch_source_segments(
     return tuple(
         Segment(ordinal=chunk.ordinal, locator=chunk.locator, text=chunk.text, section=chunk.section)
         for chunk in chunks
+    )
+
+
+def _to_segments(chunks: list) -> tuple[Segment, ...]:  # noqa: ANN001 - list[Chunk], not worth importing just for this
+    return tuple(
+        Segment(ordinal=chunk.ordinal, locator=chunk.locator, text=chunk.text, section=chunk.section)
+        for chunk in chunks
+    )
+
+
+def extend_context(
+    *,
+    source_id: str,
+    start_ordinal: int,
+    end_ordinal: int,
+    loaded_count: int,
+    graph_store: KuzuGraphStore,
+    vector_store: ChromaVectorStore,
+) -> ExtendedRegion:
+    """One Add Context activation's worth of growth over `[start_ordinal,
+    end_ordinal]` — the server-side boundary logic behind the web viewer's
+    Add Context action (`hotspot-context-expansion`).
+
+    An activation first fills any internal gap (`hotspot-context-expansion`'s
+    **internal gap**: `loaded_count` — how many segments the caller currently
+    has in this range — is fewer than the range's full span), and *only*
+    that, same as the client-side behavior this replaces: a hotspot's own
+    segments can be sparse (match-carrying ordinals only), and filling the
+    gap is one activation on its own, with edge growth deferred to the next
+    one. `leading_bounded`/`trailing_bounded` are reported `False` in this
+    case — edges are simply not yet probed, not actually known to be
+    extendable, which is exactly the state a fresh gap-fill leaves them in
+    client-side.
+
+    Once no gap remains, the activation instead extends the window by one
+    segment past each edge that can still extend. An edge stops extending
+    when the source has no next/previous segment there, or when the source
+    declares a `section` and the neighboring segment's `section` differs from
+    the current edge's — mirroring the rule the web viewer's detail panel
+    previously applied client-side.
+    """
+    graph_store.get_source(source_id)
+    window = vector_store.get_segments(source_id, start_ordinal=start_ordinal, end_ordinal=end_ordinal)
+    if not window:
+        raise RegionNotFoundError(source_id, start_ordinal, end_ordinal)
+
+    chunks = list(window)
+    expected_count = end_ordinal - start_ordinal + 1
+    if loaded_count < expected_count:
+        segments = _to_segments(chunks)
+        return ExtendedRegion(
+            region_id=region_id_of(source_id, segments[0].ordinal, segments[-1].ordinal),
+            locator=region_locator(segments),
+            segments=segments,
+            leading_bounded=False,
+            trailing_bounded=False,
+        )
+
+    leading_bounded = start_ordinal <= 0
+    if not leading_bounded:
+        probe = vector_store.get_segments(source_id, start_ordinal=start_ordinal - 1, end_ordinal=start_ordinal - 1)
+        edge_section = chunks[0].section
+        if probe and (edge_section == "" or probe[0].section == edge_section):
+            chunks.insert(0, probe[0])
+        else:
+            leading_bounded = True
+
+    trailing_probe = vector_store.get_segments(source_id, start_ordinal=end_ordinal + 1, end_ordinal=end_ordinal + 1)
+    edge_section = chunks[-1].section
+    if trailing_probe and (edge_section == "" or trailing_probe[0].section == edge_section):
+        chunks.append(trailing_probe[0])
+        trailing_bounded = False
+    else:
+        trailing_bounded = True
+
+    segments = _to_segments(chunks)
+    return ExtendedRegion(
+        region_id=region_id_of(source_id, segments[0].ordinal, segments[-1].ordinal),
+        locator=region_locator(segments),
+        segments=segments,
+        leading_bounded=leading_bounded,
+        trailing_bounded=trailing_bounded,
     )

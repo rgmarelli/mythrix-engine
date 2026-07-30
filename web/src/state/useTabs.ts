@@ -9,6 +9,8 @@ import type {
   AgentContext,
   AgentInstruction,
   Augmentation,
+  ExtendedRegion,
+  ExtendedRegionRef,
   Hotspot,
   HotspotQueryResult,
 } from '../api/types';
@@ -73,6 +75,14 @@ export interface Tab {
   // augmentation describes one focus over one result set, so showing it beside
   // a different one would misattribute it.
   augmentations: Record<string, Augmentation>;
+  // Widened contexts, keyed by the hotspot each was computed for
+  // (specs/tmp/hotspot-context-expansion-agent) — one entry per hotspot the
+  // user has widened this tab's context for, so extending hotspot B does not
+  // discard hotspot A's already-widened context (per user decision: option 1,
+  // keep + surface it + a "Clear Context" affordance, not silently reset it).
+  // Mirrors `augmentations` above exactly: a map keyed by region, scoped to
+  // this tab, reset whenever `queryResult` is replaced.
+  extendedRegions: Record<string, ExtendedRegion>;
 }
 
 let nextTabId = 0;
@@ -96,6 +106,7 @@ function makeTab(): Tab {
     agentItems: [],
     agentSending: false,
     augmentations: {},
+    extendedRegions: {},
   };
 }
 
@@ -168,6 +179,20 @@ export function useTabs(capabilities: AgentCapabilities | null = null) {
   const setHotspotSearch = (value: string) => updateActiveTab({ hotspotSearch: value });
   const setRegionId = (value: string | null) => updateActiveTab({ selectedRegionId: value });
 
+  // Records or clears the widened context for one specific hotspot
+  // (specs/tmp/hotspot-context-expansion-agent) — extending or clearing
+  // hotspot B never touches hotspot A's own entry.
+  function setExtendedRegion(regionId: string, region: ExtendedRegionRef) {
+    updateActiveTab((t) => {
+      if (region === null) {
+        if (!(regionId in t.extendedRegions)) return {};
+        const { [regionId]: _removed, ...rest } = t.extendedRegions;
+        return { extendedRegions: rest };
+      }
+      return { extendedRegions: { ...t.extendedRegions, [regionId]: region } };
+    });
+  }
+
   async function runQuery() {
     const tabId = activeTabId;
     const tab = tabs.find((t) => t.id === tabId);
@@ -179,6 +204,7 @@ export function useTabs(capabilities: AgentCapabilities | null = null) {
       selectedSourceId: null,
       selectedInterpretant: null,
       augmentations: {},
+      extendedRegions: {},
     });
 
     try {
@@ -279,6 +305,14 @@ export function useTabs(capabilities: AgentCapabilities | null = null) {
   const selectedHotspot = rankedHotspots.find((hotspot) => hotspot.regionId === activeTab.selectedRegionId) ?? null;
   const selectedIndex = selectedHotspot ? rankedHotspots.indexOf(selectedHotspot) : -1;
 
+  // The active hotspot's own widened context, if any — looked up by its own
+  // regionId (specs/tmp/hotspot-context-expansion-agent), the same lookup
+  // pattern `augmentations`/`selectedHotspot` already use. Independent of
+  // whichever *other* hotspot's context was most recently widened.
+  const activeExtendedRegion: ExtendedRegionRef = activeTab.selectedRegionId
+    ? (activeTab.extendedRegions[activeTab.selectedRegionId] ?? null)
+    : null;
+
   // Runs a turn's instructions against the tab the turn was sent from
   // (specs/interfaces/web-viewer.md FR-WEB-19), which is why `tabId` is passed
   // in rather than read from `activeTabId` — the user may have switched tabs
@@ -321,6 +355,7 @@ export function useTabs(capabilities: AgentCapabilities | null = null) {
         selectedTradition: '',
         minScore: null,
         augmentations: {},
+        extendedRegions: {},
       });
     }
   }
@@ -347,6 +382,11 @@ export function useTabs(capabilities: AgentCapabilities | null = null) {
       // structural region_id, so the agent's context summary can quote a
       // citation directly instead of only the source_id::ordinals coordinate.
       locator: selectedHotspot?.locator || null,
+      // The widened context Add Context has grown, if any (only meaningful
+      // when it still belongs to this tab's currently selected hotspot —
+      // see `activeExtendedRegion`'s derivation above).
+      extendedRegionId: activeExtendedRegion?.regionId ?? null,
+      extendedLocator: activeExtendedRegion?.locator ?? null,
     };
 
     const userItem: ThreadItem = { kind: 'user', id: itemId(), text: trimmed };
@@ -398,9 +438,19 @@ export function useTabs(capabilities: AgentCapabilities | null = null) {
       };
       updateTab(tabId, (t) => {
         if (result.threadReset) {
+          // A thread reset (FR-AG-16) fires on ordinary hotspot navigation —
+          // it is a conversational-history concept, unrelated to which
+          // hotspots have a remembered widened context. Clearing
+          // `extendedRegions` here would discard *every* hotspot's memory
+          // just for chatting after switching hotspots; only an explicit
+          // "Clear Context" (per hotspot) or a new query (all hotspots
+          // replaced) should do that.
           const hotspot = t.queryResult?.hotspots.find((h) => h.regionId === t.selectedRegionId) ?? null;
           const label = hotspot ? `now reading ${hotspotTitle(hotspot)}` : 'new thread';
-          return { agentItems: [{ kind: 'reset', id: itemId(), label }, userItem, aiItem], agentSending: false };
+          return {
+            agentItems: [{ kind: 'reset', id: itemId(), label }, userItem, aiItem],
+            agentSending: false,
+          };
         }
         return { agentItems: [...t.agentItems, aiItem], agentSending: false };
       });
@@ -441,6 +491,7 @@ export function useTabs(capabilities: AgentCapabilities | null = null) {
     setInterpretantSearch,
     setHotspotSearch,
     setRegionId,
+    setExtendedRegion,
     navigateToRegion,
     runQuery,
     rankedHotspots,
@@ -448,6 +499,7 @@ export function useTabs(capabilities: AgentCapabilities | null = null) {
     interpretantFacetOptions,
     selectedHotspot,
     selectedIndex,
+    activeExtendedRegion,
     augmentations: activeTab.augmentations,
     sendAgentMessage,
     clearAgentThread,

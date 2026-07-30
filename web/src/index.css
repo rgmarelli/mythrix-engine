@@ -859,7 +859,8 @@ button {
   margin-bottom: 1.2rem;
 }
 
-.add-context-button {
+.add-context-button,
+.clear-context-button {
   font: 0.83rem var(--f-body);
   font-weight: 600;
   padding: 0.45rem 1rem;
@@ -871,14 +872,22 @@ button {
   transition: background 0.15s ease, color 0.15s ease;
 }
 
-.add-context-button:hover:not(:disabled) {
+.add-context-button:hover:not(:disabled),
+.clear-context-button:hover:not(:disabled) {
   background: var(--violet);
   color: #fff;
 }
 
-.add-context-button:disabled {
+.add-context-button:disabled,
+.clear-context-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.context-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .copy-ref-btn {

@@ -144,6 +144,8 @@ describe('streamAgentTurn', () => {
     minScore: null,
     regionId: 'region-1',
     locator: 'Ecclesiasticus 43:1',
+    extendedRegionId: null,
+    extendedLocator: null,
   };
 
   const turnEvent: AgentTurnResponseWire = {
@@ -157,6 +159,8 @@ describe('streamAgentTurn', () => {
       min_score: null,
       region_id: 'region-1',
       locator: 'Ecclesiasticus 43:1',
+      extended_region_id: null,
+      extended_locator: null,
     },
     reply_text: 'hello',
     instructions: [],
@@ -183,6 +187,8 @@ describe('streamAgentTurn', () => {
         min_score: null,
         region_id: 'region-1',
         locator: 'Ecclesiasticus 43:1',
+        extended_region_id: null,
+        extended_locator: null,
       },
       visible_regions: ['src::1-2', 'src::5-6'],
     });

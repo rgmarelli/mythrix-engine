@@ -1,7 +1,16 @@
 // SPDX-FileCopyrightText: 2026 Guido Marelli
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import type { Hotspot, HotspotMatch, HotspotSegment, Region, SignSummary, Source, Tradition } from '../api/types';
+import type {
+  ExtendedRegion,
+  Hotspot,
+  HotspotMatch,
+  HotspotSegment,
+  Region,
+  SignSummary,
+  Source,
+  Tradition,
+} from '../api/types';
 
 export function makeSource(overrides: Partial<Source> = {}): Source {
   return {
@@ -63,6 +72,17 @@ export function makeRegion(overrides: Partial<Region> = {}): Region {
     convergence_count: 1,
     segments: [{ ordinal: 1, locator: '43:1', text: 'The pride of the height.', section: '43' }],
     matches: [{ interpretant: 'sun', kind: 'concept', score: 0.82, exact_value: false, segment_ordinal: 1 }],
+    ...overrides,
+  };
+}
+
+export function makeExtendedRegion(overrides: Partial<ExtendedRegion> = {}): ExtendedRegion {
+  return {
+    regionId: 'region-1-extended',
+    locator: 'Ecclesiasticus 43:1',
+    segments: [makeSegment()],
+    leadingBounded: false,
+    trailingBounded: false,
     ...overrides,
   };
 }

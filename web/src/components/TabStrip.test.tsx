@@ -26,6 +26,7 @@ function makeTab(overrides: Partial<Tab> = {}): Tab {
     agentSessionId: 'session-1',
     agentItems: [],
     agentSending: false,
+    extendedRegions: {},
     ...overrides,
   };
 }

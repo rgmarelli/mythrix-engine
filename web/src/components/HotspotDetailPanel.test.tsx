@@ -3,13 +3,15 @@
 
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
 import type { ComponentProps } from 'react';
 import { HotspotDetailPanel } from './HotspotDetailPanel';
-import { fetchSegments } from '../api/client';
-import { makeHotspot, makeSegment } from '../test/fixtures';
+import { extendContext } from '../api/client';
+import type { ExtendedRegionRef, Hotspot } from '../api/types';
+import { makeExtendedRegion, makeHotspot, makeSegment } from '../test/fixtures';
 
 vi.mock('../api/client', () => ({
-  fetchSegments: vi.fn(),
+  extendContext: vi.fn(),
 }));
 
 afterEach(() => {
@@ -109,77 +111,182 @@ describe('rendered hotspot', () => {
 });
 
 describe('Add Context', () => {
-  it('gap-fills first: when segments have a gap, requests the full min..max range', async () => {
-    const hotspot = makeHotspot({
-      segments: [makeSegment({ ordinal: 1 }), makeSegment({ ordinal: 4, text: 'later segment' })],
-      matches: [{ interpretant: 'sun', kind: 'concept', score: 0.8, exactValue: false, segmentOrdinal: 1 }],
-    });
-    vi.mocked(fetchSegments).mockResolvedValueOnce([
-      makeSegment({ ordinal: 2, text: 'gap 2' }),
-      makeSegment({ ordinal: 3, text: 'gap 3' }),
-    ]);
-    render(<HotspotDetailPanel {...baseProps({ hotspot })} />);
-    await userEvent.click(screen.getByText('+ Add Context'));
-    await waitFor(() => expect(fetchSegments).toHaveBeenCalledWith(hotspot.source.id, 1, 4));
-    expect(await screen.findByText('gap 2')).toBeInTheDocument();
-    expect(screen.getByText('gap 3')).toBeInTheDocument();
-  });
-
-  it('with no gap, probes one segment before the leading edge and one after the trailing edge', async () => {
+  it('calls extendContext with the current segment range and renders the grown window', async () => {
     const hotspot = makeHotspot({
       segments: [makeSegment({ ordinal: 5, section: '43', text: 'middle' })],
     });
-    vi.mocked(fetchSegments).mockImplementation((_sourceId, start, end) => {
-      if (start === 4 && end === 4) return Promise.resolve([makeSegment({ ordinal: 4, section: '43', text: 'before' })]);
-      if (start === 6 && end === 6) return Promise.resolve([makeSegment({ ordinal: 6, section: '43', text: 'after' })]);
-      return Promise.resolve([]);
-    });
+    vi.mocked(extendContext).mockResolvedValueOnce(
+      makeExtendedRegion({
+        segments: [
+          makeSegment({ ordinal: 4, section: '43', text: 'before' }),
+          makeSegment({ ordinal: 5, section: '43', text: 'middle' }),
+          makeSegment({ ordinal: 6, section: '43', text: 'after' }),
+        ],
+        leadingBounded: false,
+        trailingBounded: false,
+      }),
+    );
     render(<HotspotDetailPanel {...baseProps({ hotspot })} />);
     await userEvent.click(screen.getByText('+ Add Context'));
+    await waitFor(() => expect(extendContext).toHaveBeenCalledWith(hotspot.source.id, 5, 5, 1));
     expect(await screen.findByText('before')).toBeInTheDocument();
-    expect(await screen.findByText('after')).toBeInTheDocument();
+    expect(screen.getByText('after')).toBeInTheDocument();
   });
 
-  it('stops the leading edge at a chapter/section boundary', async () => {
+  it('passes the current segment count so the backend can fill a gap first instead of also growing edges', async () => {
+    // A hotspot's own `segments` can be sparse (match-carrying ordinals
+    // only) — here ordinals 1 and 4 with 2 and 3 missing. `loadedCount` (2)
+    // tells the backend there's a gap in [1, 4], so it fills only that,
+    // deferring edge growth to the next activation (FR-CE-02/03).
     const hotspot = makeHotspot({
-      segments: [makeSegment({ ordinal: 5, section: '43', text: 'middle' })],
+      segments: [makeSegment({ ordinal: 1, text: 'one' }), makeSegment({ ordinal: 4, text: 'four' })],
     });
-    vi.mocked(fetchSegments).mockImplementation((_sourceId, start, end) => {
-      if (start === 4 && end === 4) return Promise.resolve([makeSegment({ ordinal: 4, section: '42', text: 'other chapter' })]);
-      return Promise.resolve([]);
-    });
+    vi.mocked(extendContext).mockResolvedValueOnce(
+      makeExtendedRegion({
+        segments: [
+          makeSegment({ ordinal: 1, text: 'one' }),
+          makeSegment({ ordinal: 2, text: 'gap two' }),
+          makeSegment({ ordinal: 3, text: 'gap three' }),
+          makeSegment({ ordinal: 4, text: 'four' }),
+        ],
+        leadingBounded: false,
+        trailingBounded: false,
+      }),
+    );
     render(<HotspotDetailPanel {...baseProps({ hotspot })} />);
     await userEvent.click(screen.getByText('+ Add Context'));
-    await waitFor(() => expect(fetchSegments).toHaveBeenCalled());
-    expect(screen.queryByText('other chapter')).not.toBeInTheDocument();
+    await waitFor(() => expect(extendContext).toHaveBeenCalledWith(hotspot.source.id, 1, 4, 2));
+    expect(await screen.findByText('gap two')).toBeInTheDocument();
+    expect(screen.getByText('gap three')).toBeInTheDocument();
   });
 
-  it('stops an edge at the source start/end when the probe returns nothing', async () => {
+  it('reports the widened region to the parent when the window grew', async () => {
+    const hotspot = makeHotspot({ regionId: 'region-1', segments: [makeSegment({ ordinal: 5, text: 'middle' })] });
+    const onContextExtended = vi.fn();
+    vi.mocked(extendContext).mockResolvedValueOnce(
+      makeExtendedRegion({
+        regionId: 'region-1-extended',
+        locator: 'Ecclesiasticus 43:1-2',
+        segments: [
+          makeSegment({ ordinal: 4, text: 'before' }),
+          makeSegment({ ordinal: 5, text: 'middle' }),
+          makeSegment({ ordinal: 6, text: 'after' }),
+        ],
+      }),
+    );
+    render(<HotspotDetailPanel {...baseProps({ hotspot, onContextExtended })} />);
+    await userEvent.click(screen.getByText('+ Add Context'));
+    await waitFor(() =>
+      expect(onContextExtended).toHaveBeenCalledWith(
+        expect.objectContaining({
+          regionId: 'region-1-extended',
+          locator: 'Ecclesiasticus 43:1-2',
+        }),
+      ),
+    );
+    expect(screen.getByText('- Clear Context')).toBeInTheDocument();
+  });
+
+  it('regression: shows "Clear Context" even when a gap-fill-only response keeps the same region_id', async () => {
+    // The exact bug this test locks in: `region_id` encodes only the
+    // window's min/max ordinals, so a gap-fill (which adds segments inside
+    // the range without moving either end) never changes it. Detecting
+    // "did anything grow" by comparing `region_id` would wrongly treat this
+    // as a no-op — segment count against the hotspot's own original segments
+    // is the correct test.
+    const hotspot = makeHotspot({
+      regionId: 'region-1',
+      segments: [makeSegment({ ordinal: 1, text: 'one' }), makeSegment({ ordinal: 4, text: 'four' })],
+    });
+    const onContextExtended = vi.fn();
+    vi.mocked(extendContext).mockResolvedValueOnce(
+      makeExtendedRegion({
+        regionId: 'region-1', // unchanged — gap-fill never moves the min/max ordinal
+        segments: [
+          makeSegment({ ordinal: 1, text: 'one' }),
+          makeSegment({ ordinal: 2, text: 'gap two' }),
+          makeSegment({ ordinal: 3, text: 'gap three' }),
+          makeSegment({ ordinal: 4, text: 'four' }),
+        ],
+        leadingBounded: false,
+        trailingBounded: false,
+      }),
+    );
+    render(<HotspotDetailPanel {...baseProps({ hotspot, onContextExtended })} />);
+    await userEvent.click(screen.getByText('+ Add Context'));
+
+    expect(await screen.findByText('gap two')).toBeInTheDocument();
+    expect(screen.getByText('- Clear Context')).toBeInTheDocument();
+    await waitFor(() => expect(onContextExtended).toHaveBeenCalledWith(expect.objectContaining({ regionId: 'region-1' })));
+    expect(onContextExtended).not.toHaveBeenCalledWith(null);
+  });
+
+  it('reports no widened region when nothing grew (both edges already bounded)', async () => {
+    const hotspot = makeHotspot({ regionId: 'region-1', segments: [makeSegment({ ordinal: 5, text: 'middle' })] });
+    const onContextExtended = vi.fn();
+    vi.mocked(extendContext).mockResolvedValueOnce(
+      makeExtendedRegion({
+        regionId: 'region-1',
+        locator: hotspot.locator,
+        segments: hotspot.segments,
+        leadingBounded: true,
+        trailingBounded: true,
+      }),
+    );
+    render(<HotspotDetailPanel {...baseProps({ hotspot, onContextExtended })} />);
+    await userEvent.click(screen.getByText('+ Add Context'));
+    await waitFor(() => expect(onContextExtended).toHaveBeenCalledWith(null));
+  });
+
+  it('shows "Full context loaded" and disables the button once both edges are bounded', async () => {
     const hotspot = makeHotspot({
       segments: [makeSegment({ ordinal: 5, section: '43', text: 'middle' })],
     });
-    vi.mocked(fetchSegments).mockResolvedValue([]);
+    vi.mocked(extendContext).mockResolvedValueOnce(
+      makeExtendedRegion({ segments: hotspot.segments, leadingBounded: true, trailingBounded: true }),
+    );
     render(<HotspotDetailPanel {...baseProps({ hotspot })} />);
-    const button = screen.getByText('+ Add Context');
-    await userEvent.click(button);
-    await waitFor(() => expect(fetchSegments).toHaveBeenCalledTimes(2));
-    // Both edges now bounded with no gap -> button reflects fully loaded state
+    await userEvent.click(screen.getByText('+ Add Context'));
     await waitFor(() => expect(screen.getByText('Full context loaded')).toBeInTheDocument());
     expect(screen.getByText('Full context loaded').closest('button')).toBeDisabled();
   });
 
-  it('keeps extending across repeated activations for a source with no chapter grouping (e.g. numbered_section)', async () => {
-    // A numbered_section source (the Bahir) leaves `section` empty on every
-    // segment — there is no grouping above the segment itself. Regression
-    // guard: this must not be mistaken for a chapter boundary after one probe.
+  it('stays extendable when only one edge is still bounded', async () => {
+    const hotspot = makeHotspot({
+      segments: [makeSegment({ ordinal: 5, section: '43', text: 'middle' })],
+    });
+    vi.mocked(extendContext).mockResolvedValueOnce(
+      makeExtendedRegion({
+        segments: [
+          makeSegment({ ordinal: 5, section: '43', text: 'middle' }),
+          makeSegment({ ordinal: 6, section: '43', text: 'after' }),
+        ],
+        leadingBounded: true,
+        trailingBounded: false,
+      }),
+    );
+    render(<HotspotDetailPanel {...baseProps({ hotspot })} />);
+    await userEvent.click(screen.getByText('+ Add Context'));
+    expect(await screen.findByText('after')).toBeInTheDocument();
+    expect(screen.getByText('+ Add Context')).toBeInTheDocument();
+    expect(screen.queryByText('Full context loaded')).not.toBeInTheDocument();
+  });
+
+  it('keeps extending across repeated activations, each call scoped to the currently loaded range', async () => {
     const hotspot = makeHotspot({
       segments: [makeSegment({ ordinal: 50, section: '', text: 'middle' })],
     });
-    vi.mocked(fetchSegments).mockImplementation((_sourceId, start, end) => {
-      if (start === 49 && end === 49) return Promise.resolve([makeSegment({ ordinal: 49, section: '', text: 'before once' })]);
-      if (start === 51 && end === 51) return Promise.resolve([makeSegment({ ordinal: 51, section: '', text: 'after once' })]);
-      return Promise.resolve([]);
-    });
+    vi.mocked(extendContext).mockResolvedValueOnce(
+      makeExtendedRegion({
+        segments: [
+          makeSegment({ ordinal: 49, section: '', text: 'before once' }),
+          makeSegment({ ordinal: 50, section: '', text: 'middle' }),
+          makeSegment({ ordinal: 51, section: '', text: 'after once' }),
+        ],
+        leadingBounded: false,
+        trailingBounded: false,
+      }),
+    );
     render(<HotspotDetailPanel {...baseProps({ hotspot })} />);
     const button = screen.getByText('+ Add Context');
     await userEvent.click(button);
@@ -189,27 +296,207 @@ describe('Add Context', () => {
     expect(screen.getByText('+ Add Context')).toBeInTheDocument();
     expect(screen.queryByText('Full context loaded')).not.toBeInTheDocument();
 
-    // The next activation probes past what was just loaded (48/52) and finds
-    // nothing — only now should both edges report bounded.
-    vi.mocked(fetchSegments).mockImplementation((_sourceId, start, end) => {
-      if (start === 48 && end === 48) return Promise.resolve([]);
-      if (start === 52 && end === 52) return Promise.resolve([]);
-      return Promise.resolve([]);
-    });
+    vi.mocked(extendContext).mockResolvedValueOnce(
+      makeExtendedRegion({
+        segments: [
+          makeSegment({ ordinal: 49, section: '', text: 'before once' }),
+          makeSegment({ ordinal: 50, section: '', text: 'middle' }),
+          makeSegment({ ordinal: 51, section: '', text: 'after once' }),
+        ],
+        leadingBounded: true,
+        trailingBounded: true,
+      }),
+    );
     await userEvent.click(screen.getByText('+ Add Context'));
+    await waitFor(() => expect(extendContext).toHaveBeenLastCalledWith(hotspot.source.id, 49, 51, 3));
     await waitFor(() => expect(screen.getByText('Full context loaded')).toBeInTheDocument());
     expect(screen.getByText('Full context loaded').closest('button')).toBeDisabled();
+  });
+
+  it('restores a previously widened context on remount (navigated away and back to this hotspot)', () => {
+    const hotspot = makeHotspot({ regionId: 'region-1', segments: [makeSegment({ ordinal: 5, text: 'middle' })] });
+    const initialExtendedRegion = {
+      regionId: 'region-1-extended',
+      locator: 'Ecclesiasticus 43:1-2',
+      segments: [
+        makeSegment({ ordinal: 4, text: 'before' }),
+        makeSegment({ ordinal: 5, text: 'middle' }),
+        makeSegment({ ordinal: 6, text: 'after' }),
+      ],
+      leadingBounded: true,
+      trailingBounded: false,
+    };
+    render(<HotspotDetailPanel {...baseProps({ hotspot, initialExtendedRegion })} />);
+
+    expect(screen.getByText('before')).toBeInTheDocument();
+    expect(screen.getByText('after')).toBeInTheDocument();
+    expect(extendContext).not.toHaveBeenCalled();
+    // Still extendable on the trailing edge — reflects the restored bounded flags.
+    expect(screen.getByText('+ Add Context')).toBeInTheDocument();
+    expect(screen.getByText('- Clear Context')).toBeInTheDocument();
+  });
+
+  it('does not show "Clear Context" when there is no active extension', () => {
+    render(<HotspotDetailPanel {...baseProps()} />);
+    expect(screen.queryByText('- Clear Context')).not.toBeInTheDocument();
+  });
+
+  it('"Clear Context" resets to the hotspot\'s own segments and reports the clear to the parent', async () => {
+    const hotspot = makeHotspot({ regionId: 'region-1', segments: [makeSegment({ ordinal: 5, text: 'middle' })] });
+    const onContextExtended = vi.fn();
+    const initialExtendedRegion = {
+      regionId: 'region-1-extended',
+      locator: 'Ecclesiasticus 43:1-2',
+      segments: [
+        makeSegment({ ordinal: 4, text: 'before' }),
+        makeSegment({ ordinal: 5, text: 'middle' }),
+        makeSegment({ ordinal: 6, text: 'after' }),
+      ],
+      leadingBounded: false,
+      trailingBounded: false,
+    };
+    render(<HotspotDetailPanel {...baseProps({ hotspot, onContextExtended, initialExtendedRegion })} />);
+    expect(screen.getByText('before')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByText('- Clear Context'));
+
+    expect(screen.queryByText('before')).not.toBeInTheDocument();
+    expect(screen.queryByText('after')).not.toBeInTheDocument();
+    expect(screen.getByText('middle')).toBeInTheDocument();
+    expect(screen.queryByText('- Clear Context')).not.toBeInTheDocument();
+    expect(onContextExtended).toHaveBeenCalledWith(null);
   });
 
   it('shows a distinct error and leaves the hotspot displayed when the context request fails', async () => {
     const hotspot = makeHotspot({
       segments: [makeSegment({ ordinal: 5, section: '43', text: 'middle' })],
     });
-    vi.mocked(fetchSegments).mockRejectedValue(new Error('segments unavailable'));
+    vi.mocked(extendContext).mockRejectedValue(new Error('segments unavailable'));
     render(<HotspotDetailPanel {...baseProps({ hotspot })} />);
     await userEvent.click(screen.getByText('+ Add Context'));
     expect(await screen.findByText('segments unavailable')).toBeInTheDocument();
     expect(screen.getByText('middle')).toBeInTheDocument();
+  });
+});
+
+// A minimal stand-in for the relevant slice of `App.tsx` + `useTabs.ts`:
+// a `key` that changes with the selected hotspot (forcing the same
+// mount/unmount cycle `App.tsx` relies on) and a *map* of widened contexts
+// keyed by hotspot regionId — exactly `Tab.extendedRegions`/
+// `activeExtendedRegion`'s real shape in `useTabs.ts` (one entry per
+// hotspot, so widening B's context can never clobber A's). Exercises the
+// real React reconciliation the isolated component tests above don't: does
+// navigating away and back actually remount with the right restored props,
+// not just "would the props be correct if passed."
+function NavigationHarness({ a, b }: { a: Hotspot; b: Hotspot }) {
+  const [selectedId, setSelectedId] = useState(a.regionId);
+  const [extendedRegions, setExtendedRegions] = useState<Record<string, NonNullable<ExtendedRegionRef>>>({});
+  const hotspot = selectedId === a.regionId ? a : b;
+  const activeExtendedRegion = extendedRegions[selectedId] ?? null;
+  function setExtendedRegion(region: ExtendedRegionRef) {
+    setExtendedRegions((prev) => {
+      if (region === null) {
+        const { [selectedId]: _removed, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [selectedId]: region };
+    });
+  }
+  return (
+    <>
+      <button type="button" onClick={() => setSelectedId(a.regionId)}>
+        select A
+      </button>
+      <button type="button" onClick={() => setSelectedId(b.regionId)}>
+        select B
+      </button>
+      <HotspotDetailPanel
+        key={hotspot.regionId}
+        {...baseProps({ hotspot, initialExtendedRegion: activeExtendedRegion, onContextExtended: setExtendedRegion })}
+      />
+    </>
+  );
+}
+
+describe('context persists across hotspot navigation (integration, real remount)', () => {
+  it('restores the widened segments after navigating to a different hotspot and back', async () => {
+    const a = makeHotspot({ regionId: 'r-a', segments: [makeSegment({ ordinal: 5, text: 'middle' })] });
+    const b = makeHotspot({ regionId: 'r-b', segments: [makeSegment({ ordinal: 50, text: 'other hotspot' })] });
+    vi.mocked(extendContext).mockResolvedValueOnce(
+      makeExtendedRegion({
+        regionId: 'r-a-extended',
+        locator: 'Ecclesiasticus 43:1-2',
+        segments: [
+          makeSegment({ ordinal: 4, text: 'before' }),
+          makeSegment({ ordinal: 5, text: 'middle' }),
+          makeSegment({ ordinal: 6, text: 'after' }),
+        ],
+        leadingBounded: false,
+        trailingBounded: false,
+      }),
+    );
+
+    render(<NavigationHarness a={a} b={b} />);
+    await userEvent.click(screen.getByText('+ Add Context'));
+    expect(await screen.findByText('before')).toBeInTheDocument();
+    expect(screen.getByText('after')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByText('select B'));
+    expect(screen.getByText('other hotspot')).toBeInTheDocument();
+    expect(screen.queryByText('before')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByText('select A'));
+    expect(await screen.findByText('before')).toBeInTheDocument();
+    expect(screen.getByText('middle')).toBeInTheDocument();
+    expect(screen.getByText('after')).toBeInTheDocument();
+    expect(screen.getByText('- Clear Context')).toBeInTheDocument();
+  });
+
+  it('regression: A -> extend -> B -> extend -> back to A must still show A\'s own widened context', async () => {
+    // This is the exact sequence that broke under a single-slot design
+    // (`Tab.extendedRegion` as one object, not a map): widening B's context
+    // silently overwrote A's already-remembered one.
+    const a = makeHotspot({ regionId: 'r-a', segments: [makeSegment({ ordinal: 5, text: 'a-middle' })] });
+    const b = makeHotspot({ regionId: 'r-b', segments: [makeSegment({ ordinal: 50, text: 'b-middle' })] });
+    vi.mocked(extendContext).mockResolvedValueOnce(
+      makeExtendedRegion({
+        regionId: 'r-a-extended',
+        segments: [
+          makeSegment({ ordinal: 4, text: 'a-before' }),
+          makeSegment({ ordinal: 5, text: 'a-middle' }),
+          makeSegment({ ordinal: 6, text: 'a-after' }),
+        ],
+      }),
+    );
+
+    render(<NavigationHarness a={a} b={b} />);
+    await userEvent.click(screen.getByText('+ Add Context'));
+    expect(await screen.findByText('a-before')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByText('select B'));
+    expect(await screen.findByText('b-middle')).toBeInTheDocument();
+
+    vi.mocked(extendContext).mockResolvedValueOnce(
+      makeExtendedRegion({
+        regionId: 'r-b-extended',
+        segments: [
+          makeSegment({ ordinal: 49, text: 'b-before' }),
+          makeSegment({ ordinal: 50, text: 'b-middle' }),
+          makeSegment({ ordinal: 51, text: 'b-after' }),
+        ],
+      }),
+    );
+    await userEvent.click(screen.getByText('+ Add Context'));
+    expect(await screen.findByText('b-before')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByText('select A'));
+    expect(await screen.findByText('a-before')).toBeInTheDocument();
+    expect(screen.getByText('a-after')).toBeInTheDocument();
+    expect(screen.getByText('- Clear Context')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByText('select B'));
+    expect(await screen.findByText('b-before')).toBeInTheDocument();
+    expect(screen.getByText('b-after')).toBeInTheDocument();
   });
 });
 

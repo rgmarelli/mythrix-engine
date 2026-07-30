@@ -38,6 +38,15 @@ class AgentContext(BaseModel):
     min_score: float | None = None
     region_id: str | None = None
     locator: str | None = None
+    # The active hotspot's widened structural coordinate/citation, once the
+    # web viewer's Add Context action has grown it past its match-derived
+    # span (`specs/tmp/hotspot-context-expansion-agent`). Absent whenever the
+    # user hasn't widened the active hotspot's context. Additive to
+    # `region_id`/`locator` rather than a replacement for them: those two
+    # remain the hotspot's own identity everywhere else (thread-reset,
+    # `visible_regions` correlation) and are never overwritten by this pair.
+    extended_region_id: str | None = None
+    extended_locator: str | None = None
 
 
 def detect_thread_reset(previous: AgentContext, incoming: AgentContext) -> bool:
@@ -46,7 +55,12 @@ def detect_thread_reset(previous: AgentContext, incoming: AgentContext) -> bool:
     `region_id`, or a different `semiotic_system`/`sign`/`tradition`. Facet
     selection (`source_id`/`interpretant`) and `min_score` changing alone
     does not reset the thread — those narrow which hotspots are displayed,
-    they don't change what the active hotspot is."""
+    they don't change what the active hotspot is.
+
+    `extended_region_id`/`extended_locator` are deliberately excluded from
+    this comparison: widening the active hotspot's context is not selecting
+    a different hotspot (FR-AG-16), so it must never itself trigger a
+    reset."""
     if incoming.region_id != previous.region_id:
         return True
     return any(getattr(incoming, field) != getattr(previous, field) for field in _RESET_FIELDS)
@@ -59,13 +73,21 @@ def apply_ui_selection(context: AgentContext, incoming: AgentContext) -> AgentCo
     a thread-scoped field (specs/interfaces/agent.md's "not yet determined" case, FR-AG-18),
     and `locator` (the hotspot's human-readable citation, e.g. "Ecclesiasticus
     43:1-4", FR-AG-21) always describes the same hotspot `region_id` does, so it
-    follows the same all-or-nothing rule. Every other (session-scoped) field
-    only overwrites the stored value when `incoming` actually carries one —
-    a `None` there means "the UI hasn't set this," not "clear it" (FR-AG-17:
-    session-scoped fields persist across hotspot changes until explicitly
-    changed), so a value the agent previously resolved from chat alone
-    survives an otherwise-unrelated turn."""
-    updates = {"region_id": incoming.region_id, "locator": incoming.locator}
+    follows the same all-or-nothing rule. `extended_region_id`/`extended_locator`
+    follow the identical all-or-nothing rule for the same reason — "no active
+    extension" is meaningful the same way "no hotspot selected" is. Every
+    other (session-scoped) field only overwrites the stored value when
+    `incoming` actually carries one — a `None` there means "the UI hasn't set
+    this," not "clear it" (FR-AG-17: session-scoped fields persist across
+    hotspot changes until explicitly changed), so a value the agent
+    previously resolved from chat alone survives an otherwise-unrelated
+    turn."""
+    updates = {
+        "region_id": incoming.region_id,
+        "locator": incoming.locator,
+        "extended_region_id": incoming.extended_region_id,
+        "extended_locator": incoming.extended_locator,
+    }
     for field_name in ("semiotic_system", "sign", "tradition", "source_id", "interpretant", "min_score"):
         value = getattr(incoming, field_name)
         if value is not None:
@@ -125,9 +147,16 @@ def render_context_summary(context: AgentContext) -> str:
     handled."""
     lines = []
     if context.region_id:
-        lines.append(f"Active hotspot: {context.region_id}.")
-        if context.locator:
-            lines.append(f"Its human-readable reference is: {context.locator}.")
+        # `extended_region_id`/`extended_locator` substitute in place of
+        # `region_id`/`locator` here rather than adding a sentence of their
+        # own (specs/tmp/hotspot-context-expansion-agent) — the prompt's
+        # rule count and shape are unchanged; only the value the model sees
+        # for "the active hotspot" widens.
+        active_region_id = context.extended_region_id or context.region_id
+        active_locator = context.extended_locator or context.locator
+        lines.append(f"Active hotspot: {active_region_id}.")
+        if active_locator:
+            lines.append(f"Its human-readable reference is: {active_locator}.")
     if context.sign:
         lines.append(f"Current sign: {context.sign}.")
     if context.tradition:

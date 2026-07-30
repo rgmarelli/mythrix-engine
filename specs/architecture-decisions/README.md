@@ -31,6 +31,7 @@ changed decision is a new ADR that supersedes an earlier one, not an edit.
 | [ADR-016](adr-016-hierarchical-map-reduce-augmentation-consolidation.md) | Consolidate a run's augmentations hierarchically in batches of a configured size rather than one flat invocation, preserving each region's citation marker verbatim as it moves up the reduce tree | Accepted; narrows [ADR-015](adr-015-deterministic-augmentation-over-viewer-regions.md) |
 | [ADR-017](adr-017-filter-directive-requires-convergence.md) | A region matched only by `"filter"`-kind matches is not eligible; `"exact"` keeps its standalone eligibility | Accepted; narrows [ADR-004](adr-004-absolute-floor-and-lexical-specificity-ranking.md) and [ADR-013](adr-013-region-rollup-sole-query-shape.md) |
 | [ADR-018](adr-018-pending-command-state-bundled-at-session-boundary.md) | Bundle every pending-capable command's confirmation record into one `PendingCommands` value at the session/`TurnResult` boundary; `stream_turn` is the sole translator to and from the graph's independent state keys | Accepted |
+| [ADR-019](adr-019-additive-extended-context-not-region-id-mutation.md) | A hotspot's widened reading context (Add Context) rides as a second, additive pair of context-object fields, never overwriting `region_id`/`locator`, and is excluded from thread-reset comparison | Accepted |
 
 Primary sources for these records: `specs/retrieval/corpus.md`, `specs/retrieval/retrieval.md`,
 and `specs/retrieval/ranking.md` (the factual requirements these decisions produced,

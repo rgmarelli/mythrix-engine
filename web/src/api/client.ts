@@ -12,6 +12,8 @@ import type {
   AgentTurnResponseWire,
   AgentTurnResult,
   BodyMode,
+  ExtendedRegion,
+  ExtendedRegionWire,
   Hotspot,
   HotspotQueryResult,
   HotspotSegment,
@@ -104,6 +106,41 @@ export async function fetchSegments(
   return response.json() as Promise<HotspotSegment[]>;
 }
 
+// One Add Context activation over `[startOrdinal, endOrdinal]` — the
+// server-side boundary logic behind the Add Context action
+// (specs/tmp/hotspot-context-expansion-agent), replacing this app's own
+// client-side edge-probing/gap-detection logic. `loadedCount` is how many
+// segments the caller currently holds in that range — fewer than the range's
+// full span means an internal gap remains, which this activation fills
+// (and only that); otherwise it extends the window by one segment past each
+// edge that can still extend (FR-CE-02/03).
+export async function extendContext(
+  sourceId: string,
+  startOrdinal: number,
+  endOrdinal: number,
+  loadedCount: number,
+): Promise<ExtendedRegion> {
+  const params = new URLSearchParams({
+    source_id: sourceId,
+    start_ordinal: String(startOrdinal),
+    end_ordinal: String(endOrdinal),
+    loaded_count: String(loadedCount),
+  });
+  const response = await fetch(`${API_BASE_URL}/api/regions/extend-context?${params.toString()}`);
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as { detail?: string } | null;
+    throw new Error(body?.detail ?? `Extend-context request failed (${response.status})`);
+  }
+  const wire = (await response.json()) as ExtendedRegionWire;
+  return {
+    regionId: wire.region_id,
+    locator: wire.locator,
+    segments: wire.segments.map((segment) => ({ ...segment })),
+    leadingBounded: wire.leading_bounded,
+    trailingBounded: wire.trailing_bounded,
+  };
+}
+
 const SAFE_METHODS: SafeMethod[] = ['GET', 'QUERY'];
 const BODY_MODES: BodyMode[] = ['payload'];
 const RESULT_KINDS: ResultKind[] = ['regions'];
@@ -183,6 +220,8 @@ function toAgentContextWire(selection: AgentContext) {
     min_score: selection.minScore,
     region_id: selection.regionId,
     locator: selection.locator,
+    extended_region_id: selection.extendedRegionId,
+    extended_locator: selection.extendedLocator,
   };
 }
 
@@ -196,6 +235,8 @@ function toAgentContext(wire: AgentTurnResponseWire['context']): AgentContext {
     minScore: wire.min_score,
     regionId: wire.region_id,
     locator: wire.locator,
+    extendedRegionId: wire.extended_region_id,
+    extendedLocator: wire.extended_locator,
   };
 }
 

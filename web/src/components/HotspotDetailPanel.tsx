@@ -4,11 +4,13 @@
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { fetchSegments } from '../api/client';
-import type { Augmentation, Hotspot, HotspotSegment } from '../api/types';
+import { extendContext } from '../api/client';
+import type { Augmentation, ExtendedRegionRef, Hotspot, HotspotSegment } from '../api/types';
 import { convergenceLabel, hotspotTitle } from '../utils/hotspot';
 import { ConvergenceIcon } from './ConvergenceIcon';
 import { SparkleIcon } from './SparkleIcon';
+
+export type { ExtendedRegionRef } from '../api/types';
 
 interface Props {
   hotspot: Hotspot | null;
@@ -20,6 +22,12 @@ interface Props {
   canGoNext: boolean;
   onBack?: () => void;
   open?: boolean;
+  // The persisted extension for *this* hotspot, if any — the caller looks
+  // this up by the hotspot's own regionId (`useTabs.ts`'s
+  // `activeExtendedRegion`), so this component itself needs no hotspot
+  // identity bookkeeping of its own.
+  initialExtendedRegion?: ExtendedRegionRef;
+  onContextExtended?: (region: ExtendedRegionRef) => void;
 }
 
 function citationRef(hotspot: Hotspot): string {
@@ -50,12 +58,20 @@ export function HotspotDetailPanel({
   canGoNext,
   onBack,
   open,
+  initialExtendedRegion,
+  onContextExtended,
 }: Props) {
   const [activeSegmentOrdinal, setActiveSegmentOrdinal] = useState<number | null>(null);
-  const [segments, setSegments] = useState<HotspotSegment[]>(() => sortByOrdinal(hotspot?.segments ?? []));
+  const [segments, setSegments] = useState<HotspotSegment[]>(() =>
+    sortByOrdinal(initialExtendedRegion?.segments ?? hotspot?.segments ?? []),
+  );
   const [matchedOrdinals] = useState<Set<number>>(() => new Set((hotspot?.segments ?? []).map((s) => s.ordinal)));
-  const [leadingBounded, setLeadingBounded] = useState(false);
-  const [trailingBounded, setTrailingBounded] = useState(false);
+  const [leadingBounded, setLeadingBounded] = useState(() => initialExtendedRegion?.leadingBounded ?? false);
+  const [trailingBounded, setTrailingBounded] = useState(() => initialExtendedRegion?.trailingBounded ?? false);
+  // Mirrors exactly what's been reported to `onContextExtended` — drives
+  // whether "Clear Context" is shown, and is what gets restored if the user
+  // navigates away and back to this hotspot.
+  const [extension, setExtension] = useState<ExtendedRegionRef>(() => initialExtendedRegion ?? null);
   const [isAddingContext, setIsAddingContext] = useState(false);
   const [contextError, setContextError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -75,21 +91,11 @@ export function HotspotDetailPanel({
   }
 
   const attribution = hotspot.source.citation_label || `${hotspot.source.title}, ${hotspot.source.author}`;
-  const hasGap = segments.some((segment, i) => i > 0 && segment.ordinal - segments[i - 1].ordinal > 1);
-  const fullyLoaded = !hasGap && leadingBounded && trailingBounded;
+  const fullyLoaded = leadingBounded && trailingBounded;
 
   function goToSegment(ordinal: number) {
     setActiveSegmentOrdinal(ordinal);
     document.getElementById(segmentElementId(hotspot!.regionId, ordinal))?.scrollIntoView({ block: 'nearest' });
-  }
-
-  function mergeSegments(newOnes: HotspotSegment[]) {
-    if (newOnes.length === 0) return;
-    setSegments((prev) => {
-      const byOrdinal = new Map(prev.map((segment) => [segment.ordinal, segment]));
-      for (const segment of newOnes) byOrdinal.set(segment.ordinal, segment);
-      return sortByOrdinal(Array.from(byOrdinal.values()));
-    });
   }
 
   async function handleAddContext() {
@@ -101,56 +107,38 @@ export function HotspotDetailPanel({
     setIsAddingContext(true);
     setContextError(null);
     try {
-      if (hasGap) {
-        mergeSegments(await fetchSegments(sourceId, minOrdinal, maxOrdinal));
-        return;
-      }
-
-      const tasks: Promise<void>[] = [];
-      if (!leadingBounded) {
-        tasks.push(
-          (async () => {
-            if (minOrdinal <= 0) {
-              setLeadingBounded(true);
-              return;
-            }
-            const probe = await fetchSegments(sourceId, minOrdinal - 1, minOrdinal - 1);
-            if (probe.length === 0) {
-              setLeadingBounded(true);
-              return;
-            }
-            const edgeSection = current[0].section;
-            if (edgeSection !== '' && probe[0].section !== edgeSection) {
-              setLeadingBounded(true);
-              return;
-            }
-            mergeSegments(probe);
-          })(),
-        );
-      }
-      if (!trailingBounded) {
-        tasks.push(
-          (async () => {
-            const probe = await fetchSegments(sourceId, maxOrdinal + 1, maxOrdinal + 1);
-            if (probe.length === 0) {
-              setTrailingBounded(true);
-              return;
-            }
-            const edgeSection = current[current.length - 1].section;
-            if (edgeSection !== '' && probe[0].section !== edgeSection) {
-              setTrailingBounded(true);
-              return;
-            }
-            mergeSegments(probe);
-          })(),
-        );
-      }
-      await Promise.all(tasks);
+      // The backend fills any internal gap first and only that; edge growth
+      // happens once no gap remains (FR-CE-02/03,
+      // specs/tmp/hotspot-context-expansion-agent) — `current.length` tells
+      // it whether the caller's current range is already gap-free.
+      const extended = await extendContext(sourceId, minOrdinal, maxOrdinal, current.length);
+      setSegments(sortByOrdinal(extended.segments));
+      setLeadingBounded(extended.leadingBounded);
+      setTrailingBounded(extended.trailingBounded);
+      // `region_id` alone can't tell us whether anything actually grew: it
+      // encodes only the window's min/max ordinals, and a gap-fill adds
+      // segments *inside* that range without moving either end, so it never
+      // changes `region_id` — comparing against `hotspot.regionId` would
+      // wrongly treat a gap-fill as a no-op. Segment *count* against the
+      // hotspot's own original segments is the correct test: a gap-fill,
+      // like an edge grow, can only ever add segments, never remove any.
+      const next: ExtendedRegionRef = extended.segments.length > hotspot!.segments.length ? extended : null;
+      setExtension(next);
+      onContextExtended?.(next);
     } catch (error) {
       setContextError(error instanceof Error ? error.message : 'Failed to load context.');
     } finally {
       setIsAddingContext(false);
     }
+  }
+
+  function handleClearContext() {
+    setSegments(sortByOrdinal(hotspot!.segments));
+    setLeadingBounded(false);
+    setTrailingBounded(false);
+    setExtension(null);
+    setContextError(null);
+    onContextExtended?.(null);
   }
 
   function handleCopyRef() {
@@ -223,9 +211,21 @@ export function HotspotDetailPanel({
         )}
 
         <div className="reader-actions">
-          <button type="button" className="add-context-button" onClick={handleAddContext} disabled={isAddingContext || fullyLoaded}>
-            {isAddingContext ? 'Loading…' : fullyLoaded ? 'Full context loaded' : '+ Add Context'}
-          </button>
+          <div className="context-actions">
+            <button type="button" className="add-context-button" onClick={handleAddContext} disabled={isAddingContext || fullyLoaded}>
+              {isAddingContext ? 'Loading…' : fullyLoaded ? 'Full context loaded' : '+ Add Context'}
+            </button>
+            {extension && (
+              <button
+                type="button"
+                className="clear-context-button"
+                onClick={handleClearContext}
+                disabled={isAddingContext}
+              >
+                - Clear Context
+              </button>
+            )}
+          </div>
           <button type="button" className={copied ? 'copy-ref-btn copied' : 'copy-ref-btn'} onClick={handleCopyRef}>
             {copied ? (
               <svg viewBox="0 0 24 24" fill="none">
