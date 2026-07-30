@@ -104,6 +104,10 @@ NODE_TABLE_DDL: tuple[str, ...] = (
         content_hash STRING,
         ingested_at TIMESTAMP,
         structure_scheme STRING,
+        chapter_pattern STRING,
+        subsection_pattern STRING,
+        body_start_occurrence INT64,
+        body_end_occurrence INT64,
         PRIMARY KEY (id)
     )
     """,

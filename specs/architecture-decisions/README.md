@@ -32,6 +32,7 @@ changed decision is a new ADR that supersedes an earlier one, not an edit.
 | [ADR-017](adr-017-filter-directive-requires-convergence.md) | A region matched only by `"filter"`-kind matches is not eligible; `"exact"` keeps its standalone eligibility | Accepted; narrows [ADR-004](adr-004-absolute-floor-and-lexical-specificity-ranking.md) and [ADR-013](adr-013-region-rollup-sole-query-shape.md) |
 | [ADR-018](adr-018-pending-command-state-bundled-at-session-boundary.md) | Bundle every pending-capable command's confirmation record into one `PendingCommands` value at the session/`TurnResult` boundary; `stream_turn` is the sole translator to and from the graph's independent state keys | Accepted |
 | [ADR-019](adr-019-additive-extended-context-not-region-id-mutation.md) | A hotspot's widened reading context (Add Context) rides as a second, additive pair of context-object fields, never overwriting `region_id`/`locator`, and is excluded from thread-reset comparison | Accepted |
+| [ADR-020](adr-020-source-declared-chapter-heading-patterns.md) | A `chapter_section` source declares its own chapter/subsection-heading pattern and front/back-matter boundaries in its own YAML, rather than the engine inferring chapter boundaries automatically | Accepted |
 
 Primary sources for these records: `specs/retrieval/corpus.md`, `specs/retrieval/retrieval.md`,
 and `specs/retrieval/ranking.md` (the factual requirements these decisions produced,

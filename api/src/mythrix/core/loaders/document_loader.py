@@ -29,8 +29,25 @@ from mythrix.core.vector.store import ChromaVectorStore, ChunkMetadata
 _EMBED_BATCH_SIZE = 64
 
 
-def _hash_content(content: str) -> str:
-    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+def _structure_signature(source: Source) -> str:
+    """Canonical string form of a source's declared `structure:` block
+    (FR-CO-13) — folded into its content hash so editing only the structure
+    declaration (e.g. tuning a `chapter_section` pattern) is detected as a
+    change exactly like editing the raw text is, rather than going unnoticed
+    because `_hash_content` only ever looked at the `.txt` bytes."""
+    return "\x1f".join(
+        (
+            source.structure_scheme,
+            source.chapter_pattern,
+            source.subsection_pattern,
+            str(source.body_start_occurrence),
+            str(source.body_end_occurrence),
+        )
+    )
+
+
+def _hash_content(content: str, structure_signature: str = "") -> str:
+    return hashlib.sha256(f"{content}\x00{structure_signature}".encode()).hexdigest()
 
 
 def _read_yaml(path: Path) -> dict:
@@ -73,7 +90,7 @@ def load_document(
     """
     source = graph_store.get_source(source_id)
     content = path.read_text(encoding="utf-8")
-    content_hash = _hash_content(content)
+    content_hash = _hash_content(content, _structure_signature(source))
 
     if content_hash == source.content_hash:
         return 0
@@ -82,7 +99,14 @@ def load_document(
         vector_store.delete_by_source(source_id)
 
     if source.structure_scheme:
-        chunks = segment_text(content, scheme=source.structure_scheme)
+        chunks = segment_text(
+            content,
+            scheme=source.structure_scheme,
+            chapter_pattern=source.chapter_pattern or None,
+            subsection_pattern=source.subsection_pattern or None,
+            body_start_occurrence=source.body_start_occurrence,
+            body_end_occurrence=source.body_end_occurrence,
+        )
     else:
         chunks = chunk_text(content, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     if chunks:
@@ -106,6 +130,7 @@ def _parse_corpus_source(yaml_path: Path) -> Source:
         parsed = SourceFile.model_validate(_read_yaml(yaml_path))
     except Exception as exc:  # noqa: BLE001 - re-raised with file context below
         raise IngestValidationError(str(exc), source_path=str(yaml_path)) from exc
+    structure = parsed.source.structure
     return Source(
         id=parsed.source.id,
         domain=parsed.source.domain,
@@ -116,7 +141,11 @@ def _parse_corpus_source(yaml_path: Path) -> Source:
         license=parsed.source.license,
         uri=parsed.source.uri,
         description=parsed.source.description,
-        structure_scheme=parsed.source.structure.scheme if parsed.source.structure else "",
+        structure_scheme=structure.scheme if structure else "",
+        chapter_pattern=(structure.chapter_pattern or "") if structure else "",
+        subsection_pattern=(structure.subsection_pattern or "") if structure else "",
+        body_start_occurrence=structure.body_start_occurrence if structure else 1,
+        body_end_occurrence=structure.body_end_occurrence if structure else 0,
     )
 
 
@@ -125,6 +154,40 @@ def _existing_source(graph_store: KuzuGraphStore, source_id: str) -> Source | No
         return graph_store.get_source(source_id)
     except SourceNotFoundError:
         return None
+
+
+def _segmentation_summary(content: str, source: Source, *, chunk_size: int, chunk_overlap: int) -> dict:
+    """Runs the source's declared segmentation (or the fixed-size fallback)
+    against its actual text purely to report shape (FR-CO-14) — no
+    embedding, no graph/vector-store write. For `chapter_section`, includes
+    each detected chapter label and how many segments fall under it, so a
+    curator can validate a candidate pattern (e.g. checking the detected
+    chapter count against the source's own table of contents) before a real,
+    costly ingest runs."""
+    if source.structure_scheme:
+        chunks = segment_text(
+            content,
+            scheme=source.structure_scheme,
+            chapter_pattern=source.chapter_pattern or None,
+            subsection_pattern=source.subsection_pattern or None,
+            body_start_occurrence=source.body_start_occurrence,
+            body_end_occurrence=source.body_end_occurrence,
+        )
+    else:
+        chunks = chunk_text(content, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+
+    summary: dict = {"total_segments": len(chunks)}
+    if source.structure_scheme == "chapter_section":
+        counts: dict[str, int] = {}
+        order: list[str] = []
+        for chunk in chunks:
+            label = chunk.section or chunk.locator
+            if label not in counts:
+                order.append(label)
+                counts[label] = 0
+            counts[label] += 1
+        summary["chapters"] = [{"label": label, "segments": counts[label]} for label in order]
+    return summary
 
 
 def load_corpus_directory(
@@ -149,12 +212,16 @@ def load_corpus_directory(
     across corpus files is caught before any of them is registered or
     ingested — mirrors `sign_loader.py`'s two-phase discipline.
 
-    `dry_run=True` only hashes each `.txt` and compares it against the
-    corresponding `Source`'s recorded `content_hash` if one is already
-    declared; nothing is written, and `vector_store`/`embedder` may be `None`.
+    `dry_run=True` hashes each `.txt` plus its declared `structure` block
+    (FR-CO-13) and compares that against the corresponding `Source`'s
+    recorded `content_hash` if one is already declared; it also runs the
+    source's declared segmentation against its actual text to report a
+    structural summary (FR-CO-14) — neither writes anything, and
+    `vector_store`/`embedder` may be `None`.
 
     Returns one result dict per discovered source: `{"source_id", "status",
-    "detail"}` for a dry run, `{"source_id", "chunks_written"}` for a real one.
+    "detail", "segmentation"}` for a dry run, `{"source_id",
+    "chunks_written"}` for a real one.
     """
     pairs: list[tuple[Path, Source]] = []
     seen_ids: set[str] = set()
@@ -173,7 +240,8 @@ def load_corpus_directory(
         existing = _existing_source(graph_store, source.id)
 
         if dry_run:
-            content_hash = _hash_content(txt_path.read_text(encoding="utf-8"))
+            content = txt_path.read_text(encoding="utf-8")
+            content_hash = _hash_content(content, _structure_signature(source))
             existing_hash = existing.content_hash if existing else ""
             if content_hash == existing_hash:
                 status, detail = "unchanged", "no-op — file matches what's already ingested"
@@ -181,7 +249,8 @@ def load_corpus_directory(
                 status, detail = "changed", "would replace this source's existing chunks"
             else:
                 status, detail = "new", "would ingest for the first time"
-            results.append({"source_id": source.id, "status": status, "detail": detail})
+            segmentation = _segmentation_summary(content, source, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+            results.append({"source_id": source.id, "status": status, "detail": detail, "segmentation": segmentation})
             continue
 
         # Refresh the source's own metadata on every pass without disturbing

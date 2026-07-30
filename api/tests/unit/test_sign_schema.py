@@ -222,3 +222,49 @@ def test_parses_source_file() -> None:
 def test_source_file_requires_id_and_domain() -> None:
     with pytest.raises(ValidationError):
         SourceFile.model_validate({"source": {"title": "The Pictorial Key to the Tarot", "author": "A. E. Waite"}})
+
+
+def test_parses_chapter_section_structure_fields() -> None:
+    parsed = SourceFile.model_validate(
+        {
+            "source": {
+                "id": "en_goldenbough",
+                "domain": "symbolism",
+                "title": "The Golden Bough",
+                "author": "Sir James George Frazer",
+                "structure": {
+                    "scheme": "chapter_section",
+                    "chapter_pattern": r"[IVXLCM]+\. [A-Z].+",
+                    "subsection_pattern": r"\d+\. [A-Z].+",
+                    "body_start_occurrence": 15,
+                    "body_end_occurrence": 28,
+                },
+            }
+        }
+    )
+    structure = parsed.source.structure
+    assert structure is not None
+    assert structure.chapter_pattern == r"[IVXLCM]+\. [A-Z].+"
+    assert structure.subsection_pattern == r"\d+\. [A-Z].+"
+    assert structure.body_start_occurrence == 15
+    assert structure.body_end_occurrence == 28
+
+
+def test_chapter_section_structure_fields_default_when_unset() -> None:
+    parsed = SourceFile.model_validate(
+        {
+            "source": {
+                "id": "en_drb",
+                "domain": "scripture",
+                "title": "Douay-Rheims",
+                "author": "English College at Douay & Rheims",
+                "structure": {"scheme": "scripture_verse"},
+            }
+        }
+    )
+    structure = parsed.source.structure
+    assert structure is not None
+    assert structure.chapter_pattern is None
+    assert structure.subsection_pattern is None
+    assert structure.body_start_occurrence == 1
+    assert structure.body_end_occurrence == 0

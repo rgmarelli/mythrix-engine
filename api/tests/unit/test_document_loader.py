@@ -192,6 +192,40 @@ def test_source_with_a_declared_structure_scheme_routes_through_the_segmenter(
     assert all("1." not in hit.text and "2." not in hit.text for hit in hits)
 
 
+def test_source_with_chapter_section_scheme_routes_through_with_its_patterns(
+    tmp_path: Path, graph_store: KuzuGraphStore, vector_store: ChromaVectorStore
+) -> None:
+    graph_store.upsert_source(
+        Source(
+            id="en_goldenbough",
+            domain="symbolism",
+            title="The Golden Bough",
+            author="Sir James George Frazer",
+            structure_scheme="chapter_section",
+            chapter_pattern=r"[IVX]+\. [A-Z].+",
+            subsection_pattern=r"\d+\. [A-Z].+",
+        )
+    )
+    doc = tmp_path / "excerpt.txt"
+    doc.write_text(
+        "I. The King of the Wood\n\n1. Diana and Virbius\n\nDiana was worshipped in various ways.\n",
+        encoding="utf-8",
+    )
+
+    written = load_document(
+        doc,
+        source_id="en_goldenbough",
+        graph_store=graph_store,
+        vector_store=vector_store,
+        embedder=FakeEmbedder(),
+    )
+
+    assert written == 1
+    hits = vector_store.similarity_search([len("Diana was worshipped in various ways."), 0.0], top_k=1)
+    assert hits[0].locator == "1. Diana and Virbius"
+    assert hits[0].section == "1. I. The King of the Wood"
+
+
 def test_source_without_a_structure_scheme_falls_back_to_word_count_chunking(
     tmp_path: Path, graph_store: KuzuGraphStore, vector_store: ChromaVectorStore
 ) -> None:
@@ -280,9 +314,50 @@ def test_load_corpus_directory_dry_run_writes_nothing(tmp_path: Path, graph_stor
 
     results = load_corpus_directory(tmp_path, graph_store=graph_store, vector_store=None, embedder=None, dry_run=True)
 
-    assert results == [{"source_id": "en_drb", "status": "new", "detail": "would ingest for the first time"}]
+    assert results == [
+        {
+            "source_id": "en_drb",
+            "status": "new",
+            "detail": "would ingest for the first time",
+            "segmentation": {"total_segments": 1},
+        }
+    ]
     with pytest.raises(SourceNotFoundError):
         graph_store.get_source("en_drb")
+
+
+def test_dry_run_preview_reports_per_chapter_segment_counts(tmp_path: Path, graph_store: KuzuGraphStore) -> None:
+    """FR-CO-14: a `chapter_section` source's dry-run preview shows the
+    detected chapter breakdown without embedding anything or touching any
+    store — `vector_store`/`embedder` are `None` throughout."""
+    corpus = tmp_path / "symbolism" / "en_goldenbough"
+    text = (
+        "I. The King of the Wood\n\n"
+        "Diana was worshipped in various ways.\n\n"
+        "II. Priestly Kings\n\n"
+        "The rule of succession was widespread.\n\n"
+        "Other kingdoms show the same pattern.\n"
+    )
+    _write_chapter_section_source(
+        corpus, id_="en_goldenbough", filename_stem="golden-bough", chapter_pattern="[IVX]+[.] [A-Z].+", text=text
+    )
+
+    results = load_corpus_directory(tmp_path, graph_store=graph_store, vector_store=None, embedder=None, dry_run=True)
+
+    assert results == [
+        {
+            "source_id": "en_goldenbough",
+            "status": "new",
+            "detail": "would ingest for the first time",
+            "segmentation": {
+                "total_segments": 3,
+                "chapters": [
+                    {"label": "1. I. The King of the Wood", "segments": 1},
+                    {"label": "2. II. Priestly Kings", "segments": 2},
+                ],
+            },
+        }
+    ]
 
 
 def test_load_corpus_directory_ignores_a_yaml_with_no_colocated_txt(
@@ -313,6 +388,63 @@ def test_load_corpus_directory_rejects_duplicate_source_ids_before_writing_anyth
     assert vector_store.count() == 0
     with pytest.raises(SourceNotFoundError):
         graph_store.get_source("dup")
+
+
+def _write_chapter_section_source(
+    directory: Path, *, id_: str, filename_stem: str, chapter_pattern: str, text: str
+) -> None:
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / f"{filename_stem}.yaml").write_text(
+        f'source:\n  id: "{id_}"\n  domain: symbolism\n  title: "Title"\n  author: "Author"\n'
+        f'  structure:\n    scheme: chapter_section\n    chapter_pattern: "{chapter_pattern}"\n',
+        encoding="utf-8",
+    )
+    (directory / f"{filename_stem}.txt").write_text(text, encoding="utf-8")
+
+
+def test_structure_only_edit_is_detected_as_changed_and_reingests(
+    tmp_path: Path, graph_store: KuzuGraphStore, vector_store: ChromaVectorStore
+) -> None:
+    """FR-CO-13: a source's content hash covers its declared `structure`
+    block, not just its raw text — editing only `chapter_pattern`, with the
+    `.txt` untouched, must still be detected as a change."""
+    corpus = tmp_path / "symbolism" / "en_goldenbough"
+    text = "I. The King of the Wood\n\nDiana was worshipped in various ways.\n"
+    _write_chapter_section_source(
+        corpus, id_="en_goldenbough", filename_stem="golden-bough", chapter_pattern="[IVX]+[.] [A-Z].+", text=text
+    )
+
+    load_corpus_directory(tmp_path, graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder())
+    assert vector_store.count() == 1
+    original_hash = graph_store.get_source("en_goldenbough").content_hash
+
+    # Change only the structure declaration — the .txt file is untouched.
+    _write_chapter_section_source(
+        corpus, id_="en_goldenbough", filename_stem="golden-bough", chapter_pattern="[IVXLC]+[.] [A-Z].+", text=text
+    )
+
+    dry_run_results = load_corpus_directory(
+        tmp_path, graph_store=graph_store, vector_store=None, embedder=None, dry_run=True
+    )
+    assert dry_run_results == [
+        {
+            "source_id": "en_goldenbough",
+            "status": "changed",
+            "detail": "would replace this source's existing chunks",
+            "segmentation": {
+                "total_segments": 1,
+                "chapters": [{"label": "1. I. The King of the Wood", "segments": 1}],
+            },
+        }
+    ]
+
+    real_results = load_corpus_directory(
+        tmp_path, graph_store=graph_store, vector_store=vector_store, embedder=FakeEmbedder()
+    )
+
+    assert real_results == [{"source_id": "en_goldenbough", "chunks_written": 1}]
+    assert vector_store.count() == 1  # replaced, not accumulated
+    assert graph_store.get_source("en_goldenbough").content_hash != original_hash
 
 
 def test_load_corpus_directory_reingesting_unchanged_is_a_noop(

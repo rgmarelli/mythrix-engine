@@ -1,0 +1,31 @@
+# Validated via `mythrix load-documents --dry-run` (T9): detects exactly the
+# 14 real chapters (I-XIV, including X/"The Secret of the Grail (1)" and XI/
+# "(2)", whose parenthesised digits needed a broader title character class
+# than the draft). chapter_pattern also matches the bare "CHAPTER <roman>"
+# and "NOTES" shapes used by the table of contents and the back-of-book
+# endnotes section (neither ever has a title glued to it, so a fullmatch
+# against either alternative only ever hits those, never a real chapter) —
+# needed so body_end_occurrence has a match to terminate on; without it,
+# nothing after the last real chapter's heading ever stops the "in body"
+# state, and the endnotes silently get swept in as trailing chapter content.
+
+source:
+  id: "en_ritualromance"
+  domain: symbolism
+  citation_label: "Ritual to Romance"
+  structure:
+    scheme: chapter_section
+    chapter_pattern: "CHAPTER [IVXLC]+\\n[A-Z][A-Za-z0-9 ,'()\\-]{2,60}|CHAPTER [IVXLC]+|NOTES"
+    body_start_occurrence: 15
+    body_end_occurrence: 28
+  title: "From Ritual to Romance"
+  author: "Jessie L. Weston"
+  publication_year: 1920
+  license: "public-domain"
+  uri: "https://www.gutenberg.org/ebooks/4090"
+  description: >
+    Weston's study tracing the Grail legend to a surviving literary
+    fragment of pre-Christian vegetation- and fertility-cult ritual,
+    building directly on Frazer's comparative-mythology method. Ingested as
+    an independent primary-source corpus, not as an interpretive tradition
+    of any symbol system.

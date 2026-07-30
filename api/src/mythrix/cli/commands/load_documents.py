@@ -11,9 +11,13 @@ No `--tradition`/`--domain`/`--source-slug` flags: a corpus document is never
 assigned a tradition (FR-CO-02), and its id/domain are authored directly in its
 own file, not repeated on the command line.
 
-`--dry-run` only hashes each `.txt` and compares it to its `Source`'s
-recorded `content_hash` (FR-CO-04) — it never constructs an embedder or vector
-store, so it works even without a reachable Ollama daemon.
+`--dry-run` hashes each `.txt` plus its declared `structure` block
+(FR-CO-13) and compares that to its `Source`'s recorded `content_hash`, and
+runs the declared segmentation against the actual text to preview its
+structural shape — chapter/segment counts (FR-CO-14) — without embedding
+anything. It never constructs an embedder or vector store, so it works even
+without a reachable Ollama daemon, and it's the way to validate a
+`chapter_section` source's patterns before a real ingest.
 """
 
 from __future__ import annotations
@@ -30,6 +34,18 @@ from mythrix.core.errors import MythrixError
 from mythrix.core.graph.store import KuzuGraphStore
 from mythrix.core.loaders.document_loader import load_corpus_directory
 from mythrix.core.vector.store import ChromaVectorStore
+
+
+def _format_segmentation(segmentation: dict) -> str:
+    """Short, scannable summary of a dry-run segmentation preview
+    (FR-CO-14) — full per-chapter detail is available via `--json`."""
+    total = segmentation["total_segments"]
+    unit = "segment" if total == 1 else "segments"
+    chapters = segmentation.get("chapters")
+    if chapters is not None:
+        chapter_unit = "chapter" if len(chapters) == 1 else "chapters"
+        return f"{total} {unit} across {len(chapters)} {chapter_unit}"
+    return f"{total} {unit}"
 
 
 def run_load_documents(
@@ -63,7 +79,8 @@ def run_load_documents(
         typer.echo("No corpus sources found.")
     elif dry_run:
         for result in results:
-            typer.echo(f"{result['source_id']!r}: {result['status']} — {result['detail']}")
+            summary = _format_segmentation(result["segmentation"])
+            typer.echo(f"{result['source_id']!r}: {result['status']} — {result['detail']} ({summary})")
     else:
         for result in results:
             if result["chunks_written"] == 0:

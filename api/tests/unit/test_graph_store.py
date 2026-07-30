@@ -238,6 +238,40 @@ def test_source_structure_scheme_defaults_to_empty(store: KuzuGraphStore) -> Non
     assert source.structure_scheme == ""
 
 
+def test_source_chapter_section_fields_round_trip(store: KuzuGraphStore) -> None:
+    store.upsert_source(
+        Source(
+            id="en_goldenbough",
+            domain="symbolism",
+            title="The Golden Bough",
+            author="Sir James George Frazer",
+            structure_scheme="chapter_section",
+            chapter_pattern=r"[IVXLCM]+\. [A-Z].+",
+            subsection_pattern=r"\d+\. [A-Z].+",
+            body_start_occurrence=15,
+            body_end_occurrence=28,
+        )
+    )
+
+    source = store.get_source("en_goldenbough")
+
+    assert source.chapter_pattern == r"[IVXLCM]+\. [A-Z].+"
+    assert source.subsection_pattern == r"\d+\. [A-Z].+"
+    assert source.body_start_occurrence == 15
+    assert source.body_end_occurrence == 28
+
+
+def test_source_chapter_section_fields_default(store: KuzuGraphStore) -> None:
+    store.upsert_source(Source(id="waite2", domain="tarot", title="T", author="A"))
+
+    source = store.get_source("waite2")
+
+    assert source.chapter_pattern == ""
+    assert source.subsection_pattern == ""
+    assert source.body_start_occurrence == 1
+    assert source.body_end_occurrence == 0
+
+
 def test_upserts_are_idempotent(store: KuzuGraphStore) -> None:
     _seed_fixture(store)
     _seed_fixture(store)  # re-run everything with identical data

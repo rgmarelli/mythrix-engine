@@ -1,0 +1,33 @@
+# Validated via `mythrix load-documents --dry-run` (T9): detects exactly the
+# 19 real chapters (I-XIX). The distinguishing feature turned out not to be
+# indentation (paragraph text is stripped of leading whitespace before
+# matching, so a leading "\s+" before "CHAPTER" — the draft's approach —
+# never matches anything) but paragraph *shape*: the real body always joins
+# "CHAPTER <roman>." and its title into one two-line paragraph with no blank
+# line between them, while the table of contents always splits them into two
+# separate single-line paragraphs — so a pattern requiring both lines in one
+# paragraph naturally excludes the ToC without needing indentation or
+# body_start/end_occurrence at all. The title character class needed
+# widening to cover "(_continued_)" (parentheses + underscores, Gutenberg's
+# italics markup) used by several chapter titles.
+
+source:
+  id: "en_primculture"
+  domain: symbolism
+  citation_label: "Primitive Culture"
+  structure:
+    scheme: chapter_section
+    chapter_pattern: "CHAPTER [IVXLC]+\\.\\n\\s*[A-Za-z0-9 ,.'()_\\-]+\\.?"
+  title: "Primitive Culture: Researches into the Development of Mythology, Philosophy, Religion, Language, Art, and Custom"
+  author: "Edward B. Tylor"
+  publication_year: 1871
+  license: "public-domain"
+  uri: "https://www.gutenberg.org/ebooks/70458"
+  description: >
+    Tylor's foundational work of anthropology, establishing the concept of
+    "survivals" and the doctrine of animism through comparative study of
+    myth, ritual, language, and custom across cultures. Originally published
+    in two volumes (Gutenberg #70458, #70484), staged here as one continuous
+    work with unbroken chapter numbering (I-XIX). Ingested as an independent
+    primary-source corpus, not as an interpretive tradition of any symbol
+    system.
