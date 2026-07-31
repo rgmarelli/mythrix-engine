@@ -8,6 +8,10 @@ jobs:
     name: Ruff & Pytest
     runs-on: ubuntu-latest
 
+    env:
+      TERM: dumb
+      NO_COLOR: "1"
+
     defaults:
       run:
         working-directory: api
