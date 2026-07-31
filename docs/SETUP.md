@@ -14,12 +14,13 @@ This installs `mythrix` in editable mode along with all pinned runtime and dev
 dependencies (see `api/pyproject.toml`) — into `uv`'s project virtualenv, not
 system-wide. Commands below that only touch the `api/` workspace (tests,
 ruff) are run from inside `api/` as `uv run ...`; commands that touch the
-repo-root `data/`/`.mythrix/` directories (`load-signs`, `load-documents`,
-`query`) are run from the repo root as `uv run --project api mythrix ...`,
-so their working directory stays at the root while `uv` still resolves
-dependencies from `api/`. Either way, unless you've activated the
-virtualenv yourself (`source api/.venv/bin/activate`), always go through
-`uv run`, never bare `mythrix ...`.
+repo-root `data/` directory (`load-signs`, `load-documents`, `query`) are run
+from the repo root as `uv run --project api mythrix ...`, so their working
+directory stays at the root while `uv` still resolves dependencies from
+`api/`. (Storage — `~/.mythrix/` — is an absolute path by default and doesn't
+depend on working directory; see Configuration below.) Either way, unless
+you've activated the virtualenv yourself (`source api/.venv/bin/activate`),
+always go through `uv run`, never bare `mythrix ...`.
 
 ## 2. Install Ollama and pull models
 
@@ -37,7 +38,7 @@ Then pull the models you'll use:
 
 ```bash
 ollama pull nomic-embed-text   # embedding model (default)
-ollama pull llama3.2           # or any generation model you prefer
+ollama pull qwen2.5:3b         # or any generation model you prefer
 ```
 
 Confirm the daemon is running: `ollama list` should succeed without error.
@@ -58,10 +59,14 @@ list and precedence order. The two you'll set most often:
 ```bash
 export MYTHRIX_KUZU_DB_PATH=~/.mythrix/graph.kuzu
 export MYTHRIX_CHROMA_PERSIST_DIR=~/.mythrix/chroma
-export MYTHRIX_GENERATION_MODEL=llama3.2
+export MYTHRIX_GENERATION_MODEL=qwen2.5:3b
 ```
 
-(`embedding_model` defaults to `nomic-embed-text`; `generation_model` has no
+(`kuzu_db_path`/`chroma_persist_dir` already default to exactly
+`~/.mythrix/graph.kuzu`/`~/.mythrix/chroma` — an absolute location, not
+relative to whatever directory a command happens to be run from — so these
+two exports are optional and only needed to point at a different location;
+`embedding_model` defaults to `nomic-embed-text`; `generation_model` has no
 default and must be set explicitly — this is deliberate, since installed
 Ollama models vary machine to machine, per `plan.md`'s design.)
 
@@ -90,7 +95,7 @@ uv run --project api mythrix load-documents data/bible/documents/douay-rheims-bi
 ```
 
 Both commands are idempotent — safe to re-run. The document load embeds the
-full Bible text (~5.6MB, ~1700 chunks), so expect this step to take a while
+full Bible text (~5.6MB, ~35000 chunks), so expect this step to take a while
 on CPU-only local Ollama embedding.
 
 ## Running tests

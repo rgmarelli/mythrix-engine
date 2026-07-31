@@ -25,6 +25,7 @@ from mythrix.core.models import (
     Sign,
     Tradition,
 )
+from mythrix.core.retrieval.locator_format import chapter_section_locator
 from mythrix.core.retrieval.pipeline import RetrievalPipeline, region_id_of, region_locator
 from mythrix.core.vector.store import ChromaVectorStore
 
@@ -112,6 +113,26 @@ def execute_adhoc_query(
     return pipeline.retrieve_regions(graph_facts)
 
 
+def _segment_from_chunk(chunk) -> Segment:  # noqa: ANN001 - Chunk, not worth importing just for this
+    """Builds a `Segment` from one stored `Chunk`, formatting its `locator`
+    at this single point (`chapter_section_locator`, when the chunk carries
+    `chapter_section` structural fields) so every reader of the resulting
+    `Segment` — web UI and agent tools alike — sees the same already
+    Title-Cased, abbreviated display string. Shared by `fetch_source_segments`
+    and `_to_segments` so both build a `Segment` identically."""
+    locator = chapter_section_locator(chunk, chunk) if chunk.chapter_title else chunk.locator
+    return Segment(
+        ordinal=chunk.ordinal,
+        locator=locator,
+        text=chunk.text,
+        section=chunk.section,
+        chapter_ordinal=chunk.chapter_ordinal,
+        chapter_title=chunk.chapter_title,
+        subsection_ordinal=chunk.subsection_ordinal,
+        subsection_title=chunk.subsection_title,
+    )
+
+
 def fetch_source_segments(
     *,
     source_id: str,
@@ -131,17 +152,11 @@ def fetch_source_segments(
     """
     graph_store.get_source(source_id)
     chunks = vector_store.get_segments(source_id, start_ordinal=start_ordinal, end_ordinal=end_ordinal)
-    return tuple(
-        Segment(ordinal=chunk.ordinal, locator=chunk.locator, text=chunk.text, section=chunk.section)
-        for chunk in chunks
-    )
+    return tuple(_segment_from_chunk(chunk) for chunk in chunks)
 
 
 def _to_segments(chunks: list) -> tuple[Segment, ...]:  # noqa: ANN001 - list[Chunk], not worth importing just for this
-    return tuple(
-        Segment(ordinal=chunk.ordinal, locator=chunk.locator, text=chunk.text, section=chunk.section)
-        for chunk in chunks
-    )
+    return tuple(_segment_from_chunk(chunk) for chunk in chunks)
 
 
 def extend_context(

@@ -15,7 +15,7 @@ source:
   citation_label: "Ritual to Romance"
   structure:
     scheme: chapter_section
-    chapter_pattern: "CHAPTER [IVXLC]+\\n[A-Z][A-Za-z0-9 ,'()\\-]{2,60}|CHAPTER [IVXLC]+|NOTES"
+    chapter_pattern: "CHAPTER [IVXLC]+\\n(?P<title>[A-Z][A-Za-z0-9 ,'()\\-]{2,60})|CHAPTER [IVXLC]+|NOTES"
     body_start_occurrence: 15
     body_end_occurrence: 28
   title: "From Ritual to Romance"

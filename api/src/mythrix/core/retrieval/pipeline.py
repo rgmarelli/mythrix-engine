@@ -68,6 +68,7 @@ from mythrix.core.models import (
     Source,
     SourceFacet,
 )
+from mythrix.core.retrieval.locator_format import chapter_section_locator, merge_numbered_section_locators
 from mythrix.core.vector.store import ChromaVectorStore, VectorHit
 
 logger = logging.getLogger(__name__)
@@ -318,8 +319,18 @@ class RetrievalPipeline:
                 for ordinal in cluster:
                     key = (source_id, ordinal)
                     hit = hit_by_segment[key]
+                    locator = chapter_section_locator(hit, hit) if hit.chapter_title else hit.locator
                     region_segments.append(
-                        Segment(ordinal=ordinal, locator=hit.locator, text=hit.text, section=hit.section)
+                        Segment(
+                            ordinal=ordinal,
+                            locator=locator,
+                            text=hit.text,
+                            section=hit.section,
+                            chapter_ordinal=hit.chapter_ordinal,
+                            chapter_title=hit.chapter_title,
+                            subsection_ordinal=hit.subsection_ordinal,
+                            subsection_title=hit.subsection_title,
+                        )
                     )
                     for match in matches_by_segment[key]:
                         existing = best_match_by_interpretant.get(match.interpretant)
@@ -631,24 +642,37 @@ def parse_region_id(region_id: str) -> tuple[str, int, int]:
 def region_locator(segments: tuple[Segment, ...]) -> str:
     """The human-readable locator for a span of segments (FR-RT-05).
 
-    A single-segment region reuses that segment's own locator. A
-    multi-segment region merges the first and last locator's trailing part
-    when they share a common prefix (`"Genesis 21:5"` + `"Genesis 21:6"` ->
+    A `chapter_section` region (either endpoint carries a `chapter_title`)
+    always formats through `chapter_section_locator`, which merges the
+    first/last chapter and subsection ordinals/titles into one range-aware
+    string — this is what produces the `"§§19–20: ..."` grouped form for a
+    region spanning several subsections, something a flattened locator
+    string alone could never reconstruct.
+
+    Otherwise: a single-segment region reuses that segment's own locator. A
+    multi-segment `numbered_section` region (e.g. the Bahir) merges two
+    already-correct single-point locators into a grouped range
+    (`"§83"` + `"§90"` -> `"§§83–90"`). A multi-segment `scripture_verse`
+    region merges the first and last locator's trailing part when they
+    share a common prefix (`"Genesis 21:5"` + `"Genesis 21:6"` ->
     `"Genesis 21:5–6"`); otherwise the two full locators are joined, still
-    unambiguous. A `chapter_section` source with no subsection layer gives
-    every paragraph in a chapter the same locator, so a region confined to
-    one chapter has an identical first and last locator — that single value
-    is reused as-is rather than joined with itself.
+    unambiguous.
 
     Public because a caller reading a region back by structural coordinate
     must label it exactly as the query path did (FR-AU-15). The two agree
     because a `region_id`'s start/end ordinals *are* its first and last
     match-carrying ordinals, so both callers merge the same two locators."""
+    first_segment, last_segment = segments[0], segments[-1]
+    if first_segment.chapter_title or last_segment.chapter_title:
+        return chapter_section_locator(first_segment, last_segment)
     if len(segments) == 1:
-        return segments[0].locator
-    first, last = segments[0].locator, segments[-1].locator
+        return first_segment.locator
+    first, last = first_segment.locator, last_segment.locator
     if first == last:
         return first
+    merged = merge_numbered_section_locators(first, last)
+    if merged is not None:
+        return merged
     prefix = first.rpartition(":")[0]
     if prefix and last.startswith(prefix + ":"):
         return f"{first}–{last[len(prefix) + 1 :]}"

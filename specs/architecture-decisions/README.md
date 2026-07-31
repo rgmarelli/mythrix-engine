@@ -32,9 +32,10 @@ changed decision is a new ADR that supersedes an earlier one, not an edit.
 | [ADR-017](adr-017-filter-directive-requires-convergence.md) | A region matched only by `"filter"`-kind matches is not eligible; `"exact"` keeps its standalone eligibility | Accepted; narrows [ADR-004](adr-004-absolute-floor-and-lexical-specificity-ranking.md) and [ADR-013](adr-013-region-rollup-sole-query-shape.md) |
 | [ADR-018](adr-018-pending-command-state-bundled-at-session-boundary.md) | Bundle every pending-capable command's confirmation record into one `PendingCommands` value at the session/`TurnResult` boundary; `stream_turn` is the sole translator to and from the graph's independent state keys | Accepted |
 | [ADR-019](adr-019-additive-extended-context-not-region-id-mutation.md) | A hotspot's widened reading context (Add Context) rides as a second, additive pair of context-object fields, never overwriting `region_id`/`locator`, and is excluded from thread-reset comparison | Accepted |
-| [ADR-020](adr-020-source-declared-chapter-heading-patterns.md) | A `chapter_section` source declares its own chapter/subsection-heading pattern and front/back-matter boundaries in its own YAML, rather than the engine inferring chapter boundaries automatically | Accepted |
+| [ADR-020](adr-020-source-declared-chapter-heading-patterns.md) | A `chapter_section` source declares its own chapter/subsection-heading pattern and front/back-matter boundaries in its own YAML, rather than the engine inferring chapter boundaries automatically | Accepted; extended by [ADR-021](adr-021-locator-normalization-at-query-time.md) |
+| [ADR-021](adr-021-locator-normalization-at-query-time.md) | A `chapter_section`/`numbered_section` segment's displayed locator (Title Case, `Ch./§` abbreviation, grouped ranges) is computed once, at query time, from raw stored structural fields — never baked in at ingest — so every reader of a retrieved segment (web viewer, agent/LLM tools) sees the identical formatted string | Accepted; extends [ADR-020](adr-020-source-declared-chapter-heading-patterns.md) |
 
 Primary sources for these records: `specs/retrieval/corpus.md`, `specs/retrieval/retrieval.md`,
 and `specs/retrieval/ranking.md` (the factual requirements these decisions produced,
-`FR-CO-05`–`FR-CO-07`, `FR-RT-12`–`FR-RT-16`, `FR-RK-01`–`FR-RK-10`) and the empirical
+`FR-CO-05`–`FR-CO-18`, `FR-RT-12`–`FR-RT-16`, `FR-RK-01`–`FR-RK-10`) and the empirical
 benchmarks run against the live Douay-Rheims and Sefer HaBahir corpora (July 2026).

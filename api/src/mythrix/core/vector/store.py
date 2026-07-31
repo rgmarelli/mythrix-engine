@@ -66,6 +66,10 @@ class VectorHit(BaseModel):
     locator: str = ""
     ordinal: int = 0
     section: str = ""
+    chapter_ordinal: int = 0
+    chapter_title: str = ""
+    subsection_ordinal: int = 0
+    subsection_title: str = ""
 
 
 def _chunk_id(source_id: str, chunk_index: int) -> str:
@@ -115,6 +119,10 @@ class ChromaVectorStore:
                 "locator": chunk.locator,
                 "ordinal": chunk.ordinal,
                 "section": chunk.section,
+                "chapter_ordinal": chunk.chapter_ordinal,
+                "chapter_title": chunk.chapter_title,
+                "subsection_ordinal": chunk.subsection_ordinal,
+                "subsection_title": chunk.subsection_title,
             }
             for chunk in chunks
         ]
@@ -185,6 +193,10 @@ class ChromaVectorStore:
                     locator=meta.get("locator") or "",
                     ordinal=meta.get("ordinal") or 0,
                     section=meta.get("section") or "",
+                    chapter_ordinal=meta.get("chapter_ordinal") or 0,
+                    chapter_title=meta.get("chapter_title") or "",
+                    subsection_ordinal=meta.get("subsection_ordinal") or 0,
+                    subsection_title=meta.get("subsection_title") or "",
                 )
             )
         return hits
@@ -216,6 +228,10 @@ class ChromaVectorStore:
                 locator=meta.get("locator") or "",
                 ordinal=meta.get("ordinal") or 0,
                 section=meta.get("section") or "",
+                chapter_ordinal=meta.get("chapter_ordinal") or 0,
+                chapter_title=meta.get("chapter_title") or "",
+                subsection_ordinal=meta.get("subsection_ordinal") or 0,
+                subsection_title=meta.get("subsection_title") or "",
             )
             for chunk_id, document, meta in zip(result["ids"], result["documents"], result["metadatas"], strict=True)
         ]
@@ -252,6 +268,10 @@ class ChromaVectorStore:
                 locator=meta.get("locator") or "",
                 ordinal=meta.get("ordinal") or 0,
                 section=meta.get("section") or "",
+                chapter_ordinal=meta.get("chapter_ordinal") or 0,
+                chapter_title=meta.get("chapter_title") or "",
+                subsection_ordinal=meta.get("subsection_ordinal") or 0,
+                subsection_title=meta.get("subsection_title") or "",
             )
             for document, meta in zip(result["documents"], result["metadatas"], strict=True)
         ]

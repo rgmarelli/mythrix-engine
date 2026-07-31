@@ -50,7 +50,17 @@ def normalize_chunk_text(raw: str) -> str:
 class Chunk(BaseModel):
     """One chunk of a source document, carrying its exact span in the original
     text (`char_start`/`char_end`) so a citation can point back to it precisely,
-    plus a best-effort chapter-style `locator` (see module docstring)."""
+    plus a best-effort chapter-style `locator` (see module docstring).
+
+    `chapter_ordinal`/`chapter_title`/`subsection_ordinal`/`subsection_title`
+    are populated only by the `chapter_section` segmenter
+    (`mythrix.core.vector.segmentation._segment_chapter_section`) — the raw
+    structural pieces a chunk belongs to, stored so the display `locator`
+    can be built (Title-Cased, abbreviated, range-merged) at query time
+    instead of being flattened here at ingest time
+    (`mythrix.core.retrieval.locator_format.chapter_section_locator`).
+    `locator` stays empty for a `chapter_section` chunk; every other scheme
+    keeps populating it directly, as before."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -61,6 +71,10 @@ class Chunk(BaseModel):
     locator: str = ""
     ordinal: int = 0
     section: str = ""
+    chapter_ordinal: int = 0
+    chapter_title: str = ""
+    subsection_ordinal: int = 0
+    subsection_title: str = ""
 
 
 def chunk_text(text: str, *, chunk_size: int = 650, chunk_overlap: int = 100) -> list[Chunk]:

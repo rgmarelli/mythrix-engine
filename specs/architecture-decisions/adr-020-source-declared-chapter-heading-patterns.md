@@ -1,8 +1,8 @@
 # ADR-020 — Source-declared chapter-heading patterns, not inferred boundaries
 
-- **Status**: Accepted
+- **Status**: Accepted; extended by [ADR-021](adr-021-locator-normalization-at-query-time.md)
 - **Date**: 2026-07-30
-- **Realized by**: [specs/tmp/chapter-segmentation/spec.md](../tmp/chapter-segmentation/spec.md) FR-CO-08–FR-CO-12
+- **Realized by**: [specs/retrieval/corpus.md](../retrieval/corpus.md) FR-CO-08–FR-CO-12
 
 ## Context
 

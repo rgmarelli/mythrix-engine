@@ -102,12 +102,18 @@ def test_chapter_section_groups_paragraphs_by_chapter_and_excludes_front_matter(
     segments = segment_text(text, scheme="chapter_section", chapter_pattern=r"[IVX]+\. [A-Z].+")
 
     assert len(segments) == 2
-    assert [s.locator for s in segments] == ["1. I. The King of the Wood", "2. II. Priestly Kings"]
+    # No `(?P<title>...)` group in this pattern, so chapter_title falls back
+    # to the paragraph's own full matched text — same text `locator` used to
+    # store directly, before formatting moved to query time.
+    assert [s.locator for s in segments] == ["", ""]
+    assert [s.chapter_ordinal for s in segments] == [1, 2]
+    assert [s.chapter_title for s in segments] == ["I. The King of the Wood", "II. Priestly Kings"]
+    assert [s.subsection_title for s in segments] == ["", ""]
     assert [s.section for s in segments] == ["1. I. The King of the Wood", "2. II. Priestly Kings"]
     assert segments[0].text == "In antiquity this sylvan landscape was the scene of a strange tragedy."
 
 
-def test_chapter_section_splits_locator_and_section_when_subsections_declared() -> None:
+def test_chapter_section_splits_chapter_and_subsection_into_structured_fields() -> None:
     text = (
         "I. The King of the Wood\n\n"
         "1. Diana and Virbius\n\n"
@@ -126,14 +132,95 @@ def test_chapter_section_splits_locator_and_section_when_subsections_declared() 
     )
 
     assert len(segments) == 3
-    assert segments[0].locator == "1. Diana and Virbius"
+    assert [s.locator for s in segments] == ["", "", ""]
+
+    assert segments[0].chapter_ordinal == 1
+    assert segments[0].chapter_title == "I. The King of the Wood"
+    assert segments[0].subsection_ordinal == 1
+    assert segments[0].subsection_title == "1. Diana and Virbius"
     assert segments[0].section == "1. I. The King of the Wood"
-    assert segments[1].locator == "2. Artemis and Hippolytus"
+
+    assert segments[1].chapter_ordinal == 1
+    assert segments[1].chapter_title == "I. The King of the Wood"
+    assert segments[1].subsection_ordinal == 2
+    assert segments[1].subsection_title == "2. Artemis and Hippolytus"
     assert segments[1].section == "1. I. The King of the Wood"
-    # Chapter II has no subsection match, so it falls back to the implicit
-    # whole-chapter subsection: locator and section both carry the chapter.
-    assert segments[2].locator == "2. II. Priestly Kings"
+
+    # Chapter II has no subsection match, so subsection fields stay at the
+    # reset value a new chapter starts with; section still carries the
+    # disambiguated chapter key.
+    assert segments[2].chapter_ordinal == 2
+    assert segments[2].chapter_title == "II. Priestly Kings"
+    assert segments[2].subsection_ordinal == 0
+    assert segments[2].subsection_title == ""
     assert segments[2].section == "2. II. Priestly Kings"
+
+
+def test_chapter_section_subsection_ordinal_is_global_not_per_chapter() -> None:
+    """A subsection's displayed number must keep counting across a chapter
+    boundary, not restart at 1 — even when the source's own subsection
+    marker (unused for the displayed number; see module docstring) happens
+    to restart per chapter, as Secret Teachings' SECTION markers do not,
+    but a differently-structured source might."""
+    text = (
+        "I. Chapter One\n\n"
+        "1. First Subsection\n\n"
+        "First subsection body.\n\n"
+        "2. Second Subsection\n\n"
+        "Second subsection body.\n\n"
+        "II. Chapter Two\n\n"
+        "1. Restarts In The Source Itself\n\n"
+        "Third subsection body, but the third one seen overall.\n\n"
+    )
+
+    segments = segment_text(
+        text,
+        scheme="chapter_section",
+        chapter_pattern=r"[IVX]+\. [A-Z].+",
+        subsection_pattern=r"\d+\. [A-Z].+",
+    )
+
+    assert len(segments) == 3
+    assert [s.subsection_ordinal for s in segments] == [1, 2, 3]
+
+
+def test_chapter_section_extracts_title_from_named_capture_group() -> None:
+    text = (
+        "CHAPTER 9.\nThe Zodiac and Its Signs\n\n"
+        "SECTION 19.\nTHE THREE SUNS\n\n"
+        "There are three suns spoken of by the ancients.\n\n"
+    )
+
+    segments = segment_text(
+        text,
+        scheme="chapter_section",
+        chapter_pattern=r"CHAPTER \d+\.\n(?P<title>.+)",
+        subsection_pattern=r"SECTION \d+\.\n(?P<title>.+)",
+    )
+
+    assert len(segments) == 1
+    # The displayed ordinal is a running counter, not the source's own
+    # "CHAPTER 9"/"SECTION 19" number (see module docstring) — this text
+    # has only one chapter and one subsection, so both count from 1.
+    assert segments[0].chapter_ordinal == 1
+    assert segments[0].chapter_title == "The Zodiac and Its Signs"
+    assert segments[0].subsection_ordinal == 1
+    assert segments[0].subsection_title == "THE THREE SUNS"
+    assert segments[0].locator == ""
+
+
+def test_chapter_section_title_cleanup_strips_trailing_period_and_gutenberg_italics() -> None:
+    text = "CHAPTER IX.\nMythology _(continued)_.\n\nBody paragraph text here.\n\n"
+
+    segments = segment_text(
+        text,
+        scheme="chapter_section",
+        chapter_pattern=r"CHAPTER [IVXLC]+\.\n(?P<title>.+)",
+    )
+
+    assert segments[0].chapter_title == "Mythology (continued)"
+    # Cleanup is scoped to the title field alone — body text is untouched.
+    assert segments[0].text == "Body paragraph text here."
 
 
 def test_chapter_section_occurrence_bounds_exclude_table_of_contents_and_endnotes() -> None:
@@ -160,11 +247,17 @@ def test_chapter_section_occurrence_bounds_exclude_table_of_contents_and_endnote
     )
 
     assert [s.text for s in segments] == ["Real chapter one content here.", "Real chapter two content here."]
-    assert segments[0].locator == "1. CHAPTER I Introductory"
-    assert segments[1].locator == "2. CHAPTER II The Grail"
+    assert segments[0].chapter_title == "CHAPTER I Introductory"
+    assert segments[1].chapter_title == "CHAPTER II The Grail"
+    assert segments[0].locator == ""
 
 
-def test_chapter_section_disambiguates_non_unique_heading_text_by_ordinal() -> None:
+def test_chapter_section_disambiguates_repeated_heading_text_by_section_not_chapter_title() -> None:
+    # A source can genuinely reuse one chapter title (e.g. The Secret
+    # Teachings of All Ages' two "Fishes, Insects, Animals..." chapters).
+    # `chapter_title` shows that repeat plainly since it's just for display,
+    # but `section` must stay distinct — it's what extend_context compares
+    # to stop growth at a chapter boundary.
     text = (
         "The Ancient Mysteries\n\n"
         "First chapter content.\n\n"
@@ -174,7 +267,8 @@ def test_chapter_section_disambiguates_non_unique_heading_text_by_ordinal() -> N
 
     segments = segment_text(text, scheme="chapter_section", chapter_pattern=r"[A-Z][a-zA-Z ]+")
 
-    assert [s.locator for s in segments] == ["1. The Ancient Mysteries", "2. The Ancient Mysteries"]
+    assert [s.chapter_title for s in segments] == ["The Ancient Mysteries", "The Ancient Mysteries"]
+    assert [s.section for s in segments] == ["1. The Ancient Mysteries", "2. The Ancient Mysteries"]
 
 
 def test_chapter_section_requires_chapter_pattern() -> None:
