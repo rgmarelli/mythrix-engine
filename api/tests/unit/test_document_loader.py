@@ -11,7 +11,7 @@ import pytest
 
 from mythrix.core.errors import IngestValidationError, SourceNotFoundError
 from mythrix.core.graph.store import KuzuGraphStore
-from mythrix.core.loaders.document_loader import load_corpus_directory, load_document
+from mythrix.core.loaders.document_loader import load_corpus_directory, load_document, preview_corpus_segments
 from mythrix.core.models import Source
 from mythrix.core.vector.store import ChromaVectorStore
 
@@ -222,7 +222,13 @@ def test_source_with_chapter_section_scheme_routes_through_with_its_patterns(
 
     assert written == 1
     hits = vector_store.similarity_search([len("Diana was worshipped in various ways."), 0.0], top_k=1)
-    assert hits[0].locator == "1. Diana and Virbius"
+    # `locator` is left empty at ingest for chapter_section chunks — display
+    # formatting happens at query time from the raw structural fields.
+    assert hits[0].locator == ""
+    assert hits[0].chapter_ordinal == 1
+    assert hits[0].chapter_title == "I. The King of the Wood"
+    assert hits[0].subsection_ordinal == 1
+    assert hits[0].subsection_title == "1. Diana and Virbius"
     assert hits[0].section == "1. I. The King of the Wood"
 
 
@@ -358,6 +364,62 @@ def test_dry_run_preview_reports_per_chapter_segment_counts(tmp_path: Path, grap
             },
         }
     ]
+
+
+def test_preview_corpus_segments_lists_every_segments_own_locator(tmp_path: Path) -> None:
+    """`preview_corpus_segments` needs no graph/vector store at all — no
+    fixture for either is passed here — so it works even while another
+    process holds the Kùzu store's single-writer lock, and it surfaces each
+    segment's actual locator text rather than just a per-chapter count."""
+    corpus = tmp_path / "symbolism" / "en_secretteachings"
+    corpus.mkdir(parents=True, exist_ok=True)
+    text = (
+        "CHAPTER 9.\nThe Zodiac and Its Signs\n\n"
+        "SECTION 19.\nTHE THREE SUNS\n\n"
+        "There are three suns spoken of by the ancients.\n\n"
+        "The chapter continues without a further section heading.\n"
+    )
+    (corpus / "secret-teachings.yaml").write_text(
+        'source:\n  id: "en_secretteachings"\n  domain: symbolism\n  title: "Title"\n  author: "Author"\n'
+        '  structure:\n    scheme: chapter_section\n    chapter_pattern: "CHAPTER \\\\d+\\\\.\\\\n(?P<title>.+)"\n'
+        '    subsection_pattern: "SECTION \\\\d+\\\\.\\\\n(?P<title>.+)"\n',
+        encoding="utf-8",
+    )
+    (corpus / "secret-teachings.txt").write_text(text, encoding="utf-8")
+
+    results = preview_corpus_segments(tmp_path)
+
+    # `locator` is built via `chapter_section_locator` from the structured
+    # fields — Title-Cased, `Ch./§` abbreviated — the same call every real
+    # query-path `Segment` construction makes, previewing exactly what the
+    # app will render. The displayed ordinals (1, not 9/19) are a running
+    # counter, not the source's own "CHAPTER 9"/"SECTION 19" numbers — this
+    # text has only one chapter and one subsection, so both count from 1.
+    assert results == [
+        {
+            "source_id": "en_secretteachings",
+            "segments": [
+                {
+                    "ordinal": 0,
+                    "locator": "Ch. 1: The Zodiac and Its Signs — §1: The Three Suns",
+                    "section": "1. CHAPTER 9. The Zodiac and Its Signs",
+                },
+                {
+                    "ordinal": 1,
+                    "locator": "Ch. 1: The Zodiac and Its Signs — §1: The Three Suns",
+                    "section": "1. CHAPTER 9. The Zodiac and Its Signs",
+                },
+            ],
+        }
+    ]
+
+
+def test_preview_corpus_segments_rejects_duplicate_source_ids(tmp_path: Path) -> None:
+    _write_corpus_source(tmp_path / "a", id_="dup", filename_stem="doc")
+    _write_corpus_source(tmp_path / "b", id_="dup", filename_stem="doc")
+
+    with pytest.raises(IngestValidationError, match="Duplicate corpus source id"):
+        preview_corpus_segments(tmp_path)
 
 
 def test_load_corpus_directory_ignores_a_yaml_with_no_colocated_txt(

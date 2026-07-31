@@ -25,7 +25,7 @@ source:
   citation_label: "Primitive Culture"
   structure:
     scheme: chapter_section
-    chapter_pattern: "CHAPTER [IVXLC]+\\.\\n\\s*[A-Za-z0-9 ,.'()_\\-]+\\.?|INDEX\\."
+    chapter_pattern: "CHAPTER [IVXLC]+\\.\\n\\s*(?P<title>[A-Za-z0-9 ,.'()_\\-]+\\.?)|INDEX\\."
     body_end_occurrence: 19
   title: "Primitive Culture: Researches into the Development of Mythology, Philosophy, Religion, Language, Art, and Custom"
   author: "Edward B. Tylor"

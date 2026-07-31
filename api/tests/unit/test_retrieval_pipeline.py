@@ -1307,3 +1307,69 @@ def test_region_locator_reuses_the_shared_locator_when_first_and_last_are_identi
     segments = (_segment(1, label), _segment(2, label), _segment(3, label))
 
     assert region_locator(segments) == label
+
+
+def test_region_locator_merges_bahir_style_numbered_sections_into_a_grouped_range() -> None:
+    """A multi-segment Bahir region must produce `"§§83–90"`, not a crude
+    `"§83–§90"` concatenation of two already-correct single-point
+    locators."""
+    segments = (_segment(1, "§83"), _segment(2, "§90"))
+
+    assert region_locator(segments) == "§§83–90"
+
+
+def _chapter_section_segment(
+    ordinal: int,
+    *,
+    chapter_ordinal: int,
+    chapter_title: str,
+    subsection_ordinal: int = 0,
+    subsection_title: str = "",
+) -> Segment:
+    return Segment(
+        ordinal=ordinal,
+        locator="",
+        text="…",
+        section=f"{chapter_ordinal}. {chapter_title}",
+        chapter_ordinal=chapter_ordinal,
+        chapter_title=chapter_title,
+        subsection_ordinal=subsection_ordinal,
+        subsection_title=subsection_title,
+    )
+
+
+def test_region_locator_formats_a_single_chapter_section_segment() -> None:
+    segments = (
+        _chapter_section_segment(
+            1,
+            chapter_ordinal=7,
+            chapter_title="Isis, the Virgin of the World",
+            subsection_ordinal=19,
+            subsection_title="THE THREE SUNS",
+        ),
+    )
+
+    assert region_locator(segments) == "Ch. 7: Isis, the Virgin of the World — §19: The Three Suns"
+
+
+def test_region_locator_groups_a_chapter_section_region_spanning_two_subsections() -> None:
+    segments = (
+        _chapter_section_segment(
+            1,
+            chapter_ordinal=7,
+            chapter_title="Isis, the Virgin of the World",
+            subsection_ordinal=19,
+            subsection_title="THE THREE SUNS",
+        ),
+        _chapter_section_segment(
+            2,
+            chapter_ordinal=7,
+            chapter_title="Isis, the Virgin of the World",
+            subsection_ordinal=20,
+            subsection_title="THE CELESTIAL INHABITANTS OF THE SUN",
+        ),
+    )
+
+    assert region_locator(segments) == (
+        "Ch. 7: Isis, the Virgin of the World — §§19–20: The Three Suns–The Celestial Inhabitants of the Sun"
+    )

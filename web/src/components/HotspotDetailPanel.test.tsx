@@ -8,7 +8,7 @@ import type { ComponentProps } from 'react';
 import { HotspotDetailPanel } from './HotspotDetailPanel';
 import { extendContext } from '../api/client';
 import type { ExtendedRegionRef, Hotspot } from '../api/types';
-import { makeExtendedRegion, makeHotspot, makeSegment } from '../test/fixtures';
+import { makeExtendedRegion, makeHotspot, makeSegment, makeSource } from '../test/fixtures';
 
 vi.mock('../api/client', () => ({
   extendContext: vi.fn(),
@@ -55,7 +55,7 @@ describe('rendered hotspot', () => {
     expect(screen.getByText('The pride of the height.')).toBeInTheDocument();
   });
 
-  it('never repeats a segment locator that is identical to the hotspot\'s own (a chapter-only source with nothing finer to cite)', () => {
+  it('still shows each segment\'s own locator even when it repeats the hotspot\'s own (a chapter-only source with nothing finer to cite)', () => {
     const chapterTitle = '14. CHAPTER XIV The Author';
     const hotspot = makeHotspot({
       locator: chapterTitle,
@@ -66,9 +66,9 @@ describe('rendered hotspot', () => {
       ],
     });
     render(<HotspotDetailPanel {...baseProps({ hotspot })} />);
-    // The panel heading already states it once — no segment should repeat it.
-    expect(screen.getAllByText(chapterTitle)).toHaveLength(1);
-    expect(document.querySelectorAll('.segment-locator')).toHaveLength(0);
+    // The panel heading states it once, plus once per segment — never omitted.
+    expect(screen.getAllByText(chapterTitle)).toHaveLength(4);
+    expect(document.querySelectorAll('.segment-locator')).toHaveLength(3);
   });
 
   it('shows each segment\'s own locator when it names something finer than the hotspot\'s own (e.g. a verse within a region)', () => {
@@ -84,7 +84,7 @@ describe('rendered hotspot', () => {
     expect(screen.getByText('Genesis 21:8')).toBeInTheDocument();
   });
 
-  it('renders a gap marker across a non-adjacent ordinal jump even when neither side repeats the (redundant) locator', () => {
+  it('renders a gap marker across a non-adjacent ordinal jump, alongside each segment\'s own (repeated) locator', () => {
     const chapterTitle = '17. Fishes, Insects, Animals, Reptiles and Birds';
     const hotspot = makeHotspot({
       locator: chapterTitle,
@@ -97,14 +97,15 @@ describe('rendered hotspot', () => {
     // Both edges confirmed bounded so only the internal ordinal gap is under test here.
     const initialExtendedRegion = { regionId: hotspot.regionId, locator: chapterTitle, segments: hotspot.segments, leadingBounded: true, trailingBounded: true };
     render(<HotspotDetailPanel {...baseProps({ hotspot, initialExtendedRegion })} />);
-    expect(document.querySelectorAll('.segment-locator')).toHaveLength(0);
+    expect(document.querySelectorAll('.segment-locator')).toHaveLength(3);
     expect(document.querySelectorAll('.segment-gap')).toHaveLength(1);
   });
 
-  it('shows leading and trailing gap markers for a chapter-only source when neither edge is confirmed bounded (the default, unconfirmed state before "Add Context")', () => {
+  it('shows leading and trailing gap markers for a chapter_section source when neither edge is confirmed bounded (the default, unconfirmed state before "Add Context")', () => {
     const chapterTitle = '17. Fishes, Insects, Animals, Reptiles and Birds';
     const hotspot = makeHotspot({
       locator: chapterTitle,
+      source: makeSource({ structure_scheme: 'chapter_section' }),
       segments: [
         makeSegment({ ordinal: 4, locator: chapterTitle, text: 'first' }),
         makeSegment({ ordinal: 5, locator: chapterTitle, text: 'second' }),
@@ -115,18 +116,22 @@ describe('rendered hotspot', () => {
     expect(document.querySelectorAll('.segment-gap')).toHaveLength(2);
   });
 
-  it('never shows leading/trailing gap markers for a source whose segments carry their own distinct locator (a verse range like the Bible or the Bahir), even when unbounded', () => {
-    const hotspot = makeHotspot({
-      locator: 'Genesis 3:7–15',
-      segments: [
-        makeSegment({ ordinal: 1, locator: 'Genesis 3:7', text: 'first' }),
-        makeSegment({ ordinal: 8, locator: 'Genesis 3:15', text: 'second' }),
-      ],
-    });
-    render(<HotspotDetailPanel {...baseProps({ hotspot })} />);
-    // The ordinal jump between the two segments is still a real internal gap.
-    expect(document.querySelectorAll('.segment-gap')).toHaveLength(1);
-  });
+  it.each(['scripture_verse', 'numbered_section'])(
+    'never shows leading/trailing gap markers for a %s source (a verse or numbered-section range like the Bible or the Bahir), even when unbounded',
+    (structureScheme) => {
+      const hotspot = makeHotspot({
+        locator: 'Genesis 3:7–15',
+        source: makeSource({ structure_scheme: structureScheme }),
+        segments: [
+          makeSegment({ ordinal: 1, locator: 'Genesis 3:7', text: 'first' }),
+          makeSegment({ ordinal: 8, locator: 'Genesis 3:15', text: 'second' }),
+        ],
+      });
+      render(<HotspotDetailPanel {...baseProps({ hotspot })} />);
+      // The ordinal jump between the two segments is still a real internal gap.
+      expect(document.querySelectorAll('.segment-gap')).toHaveLength(1);
+    },
+  );
 
   it('renders one chip per match and highlights the clicked one as anchored', async () => {
     const hotspot = makeHotspot({

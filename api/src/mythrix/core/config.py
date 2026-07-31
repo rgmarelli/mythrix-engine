@@ -88,8 +88,8 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="MYTHRIX_", env_file=".env", extra="ignore")
 
-    kuzu_db_path: Path = Path(".mythrix/graph.kuzu")
-    chroma_persist_dir: Path = Path(".mythrix/chroma")
+    kuzu_db_path: Path = Path.home() / ".mythrix" / "graph.kuzu"
+    chroma_persist_dir: Path = Path.home() / ".mythrix" / "chroma"
     ollama_base_url: str = "http://localhost:11434"
     embedding_model: str = "nomic-embed-text"
     generation_model: str | None = None

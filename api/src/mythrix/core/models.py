@@ -321,12 +321,26 @@ class Segment(MythrixModel):
     neighboring segment shares this one's chapter without a second lookup.
     Empty whenever a source declares no structure above the individual
     segment (no declared structure, `paragraph`, `numbered_section`).
+
+    `chapter_ordinal`/`chapter_title`/`subsection_ordinal`/`subsection_title`
+    are the raw `chapter_section` structural fields carried over from the
+    underlying `Chunk` (empty/`0` for every other scheme) — kept here so
+    `mythrix.core.retrieval.pipeline.region_locator` can build a range-aware
+    `locator` for a multi-segment region without a second lookup. `locator`
+    itself is already the final, formatted display string by the time a
+    `Segment` is constructed (see the `chapter_section_locator` call sites
+    in `pipeline.py`/`query_service.py`) — these four fields are what that
+    formatting was built from, not something a consumer needs to re-derive.
     """
 
     ordinal: int
     locator: str
     text: str
     section: str = ""
+    chapter_ordinal: int = 0
+    chapter_title: str = ""
+    subsection_ordinal: int = 0
+    subsection_title: str = ""
 
 
 class Match(MythrixModel):

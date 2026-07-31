@@ -25,6 +25,7 @@ export function makeSource(overrides: Partial<Source> = {}): Source {
     description: '',
     content_hash: 'abc123',
     ingested_at: null,
+    structure_scheme: '',
     ...overrides,
   };
 }

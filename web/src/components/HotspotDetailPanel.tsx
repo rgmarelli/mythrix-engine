@@ -243,20 +243,27 @@ export function HotspotDetailPanel({
         {contextError && <p className="error">{contextError}</p>}
 
         <div className="segment-list">
-          {/* A source like the Bible or the Bahir already names each segment
-              with its own distinct locator (a verse or numbered section) —
-              the hotspot's header locator is itself just a compact range
-              over those (e.g. "Genesis 3:7–15"), so a leading/trailing gap
-              marker would be near-universal noise: there is always more
-              book before verse 7 and after verse 15. A chapter_section
-              source with no subsection layer gives every one of its
-              segments the *same* locator as the header, so it has no such
-              built-in range framing — there, whether the shown fragment
-              reaches the actual edge of its chapter is worth signaling. */}
+          {/* A source like the Bible (`scripture_verse`) or the Bahir
+              (`numbered_section`) already names each segment with its own
+              distinct, self-sufficient locator (a verse or numbered
+              section) — the hotspot's header locator is itself just a
+              compact range over those (e.g. "Genesis 3:7–15"), so a
+              leading/trailing gap marker would be near-universal noise:
+              there is always more book before verse 7 and after verse 15.
+              A `chapter_section` source has no such built-in range framing
+              — there, whether the shown fragment reaches the actual edge
+              of its chapter is worth signaling, so its gap markers stay.
+              Keyed off the source's own declared scheme (sent as part of
+              `hotspot.source`), not locator-string comparison — a
+              single-segment hotspot's own locator is always identical to
+              its one segment's locator regardless of scheme, so that
+              comparison could never tell the two cases apart. */}
           {(() => {
-            const hasOwnLocators = segments.some((s) => Boolean(s.locator) && s.locator !== hotspot.locator);
-            const showLeadingGap = !hasOwnLocators && !leadingBounded;
-            const showTrailingGap = !hasOwnLocators && !trailingBounded;
+            const selfDescribingScheme =
+              hotspot.source.structure_scheme === 'scripture_verse' ||
+              hotspot.source.structure_scheme === 'numbered_section';
+            const showLeadingGap = !selfDescribingScheme && !leadingBounded;
+            const showTrailingGap = !selfDescribingScheme && !trailingBounded;
             return (
               <>
                 {showLeadingGap && <div className="segment-gap" aria-hidden="true">[…]</div>}
@@ -270,12 +277,13 @@ export function HotspotDetailPanel({
                   // between them — so a non-consecutive ordinal jump is a real
                   // gap, independent of locator, and must stay visible.
                   const hasGap = previous != null && segment.ordinal - previous.ordinal !== 1;
-                  // The panel header already states the hotspot's own citation
-                  // (`hotspot.locator`). A segment's own locator is worth
-                  // showing only when it exists as something distinct from
-                  // that header — a verse/section locator naming this exact
-                  // segment, not the whole chapter it happens to sit in.
-                  const showLocator = Boolean(segment.locator) && segment.locator !== hotspot.locator;
+                  // Always shown when present — every segment names exactly
+                  // where it comes from, even when that happens to repeat
+                  // the panel header (a chapter with no subsection layer
+                  // gives every one of its segments the same locator as
+                  // the header; that's still worth restating next to each
+                  // one, not just once at the top).
+                  const showLocator = Boolean(segment.locator);
                   return (
                     <Fragment key={segment.ordinal}>
                       {hasGap && <div className="segment-gap" aria-hidden="true">[…]</div>}

@@ -30,6 +30,13 @@ export interface Source {
   description: string;
   content_hash: string;
   ingested_at: string | null;
+  // Names the segmenter this source's chunks came from (e.g.
+  // 'scripture_verse', 'numbered_section', 'chapter_section') — empty for a
+  // source with no declared structure. Used by `HotspotDetailPanel` to tell
+  // a self-describing segment (a verse or numbered section, already fully
+  // named by its own `locator`) apart from a `chapter_section` segment,
+  // whose leading/trailing edge may or may not be the source's own edge.
+  structure_scheme: string;
 }
 
 export interface SignSummary {

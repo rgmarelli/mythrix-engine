@@ -12,12 +12,13 @@ from mythrix.cli.main import app
 runner = CliRunner()
 
 
-def test_root_help_lists_both_ingestion_commands() -> None:
+def test_root_help_lists_ingestion_and_preview_commands() -> None:
     result = runner.invoke(app, ["--help"])
 
     assert result.exit_code == 0
     assert "load-signs" in result.output
     assert "load-documents" in result.output
+    assert "preview-segments" in result.output
 
 
 def test_no_query_command_is_registered() -> None:
@@ -45,3 +46,10 @@ def test_load_documents_help_lists_expected_options() -> None:
         assert option in result.output
     for removed_option in ("--tradition", "--source-slug"):
         assert removed_option not in result.output
+
+
+def test_preview_segments_help_lists_expected_options() -> None:
+    result = runner.invoke(app, ["preview-segments", "--help"])
+
+    assert result.exit_code == 0
+    assert "--json" in result.output

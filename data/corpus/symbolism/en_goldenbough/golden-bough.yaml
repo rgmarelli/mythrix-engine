@@ -12,8 +12,8 @@ source:
   citation_label: "Golden Bough"
   structure:
     scheme: chapter_section
-    chapter_pattern: "[IVXLCM]+\\. [A-Z][A-Za-z ,'\\-]{2,60}"
-    subsection_pattern: "\\d+\\. [A-Z][A-Za-z ,'\\-]{2,60}"
+    chapter_pattern: "[IVXLCM]+\\. (?P<title>[A-Z][A-Za-z ,'\\-]{2,60})"
+    subsection_pattern: "\\d+\\. (?P<title>[A-Z][A-Za-z ,'\\-]{2,60})"
   title: "The Golden Bough: A Study of Magic and Religion (Abridged Edition)"
   author: "Sir James George Frazer"
   publication_year: 1922

@@ -22,7 +22,8 @@ from mythrix.core.errors import IngestValidationError, SourceNotFoundError
 from mythrix.core.graph.store import KuzuGraphStore
 from mythrix.core.loaders.sign_schema import SourceFile
 from mythrix.core.models import Source
-from mythrix.core.vector.chunking import chunk_text
+from mythrix.core.retrieval.locator_format import chapter_section_locator
+from mythrix.core.vector.chunking import Chunk, chunk_text
 from mythrix.core.vector.segmentation import segment_text
 from mythrix.core.vector.store import ChromaVectorStore, ChunkMetadata
 
@@ -156,6 +157,24 @@ def _existing_source(graph_store: KuzuGraphStore, source_id: str) -> Source | No
         return None
 
 
+def _segment_source(content: str, source: Source, *, chunk_size: int, chunk_overlap: int) -> list[Chunk]:
+    """Runs the source's declared segmentation (or the fixed-size fallback)
+    against its actual text. Shared by `_segmentation_summary` (chapter/count
+    shape) and `preview_corpus_segments` (every segment's own locator) so the
+    two previews can never compute segments differently from each other, or
+    from a real ingest's own `load_document` call."""
+    if source.structure_scheme:
+        return segment_text(
+            content,
+            scheme=source.structure_scheme,
+            chapter_pattern=source.chapter_pattern or None,
+            subsection_pattern=source.subsection_pattern or None,
+            body_start_occurrence=source.body_start_occurrence,
+            body_end_occurrence=source.body_end_occurrence,
+        )
+    return chunk_text(content, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+
+
 def _segmentation_summary(content: str, source: Source, *, chunk_size: int, chunk_overlap: int) -> dict:
     """Runs the source's declared segmentation (or the fixed-size fallback)
     against its actual text purely to report shape (FR-CO-14) — no
@@ -164,17 +183,7 @@ def _segmentation_summary(content: str, source: Source, *, chunk_size: int, chun
     curator can validate a candidate pattern (e.g. checking the detected
     chapter count against the source's own table of contents) before a real,
     costly ingest runs."""
-    if source.structure_scheme:
-        chunks = segment_text(
-            content,
-            scheme=source.structure_scheme,
-            chapter_pattern=source.chapter_pattern or None,
-            subsection_pattern=source.subsection_pattern or None,
-            body_start_occurrence=source.body_start_occurrence,
-            body_end_occurrence=source.body_end_occurrence,
-        )
-    else:
-        chunks = chunk_text(content, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+    chunks = _segment_source(content, source, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
 
     summary: dict = {"total_segments": len(chunks)}
     if source.structure_scheme == "chapter_section":
@@ -190,6 +199,71 @@ def _segmentation_summary(content: str, source: Source, *, chunk_size: int, chun
     return summary
 
 
+def _discover_corpus_pairs(root: Path) -> list[tuple[Path, Source]]:
+    """Every `<name>.yaml` under `root` paired with its sibling `<name>.txt`,
+    each parsed into a `Source` (FR-CO-01) — no `--tradition`/`--domain`/
+    `--source-slug` flags needed, since a corpus source's own YAML already
+    carries its `id`/`domain` directly. All pairs are parsed before any
+    caller acts on one, so a duplicate `id` across corpus files is caught
+    before any of them is registered, ingested, or previewed — mirrors
+    `sign_loader.py`'s two-phase discipline. Shared by `load_corpus_directory`
+    and `preview_corpus_segments` so both discover sources identically."""
+    pairs: list[tuple[Path, Source]] = []
+    seen_ids: set[str] = set()
+    for yaml_path in sorted(root.rglob("*.yaml")):
+        txt_path = yaml_path.with_suffix(".txt")
+        if not txt_path.exists():
+            continue
+        source = _parse_corpus_source(yaml_path)
+        if source.id in seen_ids:
+            raise IngestValidationError(f"Duplicate corpus source id {source.id!r}.", source_path=str(yaml_path))
+        seen_ids.add(source.id)
+        pairs.append((txt_path, source))
+    return pairs
+
+
+def preview_corpus_segments(root: Path, *, chunk_size: int = 650, chunk_overlap: int = 100) -> list[dict]:
+    """For every corpus source discovered under `root`, runs its declared
+    segmentation against its actual text and returns every resulting
+    segment's own ordinal/locator/section (FR-CO-14) — the fine-grained
+    sibling of `load_corpus_directory(dry_run=True)`'s per-chapter counts,
+    for when a curator needs to see the actual locator text a pattern change
+    produces (e.g. does a subsection-level segment still name its chapter?)
+    rather than just how many segments land in each chapter.
+
+    Touches neither the graph store nor the vector store — no `Source`
+    lookup, no content-hash comparison, nothing opened at all — so unlike
+    `load_corpus_directory`, this never needs a `KuzuGraphStore`/
+    `ChromaVectorStore` handle and never contends with one already open
+    elsewhere (e.g. a running API server holding Kùzu's single-writer lock).
+
+    A `chapter_section` chunk's own `locator` is always empty at this point
+    (formatting happens at query time, not ingest — see
+    `mythrix.core.retrieval.locator_format`), so its display locator is
+    built here via `chapter_section_locator` instead, the same call every
+    real query-path `Segment` construction makes — this previews exactly
+    what the app will render, not raw structural fields.
+    """
+    results: list[dict] = []
+    for txt_path, source in _discover_corpus_pairs(root):
+        content = txt_path.read_text(encoding="utf-8")
+        chunks = _segment_source(content, source, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+        results.append(
+            {
+                "source_id": source.id,
+                "segments": [
+                    {
+                        "ordinal": chunk.ordinal,
+                        "locator": chapter_section_locator(chunk, chunk) if chunk.chapter_title else chunk.locator,
+                        "section": chunk.section,
+                    }
+                    for chunk in chunks
+                ],
+            }
+        )
+    return results
+
+
 def load_corpus_directory(
     root: Path,
     *,
@@ -200,17 +274,8 @@ def load_corpus_directory(
     chunk_overlap: int = 100,
     dry_run: bool = False,
 ) -> list[dict]:
-    """Auto-discovers every corpus source under `root`: each `<name>.yaml`
-    colocated with a `<name>.txt` of the same stem is one source (FR-CO-01) —
-    no `--tradition`/`--domain`/`--source-slug` flags needed, since a corpus
-    source's own YAML already carries its `id`/`domain` directly. Unlike a
-    sign's own citation sources, a corpus document is never assigned a
-    tradition — FR-CO-02's independent-corpus reading has no interpretive lens of
-    its own.
-
-    Every pair is parsed before anything is written, so a duplicate `id`
-    across corpus files is caught before any of them is registered or
-    ingested — mirrors `sign_loader.py`'s two-phase discipline.
+    """Auto-discovers every corpus source under `root` (`_discover_corpus_pairs`)
+    and either previews or ingests each one.
 
     `dry_run=True` hashes each `.txt` plus its declared `structure` block
     (FR-CO-13) and compares that against the corresponding `Source`'s
@@ -223,17 +288,7 @@ def load_corpus_directory(
     "detail", "segmentation"}` for a dry run, `{"source_id",
     "chunks_written"}` for a real one.
     """
-    pairs: list[tuple[Path, Source]] = []
-    seen_ids: set[str] = set()
-    for yaml_path in sorted(root.rglob("*.yaml")):
-        txt_path = yaml_path.with_suffix(".txt")
-        if not txt_path.exists():
-            continue
-        source = _parse_corpus_source(yaml_path)
-        if source.id in seen_ids:
-            raise IngestValidationError(f"Duplicate corpus source id {source.id!r}.", source_path=str(yaml_path))
-        seen_ids.add(source.id)
-        pairs.append((txt_path, source))
+    pairs = _discover_corpus_pairs(root)
 
     results: list[dict] = []
     for txt_path, source in pairs:
