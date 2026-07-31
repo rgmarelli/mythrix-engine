@@ -12,6 +12,11 @@
 
   Let's start by fetching these signs.
   ``` 
+* [ ] **Selecting an interpretant in the right panel only selects 1 matching segment instead of all.** Also, clicking again should remove the selection.
+
+* [ ] **Review endpoints and definitions.**
+
+* [ ] **Review /reload-signs endpoint.** Accepts a path parameter (security vulnerability).
 
 ## Features
 * [ ] **Augmentation: Clarify context.** Augmentation uses a context expansion feature that mentions fragments that can be "hidden" from the user. This is confusing, so we need to add clarification in the UI.

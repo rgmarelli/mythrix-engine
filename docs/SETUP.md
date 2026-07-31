@@ -93,31 +93,6 @@ Both commands are idempotent — safe to re-run. The document load embeds the
 full Bible text (~5.6MB, ~1700 chunks), so expect this step to take a while
 on CPU-only local Ollama embedding.
 
-## 5. Query
-
-Run from the repo root, so `.mythrix/` resolves to the root-level store:
-
-```bash
-# human-readable: graph facts, per-concept passages, and pair-convergence groups
-uv run --project api mythrix query --sign the-tower --tradition rider-waite
-
-# structured output — full evidentiary chain (FR-RT-06)
-uv run --project api mythrix query --sign the-tower --tradition rider-waite --json
-
-# widen the pool searched for concept-pair convergence (FR-RT-08), independent of --top-k
-uv run --project api mythrix query --sign the-tower --tradition rider-waite --match-pool 50
-```
-
-Per FR-RT-10, no generation model is ever invoked on this path — only the
-embedding model is needed, so this works with just `nomic-embed-text`
-pulled. Expect the `GRAPH FACTS` block (`[G#]`), one `PASSAGES` block per
-concept (most likely including a Bible passage from Genesis 11, the Tower
-of Babel — the thematic match to "The Tower" — though retrieval is
-corpus-wide, so any resonant passage may surface), and a `CANDIDATES`
-section per converging concept pair with its combined and component scores.
-There is no synthesized narrative and no `--facts-only`/`--strict` flags —
-every query already returns this complete evidentiary result.
-
 ## Running tests
 
 Run from `api/`:
