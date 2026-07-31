@@ -12,7 +12,7 @@ sign:
     - type: numeric_value
       value: '90'
       query:
-        directive: exact
+        directive: filter
         as_token: ninety
     - type: meaning
       value: To hunt

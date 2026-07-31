@@ -65,7 +65,36 @@ def test_dry_run_reports_new_without_writing(
     assert exit_code == 0
     assert vector_store.count() == 0
     payload = json.loads(capsys.readouterr().out)
-    assert payload["results"] == [{"source_id": "en_drb", "status": "new", "detail": "would ingest for the first time"}]
+    assert payload["results"] == [
+        {
+            "source_id": "en_drb",
+            "status": "new",
+            "detail": "would ingest for the first time",
+            "segmentation": {"total_segments": 1},
+        }
+    ]
+
+
+def test_dry_run_plain_text_output_shows_segmentation_summary(
+    tmp_path: Path, graph_store: KuzuGraphStore, capsys: pytest.CaptureFixture[str]
+) -> None:
+    corpus = tmp_path / "corpus"
+    _write_corpus_source(corpus)
+
+    exit_code = run_load_documents(
+        corpus,
+        graph_store=graph_store,
+        vector_store=None,
+        embedder=None,
+        chunk_size=650,
+        chunk_overlap=100,
+        dry_run=True,
+        as_json=False,
+    )
+
+    assert exit_code == 0
+    out = capsys.readouterr().out
+    assert "'en_drb': new — would ingest for the first time (1 segment)" in out
 
 
 def test_real_ingest_writes_chunks_then_dry_run_reports_unchanged(

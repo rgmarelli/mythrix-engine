@@ -1,0 +1,30 @@
+# Validated via `mythrix load-documents --dry-run` (T9): detects exactly the
+# 69 real chapters (I-LXIX) against the table of contents, in order, with no
+# false positives — the length bound on chapter_pattern's title class already
+# excludes the inline enumerated list and author-initial citation flagged in
+# plan.md's Risks (both run well past 60 characters). subsection_pattern
+# correctly isolates each chapter's own numbered subsections (e.g. Chapter
+# 1's "Diana and Virbius" / "Artemis and Hippolytus" / "Recapitulation").
+
+source:
+  id: "en_goldenbough"
+  domain: symbolism
+  citation_label: "Golden Bough"
+  structure:
+    scheme: chapter_section
+    chapter_pattern: "[IVXLCM]+\\. [A-Z][A-Za-z ,'\\-]{2,60}"
+    subsection_pattern: "\\d+\\. [A-Z][A-Za-z ,'\\-]{2,60}"
+  title: "The Golden Bough: A Study of Magic and Religion (Abridged Edition)"
+  author: "Sir James George Frazer"
+  publication_year: 1922
+  license: "public-domain"
+  uri: "https://www.gutenberg.org/ebooks/3623"
+  description: >
+    Frazer's own one-volume abridgment of his twelve-volume comparative study
+    of magic, myth, and religion, tracing the priest-king of Nemi through
+    parallel customs of sacred kingship, vegetation deities, and ritual
+    regicide across world cultures. Condensed by the author from the
+    unabridged third edition (1906-1915), retaining the original argument and
+    evidence while omitting scholarly notes and citations. Ingested as an
+    independent primary-source corpus, not as an interpretive tradition of
+    any symbol system.

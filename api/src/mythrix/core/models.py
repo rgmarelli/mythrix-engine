@@ -71,6 +71,11 @@ class Source(MythrixModel):
     `mythrix.core.vector.segmentation` (FR-CO-05) that
     the document loader routes ingestion through instead of fixed word-count
     chunking. Empty for a source with no declared structure.
+
+    `chapter_pattern`/`subsection_pattern`/`body_start_occurrence`/
+    `body_end_occurrence` configure the `chapter_section` scheme only
+    (FR-CO-08–FR-CO-12); empty/default for every other scheme. See
+    `sign_schema.StructureBlock` for what each one means.
     """
 
     id: str
@@ -85,6 +90,10 @@ class Source(MythrixModel):
     content_hash: str = ""
     ingested_at: datetime | None = None
     structure_scheme: str = ""
+    chapter_pattern: str = ""
+    subsection_pattern: str = ""
+    body_start_occurrence: int = 1
+    body_end_occurrence: int = 0
 
 
 class Property(MythrixModel):

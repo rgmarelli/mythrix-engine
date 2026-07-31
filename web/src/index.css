@@ -950,6 +950,14 @@ button {
   color: var(--muted);
 }
 
+.segment-gap {
+  text-align: center;
+  color: var(--muted);
+  font-family: var(--f-read);
+  font-size: 0.85rem;
+  margin: -0.1rem 0;
+}
+
 .segment-locator {
   font-family: var(--f-mono);
   font-size: 0.72rem;

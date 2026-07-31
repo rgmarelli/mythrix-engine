@@ -62,9 +62,27 @@ class TraditionFile(LoaderModel):
 class StructureBlock(LoaderModel):
     """A corpus source's `structure:` block (FR-CO-05): names the structural segmenter (`mythrix.core.vector.segmentation`)
     that turns this source's raw text into segments along its own declared
-    structure, rather than a fixed word-count chunk."""
+    structure, rather than a fixed word-count chunk.
+
+    `chapter_pattern`/`subsection_pattern`/`body_start_occurrence`/
+    `body_end_occurrence` are used only by the `chapter_section` scheme
+    (FR-CO-08–FR-CO-12): a source using any other scheme leaves them unset.
+    `chapter_pattern` is a regex matched against a whole paragraph (after
+    whitespace-stripping) to recognize a chapter heading — required when
+    `scheme` is `chapter_section`. `subsection_pattern` is the same kind of
+    match, one level finer than chapter; a source with no sub-chapter
+    structure leaves it unset. `body_start_occurrence`/`body_end_occurrence`
+    are 1-indexed positions among all `chapter_pattern` matches in the file
+    marking the real first/last chapter, letting a source exclude a table of
+    contents or endnotes section that reuses the same heading text
+    (FR-CO-11); `body_end_occurrence: 0` means unbounded (through end of
+    file)."""
 
     scheme: str
+    chapter_pattern: str | None = None
+    subsection_pattern: str | None = None
+    body_start_occurrence: int = 1
+    body_end_occurrence: int = 0
 
 
 class SourceBlock(LoaderModel):
