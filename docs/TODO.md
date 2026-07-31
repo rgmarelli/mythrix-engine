@@ -33,3 +33,5 @@
 * [ ] **Adopt Conventional Commits specification across the repository.** 
 
 * [ ] **Semiotic Models Update.**. Improve current sample models, add astrology models, and expand sources.
+
+* [ ] **Update mythrix image in README.**.
