@@ -10,6 +10,14 @@
 # body_start/end_occurrence at all. The title character class needed
 # widening to cover "(_continued_)" (parentheses + underscores, Gutenberg's
 # italics markup) used by several chapter titles.
+#
+# Chapter XIX is followed by a back-of-book "INDEX." (a standalone paragraph,
+# line 37524) whose body is just alphabetized term/page-number entries, not
+# prose — without an explicit boundary, that entire index would otherwise be
+# ingested as trailing content of chapter XIX. `chapter_pattern`'s second
+# alternative matches that single heading paragraph as its own occurrence
+# (the 20th, after the 19 real chapters), and `body_end_occurrence: 19`
+# excludes it and everything after it from the body.
 
 source:
   id: "en_primculture"
@@ -17,7 +25,8 @@ source:
   citation_label: "Primitive Culture"
   structure:
     scheme: chapter_section
-    chapter_pattern: "CHAPTER [IVXLC]+\\.\\n\\s*[A-Za-z0-9 ,.'()_\\-]+\\.?"
+    chapter_pattern: "CHAPTER [IVXLC]+\\.\\n\\s*[A-Za-z0-9 ,.'()_\\-]+\\.?|INDEX\\."
+    body_end_occurrence: 19
   title: "Primitive Culture: Researches into the Development of Mythology, Philosophy, Religion, Language, Art, and Custom"
   author: "Edward B. Tylor"
   publication_year: 1871
