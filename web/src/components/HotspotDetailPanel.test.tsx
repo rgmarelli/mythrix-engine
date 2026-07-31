@@ -55,6 +55,79 @@ describe('rendered hotspot', () => {
     expect(screen.getByText('The pride of the height.')).toBeInTheDocument();
   });
 
+  it('never repeats a segment locator that is identical to the hotspot\'s own (a chapter-only source with nothing finer to cite)', () => {
+    const chapterTitle = '14. CHAPTER XIV The Author';
+    const hotspot = makeHotspot({
+      locator: chapterTitle,
+      segments: [
+        makeSegment({ ordinal: 1, locator: chapterTitle, text: 'first' }),
+        makeSegment({ ordinal: 2, locator: chapterTitle, text: 'second' }),
+        makeSegment({ ordinal: 3, locator: chapterTitle, text: 'third' }),
+      ],
+    });
+    render(<HotspotDetailPanel {...baseProps({ hotspot })} />);
+    // The panel heading already states it once — no segment should repeat it.
+    expect(screen.getAllByText(chapterTitle)).toHaveLength(1);
+    expect(document.querySelectorAll('.segment-locator')).toHaveLength(0);
+  });
+
+  it('shows each segment\'s own locator when it names something finer than the hotspot\'s own (e.g. a verse within a region)', () => {
+    const hotspot = makeHotspot({
+      locator: 'Genesis 21:5–8',
+      segments: [
+        makeSegment({ ordinal: 1, locator: 'Genesis 21:5', text: 'first' }),
+        makeSegment({ ordinal: 2, locator: 'Genesis 21:8', text: 'second' }),
+      ],
+    });
+    render(<HotspotDetailPanel {...baseProps({ hotspot })} />);
+    expect(screen.getByText('Genesis 21:5')).toBeInTheDocument();
+    expect(screen.getByText('Genesis 21:8')).toBeInTheDocument();
+  });
+
+  it('renders a gap marker across a non-adjacent ordinal jump even when neither side repeats the (redundant) locator', () => {
+    const chapterTitle = '17. Fishes, Insects, Animals, Reptiles and Birds';
+    const hotspot = makeHotspot({
+      locator: chapterTitle,
+      segments: [
+        makeSegment({ ordinal: 1, locator: chapterTitle, text: 'first' }),
+        makeSegment({ ordinal: 2, locator: chapterTitle, text: 'second' }),
+        makeSegment({ ordinal: 10, locator: chapterTitle, text: 'far later' }),
+      ],
+    });
+    // Both edges confirmed bounded so only the internal ordinal gap is under test here.
+    const initialExtendedRegion = { regionId: hotspot.regionId, locator: chapterTitle, segments: hotspot.segments, leadingBounded: true, trailingBounded: true };
+    render(<HotspotDetailPanel {...baseProps({ hotspot, initialExtendedRegion })} />);
+    expect(document.querySelectorAll('.segment-locator')).toHaveLength(0);
+    expect(document.querySelectorAll('.segment-gap')).toHaveLength(1);
+  });
+
+  it('shows leading and trailing gap markers for a chapter-only source when neither edge is confirmed bounded (the default, unconfirmed state before "Add Context")', () => {
+    const chapterTitle = '17. Fishes, Insects, Animals, Reptiles and Birds';
+    const hotspot = makeHotspot({
+      locator: chapterTitle,
+      segments: [
+        makeSegment({ ordinal: 4, locator: chapterTitle, text: 'first' }),
+        makeSegment({ ordinal: 5, locator: chapterTitle, text: 'second' }),
+      ],
+    });
+    render(<HotspotDetailPanel {...baseProps({ hotspot })} />);
+    // No internal gap (ordinals are adjacent), so both markers shown are the edges.
+    expect(document.querySelectorAll('.segment-gap')).toHaveLength(2);
+  });
+
+  it('never shows leading/trailing gap markers for a source whose segments carry their own distinct locator (a verse range like the Bible or the Bahir), even when unbounded', () => {
+    const hotspot = makeHotspot({
+      locator: 'Genesis 3:7–15',
+      segments: [
+        makeSegment({ ordinal: 1, locator: 'Genesis 3:7', text: 'first' }),
+        makeSegment({ ordinal: 8, locator: 'Genesis 3:15', text: 'second' }),
+      ],
+    });
+    render(<HotspotDetailPanel {...baseProps({ hotspot })} />);
+    // The ordinal jump between the two segments is still a real internal gap.
+    expect(document.querySelectorAll('.segment-gap')).toHaveLength(1);
+  });
+
   it('renders one chip per match and highlights the clicked one as anchored', async () => {
     const hotspot = makeHotspot({
       segments: [makeSegment({ ordinal: 1 }), makeSegment({ ordinal: 2, text: 'second segment' })],

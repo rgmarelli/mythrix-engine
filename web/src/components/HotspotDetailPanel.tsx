@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Guido Marelli
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { extendContext } from '../api/client';
@@ -243,17 +243,53 @@ export function HotspotDetailPanel({
         {contextError && <p className="error">{contextError}</p>}
 
         <div className="segment-list">
-          {segments.map((segment) => {
-            const classes = ['segment'];
-            if (!matchedOrdinals.has(segment.ordinal)) classes.push('context');
-            if (segment.ordinal === activeSegmentOrdinal) classes.push('active');
+          {/* A source like the Bible or the Bahir already names each segment
+              with its own distinct locator (a verse or numbered section) —
+              the hotspot's header locator is itself just a compact range
+              over those (e.g. "Genesis 3:7–15"), so a leading/trailing gap
+              marker would be near-universal noise: there is always more
+              book before verse 7 and after verse 15. A chapter_section
+              source with no subsection layer gives every one of its
+              segments the *same* locator as the header, so it has no such
+              built-in range framing — there, whether the shown fragment
+              reaches the actual edge of its chapter is worth signaling. */}
+          {(() => {
+            const hasOwnLocators = segments.some((s) => Boolean(s.locator) && s.locator !== hotspot.locator);
+            const showLeadingGap = !hasOwnLocators && !leadingBounded;
+            const showTrailingGap = !hasOwnLocators && !trailingBounded;
             return (
-              <div key={segment.ordinal} id={segmentElementId(hotspot.regionId, segment.ordinal)} className={classes.join(' ')}>
-                {segment.locator && <p className="segment-locator">{segment.locator}</p>}
-                <p className="text">{segment.text}</p>
-              </div>
+              <>
+                {showLeadingGap && <div className="segment-gap" aria-hidden="true">[…]</div>}
+                {segments.map((segment, index) => {
+                  const classes = ['segment'];
+                  if (!matchedOrdinals.has(segment.ordinal)) classes.push('context');
+                  if (segment.ordinal === activeSegmentOrdinal) classes.push('active');
+                  const previous = segments[index - 1];
+                  // A hotspot's segments aren't guaranteed contiguous — only the
+                  // matched ordinals are included until "Add Context" gap-fills
+                  // between them — so a non-consecutive ordinal jump is a real
+                  // gap, independent of locator, and must stay visible.
+                  const hasGap = previous != null && segment.ordinal - previous.ordinal !== 1;
+                  // The panel header already states the hotspot's own citation
+                  // (`hotspot.locator`). A segment's own locator is worth
+                  // showing only when it exists as something distinct from
+                  // that header — a verse/section locator naming this exact
+                  // segment, not the whole chapter it happens to sit in.
+                  const showLocator = Boolean(segment.locator) && segment.locator !== hotspot.locator;
+                  return (
+                    <Fragment key={segment.ordinal}>
+                      {hasGap && <div className="segment-gap" aria-hidden="true">[…]</div>}
+                      <div id={segmentElementId(hotspot.regionId, segment.ordinal)} className={classes.join(' ')}>
+                        {showLocator && <p className="segment-locator">{segment.locator}</p>}
+                        <p className="text">{segment.text}</p>
+                      </div>
+                    </Fragment>
+                  );
+                })}
+                {showTrailingGap && <div className="segment-gap" aria-hidden="true">[…]</div>}
+              </>
             );
-          })}
+          })()}
         </div>
       </div>
     </aside>
