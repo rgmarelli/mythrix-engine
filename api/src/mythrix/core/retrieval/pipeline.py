@@ -635,7 +635,10 @@ def region_locator(segments: tuple[Segment, ...]) -> str:
     multi-segment region merges the first and last locator's trailing part
     when they share a common prefix (`"Genesis 21:5"` + `"Genesis 21:6"` ->
     `"Genesis 21:5–6"`); otherwise the two full locators are joined, still
-    unambiguous.
+    unambiguous. A `chapter_section` source with no subsection layer gives
+    every paragraph in a chapter the same locator, so a region confined to
+    one chapter has an identical first and last locator — that single value
+    is reused as-is rather than joined with itself.
 
     Public because a caller reading a region back by structural coordinate
     must label it exactly as the query path did (FR-AU-15). The two agree
@@ -644,6 +647,8 @@ def region_locator(segments: tuple[Segment, ...]) -> str:
     if len(segments) == 1:
         return segments[0].locator
     first, last = segments[0].locator, segments[-1].locator
+    if first == last:
+        return first
     prefix = first.rpartition(":")[0]
     if prefix and last.startswith(prefix + ":"):
         return f"{first}–{last[len(prefix) + 1 :]}"

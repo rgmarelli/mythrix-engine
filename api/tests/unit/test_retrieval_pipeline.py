@@ -1297,3 +1297,13 @@ def test_region_locator_joins_both_locators_in_full_when_no_prefix_is_shared() -
     segments = (_segment(1, "Genesis 21:8"), _segment(2, "Genesis 22:1"))
 
     assert region_locator(segments) == "Genesis 21:8–Genesis 22:1"
+
+
+def test_region_locator_reuses_the_shared_locator_when_first_and_last_are_identical() -> None:
+    """A `chapter_section` source with no subsection layer gives every
+    paragraph in a chapter the same locator, so a region confined to one
+    chapter must not read as that locator joined with itself."""
+    label = "9. CHAPTER IX. MYTHOLOGY (_continued_)."
+    segments = (_segment(1, label), _segment(2, label), _segment(3, label))
+
+    assert region_locator(segments) == label
