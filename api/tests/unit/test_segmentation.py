@@ -103,7 +103,7 @@ def test_chapter_section_groups_paragraphs_by_chapter_and_excludes_front_matter(
 
     assert len(segments) == 2
     assert [s.locator for s in segments] == ["1. I. The King of the Wood", "2. II. Priestly Kings"]
-    assert [s.section for s in segments] == ["", ""]
+    assert [s.section for s in segments] == ["1. I. The King of the Wood", "2. II. Priestly Kings"]
     assert segments[0].text == "In antiquity this sylvan landscape was the scene of a strange tragedy."
 
 
@@ -131,9 +131,9 @@ def test_chapter_section_splits_locator_and_section_when_subsections_declared() 
     assert segments[1].locator == "2. Artemis and Hippolytus"
     assert segments[1].section == "1. I. The King of the Wood"
     # Chapter II has no subsection match, so it falls back to the implicit
-    # whole-chapter subsection: locator carries the chapter, section is empty.
+    # whole-chapter subsection: locator and section both carry the chapter.
     assert segments[2].locator == "2. II. Priestly Kings"
-    assert segments[2].section == ""
+    assert segments[2].section == "2. II. Priestly Kings"
 
 
 def test_chapter_section_occurrence_bounds_exclude_table_of_contents_and_endnotes() -> None:

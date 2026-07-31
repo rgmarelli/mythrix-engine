@@ -193,12 +193,15 @@ def _segment_chapter_section(
     next in-range chapter-heading match, if any.
 
     `locator`/`section` follow `_segment_scripture_verse`'s split: the
-    finest declared level is `locator`, the coarser one (if any) is
-    `section`. A source with no `subsection_pattern`, or a chapter with no
-    subsection match yet, has only the chapter level — `locator` carries the
-    chapter label and `section` stays empty, the same "no grouping above
-    itself" treatment `_segment_numbered_section` gives a bare section. A
-    chapter label always includes a running ordinal, not just the heading's
+    finest declared level is `locator`, the coarser one is `section`. A
+    source with no `subsection_pattern`, or a chapter with no subsection
+    match yet, has only the chapter level, so `locator` and `section` both
+    carry the chapter label — unlike `_segment_numbered_section`'s bare
+    section, a chapter is still a real grouping a neighbor can fall outside
+    of, and `extend_context`'s edge-growth boundary check relies on
+    `section` to detect that; leaving it empty here would make the check
+    a no-op and let growth walk past the chapter that produced this segment.
+    A chapter label always includes a running ordinal, not just the heading's
     own text, since heading text is not guaranteed unique within a source
     (e.g. *The Secret Teachings of All Ages* repeats one chapter title
     across three distinct chapters)."""
@@ -236,7 +239,7 @@ def _segment_chapter_section(
             subsection_label = normalize_chunk_text(paragraph)
             continue
 
-        locator, section = (subsection_label, chapter_label) if subsection_label else (chapter_label, "")
+        locator, section = (subsection_label, chapter_label) if subsection_label else (chapter_label, chapter_label)
         chunks.append(
             Chunk(
                 index=ordinal,
