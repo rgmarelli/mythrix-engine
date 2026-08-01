@@ -78,7 +78,7 @@ def created_models(monkeypatch: pytest.MonkeyPatch) -> list[FakeChatModel]:
         return created[-1]
 
     monkeypatch.setattr(dependencies, "create_chat_model", fake_create_chat_model)
-    monkeypatch.setenv("MYTHRIX_GENERATION_MODEL", "llama3.2")
+    monkeypatch.setenv("MYTHRIX_GENERATION_MODEL", "qwen3:1.7b")
     return created
 
 

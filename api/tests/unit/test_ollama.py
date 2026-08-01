@@ -27,7 +27,7 @@ def test_unreachable_daemon_raises_model_unavailable_error() -> None:
     from mythrix.core.ollama import create_chat_model
 
     with pytest.raises(ModelUnavailableError):
-        create_chat_model(model="llama3", base_url="http://localhost:1")
+        create_chat_model(model="qwen3:1.7b", base_url="http://localhost:1")
 
 
 def test_derive_chat_model_carries_a_per_role_option_alongside_the_constructed_ones() -> None:
