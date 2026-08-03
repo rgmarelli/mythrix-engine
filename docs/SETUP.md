@@ -38,7 +38,7 @@ Then pull the models you'll use:
 
 ```bash
 ollama pull nomic-embed-text   # embedding model (default)
-ollama pull qwen2.5:3b         # or any generation model you prefer
+ollama pull qwen3:1.7b        # or any generation model you prefer
 ```
 
 Confirm the daemon is running: `ollama list` should succeed without error.
