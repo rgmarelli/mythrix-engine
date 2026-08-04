@@ -91,7 +91,12 @@ class Settings(BaseSettings):
     fixed citation-failure message. Read only by the conversational agent
     path, like `agent_max_tool_iterations`, which it is independent of: both
     still count toward the same outer `recursion_limit` `runner.py` applies
-    per turn.
+    per turn (ADR-023) — a full citation-retry cycle costs two steps (the
+    agent's reattempt, then the citation check), so exhausting the default
+    `citation_max_retries` alone can cost up to `2 * (citation_max_retries +
+    1)` steps before a single tool call is counted. `agent_max_tool_iterations`
+    is sized with that overhead in mind, not just the tool-call count its own
+    name suggests.
     """
 
     model_config = SettingsConfigDict(env_prefix="MYTHRIX_", env_file=".env", extra="ignore")
@@ -108,7 +113,7 @@ class Settings(BaseSettings):
     region_window_size: int = 3
     region_min_interpretants: int = 1
     agent_model: str | None = None
-    agent_max_tool_iterations: int = 8
+    agent_max_tool_iterations: int = 16
     augment_max_regions: int = 1000
     augment_consolidation_group_size: int = Field(default=8, ge=2)
     citation_max_retries: int = 2

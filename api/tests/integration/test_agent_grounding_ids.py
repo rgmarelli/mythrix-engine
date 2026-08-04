@@ -216,7 +216,7 @@ def test_list_semiotic_systems_answers_from_the_real_graph(graph: CompiledStateG
         session_id="list-systems",
         message="What semiotic systems are available?",
         ui_selection=AgentContext(),
-        max_tool_iterations=8,
+        max_tool_iterations=16,
     )
 
     assert "tarot" in turn.reply_text.lower()
@@ -232,7 +232,7 @@ def test_get_sign_reply_cites_the_real_opaque_grounding_id_when_asked_to_cite(gr
         session_id=session_id,
         message="Tell me about the sun in the Rider-Waite tradition, and cite the source for its meaning.",
         ui_selection=AgentContext(semiotic_system="tarot", tradition="rider-waite"),
-        max_tool_iterations=8,
+        max_tool_iterations=16,
     )
 
     history = sessions.get_or_create(session_id).history
@@ -255,7 +255,7 @@ def test_get_sign_reply_cites_the_real_opaque_grounding_id_unprompted(graph: Com
         session_id=session_id,
         message="Tell me about the sun in the Rider-Waite tradition.",
         ui_selection=AgentContext(semiotic_system="tarot", tradition="rider-waite"),
-        max_tool_iterations=8,
+        max_tool_iterations=16,
     )
 
     history = sessions.get_or_create(session_id).history
@@ -277,7 +277,7 @@ def test_query_sign_reply_cites_real_opaque_segment_ids_when_asked_to_cite(graph
             "Quote the passages and describe the emotions expressed in them."
         ),
         ui_selection=AgentContext(semiotic_system="tarot", tradition="rider-waite"),
-        max_tool_iterations=8,
+        max_tool_iterations=16,
     )
 
     history = sessions.get_or_create(session_id).history
@@ -300,7 +300,7 @@ def test_query_sign_reply_cites_real_opaque_segment_ids_unprompted(graph: Compil
         session_id=session_id,
         message="What evidence supports the sun?",
         ui_selection=AgentContext(semiotic_system="tarot", tradition="rider-waite"),
-        max_tool_iterations=8,
+        max_tool_iterations=16,
     )
 
     history = sessions.get_or_create(session_id).history
