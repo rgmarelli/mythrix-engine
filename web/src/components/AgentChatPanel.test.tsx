@@ -10,6 +10,7 @@ import type { ThreadItem } from '../state/useTabs';
 import type { AgentCapabilities } from '../api/types';
 
 const CAPABILITIES: AgentCapabilities = {
+  // FIXME! We have a capabilities endpoint to use
   commands: [
     { name: '/clear', args: null, summary: 'Clear this thread', handledBy: 'client', listed: true },
     { name: '/summarize', args: null, summary: 'Summarize this region', handledBy: 'server', listed: true },

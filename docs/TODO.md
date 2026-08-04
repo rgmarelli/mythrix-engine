@@ -20,6 +20,9 @@
 
 * [ ] **Enforce MYTHRIX_GENERATION_MODEL env var on startup.** Prevent the server from starting if MYTHRIX_GENERATION_MODEL is missing or empty.
 
+* [ ] **Agent capabilities are still hardcoded in the frontend**.
+
+
 ## Features
 * [ ] **Augmentation: Clarify context.** Augmentation uses a context expansion feature that mentions fragments that can be "hidden" from the user. This is confusing, so we need to add clarification in the UI.
 
