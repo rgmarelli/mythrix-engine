@@ -145,41 +145,49 @@ def render_citation_pushback(invalid_markers: tuple[str, ...]) -> str:
     fault rather than restating the citation rule in the abstract, since the
     model has already seen that rule once this turn and evidently didn't
     apply it — repeating it unchanged is less likely to help than pointing at
-    exactly what was wrong.
+    exactly what was wrong. Naming the *wrong* marker is safe to do — unlike
+    the missing-citation case below, it doesn't hand the model a correct
+    answer to paste in, only tells it where it already went wrong.
 
-    Explicitly says the answer's *content* was fine and only the marker needs
-    fixing: real-model retries (`qwen3:1.7b`, ADR-023) showed that a pushback
-    focused only on the marker can read as "give me the id," collapsing a
-    full answer into a bare id list on retry — which then fails validation
-    again for having no prose to attach a citation to, burning the retry
-    budget on a reply that was never going to pass."""
+    Also guards against collapsing to a bare id list: real-model retries
+    (`qwen3:1.7b`, ADR-023) showed that a pushback focused only on the marker
+    can read as "give me the id," which drops the prose entirely and then
+    fails validation again for having nothing left to attach a citation to,
+    burning the retry budget on a reply that was never going to pass. And it
+    ties each replacement marker to genuine support, not just a valid id
+    dropped in to pass the check — the checker only verifies a marker
+    matches a real grounding id, never that the sentence it's attached to
+    actually reflects what that result says."""
     return (
-        f"Your last answer's content was fine — only the citation needs fixing. It used a citation "
-        f"marker that doesn't match any tool result from this turn: {', '.join(invalid_markers)}. Repeat "
-        f"the same answer in full, in full sentences, replacing the wrong marker(s) with the correct "
-        f"grounding ids shown in the tool results above — each id in its own square brackets, e.g. "
-        f"[id1] [id2], never [id1, id2]. Do not invent, renumber, or omit them, and do not shorten your "
-        f"answer to a bare list of ids."
+        f"Your last answer used a citation marker that doesn't match any tool result from this turn: "
+        f"{', '.join(invalid_markers)}. Answer again in full sentences — do not shorten it to a bare list "
+        f"of ids. Replace each wrong marker with a real grounding id from the tool results above, but "
+        f"only where that result actually supports the claim — each id in its own square brackets, e.g. "
+        f"[id1] [id2], never [id1, id2]. Do not invent, renumber, or omit them."
     )
 
 
-def render_missing_citation_pushback(uncited_ids: set[str]) -> str:
+def render_missing_citation_pushback() -> str:
     """The corrective message `validate_citations_node` injects when the
     model's reply leaves some of this turn's citable grounding ids
     uncited — whether it cited nothing at all, or cited one tool's results
     while silently dropping another's (ADR-023, FR-CR-07/08/11) — the
     counterpart to `render_citation_pushback` for omission rather than a
-    wrong marker. Lists only the ids still needing a citation, not every
-    valid id, for the same reason `render_citation_pushback` names the
-    specific marker at fault.
+    wrong marker.
 
-    Same "content was fine, only the citation needs fixing" framing as
-    `render_citation_pushback`, and the same warning against collapsing to a
-    bare id list — see that docstring for the observed failure mode."""
-    ids = ", ".join(f"[{marker_id}]" for marker_id in sorted(uncited_ids))
+    Deliberately never names the uncited ids: doing so would hand the model
+    exactly the markers to paste onto whatever text is already there,
+    satisfying the checker without the claim actually being grounded in that
+    result — the checker only verifies a marker matches a real grounding id,
+    never that the sentence it's attached to reflects what that result says.
+    The model already has this turn's tool results in context; the fix is to
+    re-examine them, not to be handed the answer. Also guards against
+    collapsing to a bare id list — see `render_citation_pushback` for the
+    observed failure mode."""
     return (
-        f"Your last answer's content was fine — only the citation needs fixing. It left some of this "
-        f"turn's citable items uncited: {ids}. Repeat the same answer in full, in full sentences, and add "
-        f"a citation for the claim(s) that draw on {ids} — each id in its own square brackets, e.g. "
-        f"[id1] [id2], never [id1, id2]. Do not shorten your answer to a bare list of ids."
+        "Your last answer left some of this turn's citable tool results uncited. Answer again in full "
+        "sentences — do not shorten it to a bare list of ids. Look back at the tool results already in "
+        "this conversation, find the ones your claims actually draw on, and cite each with its own "
+        "grounding id exactly as it appears there, in its own square brackets, e.g. [id1] [id2], never "
+        "[id1, id2]. Only cite a result where your answer genuinely reflects what it says."
     )

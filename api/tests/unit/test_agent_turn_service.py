@@ -336,10 +336,12 @@ def test_citation_retries_exhausted_falls_back_to_the_same_rejection() -> None:
     assert sessions.get_or_create("s1").history == []
 
 
-def test_missing_citation_gets_a_pushback_naming_the_available_ids_then_self_corrects() -> None:
+def test_missing_citation_gets_a_pushback_without_naming_ids_then_self_corrects() -> None:
     """FR-CR-07/08: a reply that cites nothing at all, despite a citable tool
     result this turn, is treated the same as a wrong-marker reply — a
-    pushback naming the ids actually available, then another attempt."""
+    pushback that never names the available ids (doing so would hand the
+    model a correct answer to paste in rather than making it re-examine the
+    tool results), then another attempt."""
     call = {"name": "get_sign", "args": {"sign": "The Magician", "tradition": "rider-waite"}, "id": "c1"}
     script = [
         AIMessage(content="", tool_calls=[call]),
@@ -360,7 +362,7 @@ def test_missing_citation_gets_a_pushback_naming_the_available_ids_then_self_cor
     assert "[G1]" not in response.reply_text
     assert "represents willpower" in response.reply_text
     pushback_texts = [m.content for m in sessions.get_or_create("s1").history if isinstance(m, HumanMessage)]
-    assert render_missing_citation_pushback({"G1"}) in pushback_texts
+    assert render_missing_citation_pushback() in pushback_texts
 
 
 def test_missing_citation_retries_exhausted_falls_back_to_the_same_rejection() -> None:
@@ -387,11 +389,10 @@ def test_missing_citation_retries_exhausted_falls_back_to_the_same_rejection() -
     assert sessions.get_or_create("s1").history == []
 
 
-def test_partial_citation_gets_a_pushback_naming_only_the_uncited_prefixes_ids_then_self_corrects() -> None:
+def test_partial_citation_gets_a_pushback_without_naming_ids_then_self_corrects() -> None:
     """FR-CR-11: a reply that cites one tool's marker but omits another's,
     despite both returning citable ids this turn, is retried just like a
-    fully marker-free reply — the pushback names only the ids still
-    uncited, not the ones already covered."""
+    fully marker-free reply — the same id-free pushback either way."""
     get_sign_call = {"name": "get_sign", "args": {"sign": "The Magician", "tradition": "rider-waite"}, "id": "c1"}
     fetch_call = {
         "name": "fetch_segments",
@@ -418,7 +419,7 @@ def test_partial_citation_gets_a_pushback_naming_only_the_uncited_prefixes_ids_t
     assert "[S1]" not in response.reply_text
     assert "echoed in the passage" in response.reply_text
     pushback_texts = [m.content for m in sessions.get_or_create("s1").history if isinstance(m, HumanMessage)]
-    assert render_missing_citation_pushback({"S1"}) in pushback_texts
+    assert render_missing_citation_pushback() in pushback_texts
 
 
 def test_marker_free_reply_is_not_retried_when_nothing_this_turn_was_citable() -> None:

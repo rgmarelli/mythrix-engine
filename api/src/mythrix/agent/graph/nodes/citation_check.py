@@ -50,7 +50,7 @@ def validate_citations_node(state: AgentState, *, max_retries: int) -> dict:
     retries_used = state.get("citation_retry_count", 0)
     if retries_used >= max_retries:
         return {"messages": [AIMessage(content=CITATION_FAILURE_MESSAGE)]}
-    pushback = render_citation_pushback(invalid) if invalid else render_missing_citation_pushback(missing)
+    pushback = render_citation_pushback(invalid) if invalid else render_missing_citation_pushback()
     return {
         "messages": [HumanMessage(content=pushback)],
         "citation_retry_count": retries_used + 1,
