@@ -11,7 +11,9 @@ from graph_helpers import compile_graph
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import tool
 
+from mythrix.agent.citations import CITATION_FAILURE_MESSAGE
 from mythrix.agent.context import AgentContext
+from mythrix.agent.prompts import render_citation_pushback
 from mythrix.agent.sessions import SessionStore
 from mythrix.agent.turn_service import AgentInstruction, TurnEvent, run_chat_turn, stream_chat_turn
 from mythrix.core.errors import ModelRequestError
@@ -37,7 +39,7 @@ def get_sign(sign: str, tradition: str | None = None) -> dict:
         "semiotic_system": "tarot",
         "tradition": "rider-waite",
         "tradition_name": "Rider-Waite-Smith",
-        "citations": [{"source": "Waite", "locator": "p. 1"}],
+        "citations": [{"source": "Waite", "locator": "p. 1", "grounding_id": "G1"}],
     }
 
 
@@ -51,7 +53,13 @@ def summarize_passage(passage_text: str, concepts: list[str]) -> dict:
 def fetch_segments(source_id: str, start_ordinal: int, end_ordinal: int) -> list[dict]:
     """Fake fetch_segments mirroring the real tool's shape."""
     return [
-        {"ordinal": ordinal, "locator": f"{source_id} {ordinal}", "section": None, "text": f"text {ordinal}"}
+        {
+            "ordinal": ordinal,
+            "locator": f"{source_id} {ordinal}",
+            "section": None,
+            "text": f"text {ordinal}",
+            "grounding_id": f"S{ordinal}",
+        }
         for ordinal in range(start_ordinal, end_ordinal + 1)
     ]
 
@@ -81,8 +89,8 @@ class ScriptedLLM:
         return response
 
 
-def _graph(script: list[AIMessage]):
-    return compile_graph(ScriptedLLM(script), _TOOLS)
+def _graph(script: list[AIMessage], *, citation_max_retries: int = 0):
+    return compile_graph(ScriptedLLM(script), _TOOLS, citation_max_retries=citation_max_retries)
 
 
 def test_normal_turn_grounds_the_reply_and_backfills_context() -> None:
@@ -274,6 +282,57 @@ def test_fabricated_citation_marker_is_not_shown_and_history_is_not_persisted() 
 
     assert "[G9]" not in response.reply_text
     assert "fabricated" not in response.reply_text
+    assert sessions.get_or_create("s1").history == []
+
+
+def test_invalid_citation_gets_a_pushback_naming_the_marker_then_self_corrects() -> None:
+    """ADR-023: with a retry budget, an invalid marker doesn't discard the
+    turn outright — the model is told exactly what was wrong and gets
+    another attempt, which here it uses correctly."""
+    call = {"name": "get_sign", "args": {"sign": "The Magician", "tradition": "rider-waite"}, "id": "c1"}
+    script = [
+        AIMessage(content="", tool_calls=[call]),
+        AIMessage(content="Fabricated claim [G9]."),
+        AIMessage(content="Corrected claim [G1]."),
+    ]
+    sessions = SessionStore()
+
+    response = run_chat_turn(
+        graph=_graph(script, citation_max_retries=1),
+        sessions=sessions,
+        session_id="s1",
+        message="tell me about the magician in rider-waite",
+        ui_selection=AgentContext(),
+        max_tool_iterations=8,
+    )
+
+    assert "[G1]" not in response.reply_text
+    assert "Corrected claim" in response.reply_text
+    pushback_texts = [m.content for m in sessions.get_or_create("s1").history if isinstance(m, HumanMessage)]
+    assert render_citation_pushback(("G9",)) in pushback_texts
+
+
+def test_citation_retries_exhausted_falls_back_to_the_same_rejection() -> None:
+    """A model that never corrects still ends in the same fallback as a
+    zero-retry rejection would — the retry budget only postpones it."""
+    call = {"name": "get_sign", "args": {"sign": "The Magician", "tradition": "rider-waite"}, "id": "c1"}
+    script = [
+        AIMessage(content="", tool_calls=[call]),
+        AIMessage(content="Fabricated claim [G9]."),
+        AIMessage(content="Still fabricated [G9]."),
+    ]
+    sessions = SessionStore()
+
+    response = run_chat_turn(
+        graph=_graph(script, citation_max_retries=1),
+        sessions=sessions,
+        session_id="s1",
+        message="tell me about the magician in rider-waite",
+        ui_selection=AgentContext(),
+        max_tool_iterations=8,
+    )
+
+    assert response.reply_text == CITATION_FAILURE_MESSAGE
     assert sessions.get_or_create("s1").history == []
 
 

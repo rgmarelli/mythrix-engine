@@ -93,6 +93,8 @@ def stream_turn(
                 "interpretant": interpretant,
                 "visible_regions": visible_regions or [],
                 "backend_authored": False,
+                "turn_start_index": len(history),
+                "citation_retry_count": 0,
             },
             config={"recursion_limit": max_tool_iterations},
             stream_mode=["values", "custom"],

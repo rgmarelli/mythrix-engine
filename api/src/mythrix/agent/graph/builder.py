@@ -23,6 +23,7 @@ from langgraph.prebuilt import ToolNode
 from mythrix.agent import commands
 from mythrix.agent.graph.nodes.adhoc import execute_query_node, parse_query_node
 from mythrix.agent.graph.nodes.augment import plan_augment_node, run_augment_node
+from mythrix.agent.graph.nodes.citation_check import route_after_citation_check, validate_citations_node
 from mythrix.agent.graph.nodes.llm import agent_node, clarify_node, route_after_agent, route_after_tools
 from mythrix.agent.graph.nodes.summary import summarize_node
 from mythrix.agent.graph.state import AgentState
@@ -57,6 +58,7 @@ def compile_agent_graph(  # noqa: ANN001 - Runnable, no shared base type worth i
     *,
     augment_max_regions: int,
     augment_consolidation_group_size: int,
+    citation_max_retries: int,
 ) -> CompiledStateGraph:
     """Compiles the turn's state machine given an already tool-bound chat
     model. `route_input` dispatches the incoming message: an ad-hoc-query
@@ -70,8 +72,13 @@ def compile_agent_graph(  # noqa: ANN001 - Runnable, no shared base type worth i
     `ToolNode` over the fixed read-only tool set) whenever the model's response
     carries tool calls, and back to `agent` afterward — except for a tool
     result carrying a truthy `needs_*` key, which routes to `clarify` instead
-    (agent.md FR-AG-18) and straight on to `END`. Ends at `END` once the model
-    answers without calling a tool.
+    (agent.md FR-AG-18) and straight on to `END`. A final answer (no tool
+    calls) goes to `validate_citations` instead of straight to `END`
+    (ADR-023): a citation-invalid reply gets routed back to `agent` with a
+    corrective message, up to `citation_max_retries` times, before falling
+    back to the same rejection `turn_service.py` has always used. Ends at
+    `END` once the model answers without calling a tool and its citations
+    check out (or the retry budget is spent).
 
     `llm_with_tools` is already bound, so a test can inject a stub
     tool-calling model with no live Ollama involved. It is bound to
@@ -112,6 +119,9 @@ def compile_agent_graph(  # noqa: ANN001 - Runnable, no shared base type worth i
             consolidation_group_size=augment_consolidation_group_size,
         ),
     )
+    builder.add_node(
+        "validate_citations", lambda state: validate_citations_node(state, max_retries=citation_max_retries)
+    )
     builder.add_conditional_edges(
         START,
         route_input,
@@ -129,7 +139,10 @@ def compile_agent_graph(  # noqa: ANN001 - Runnable, no shared base type worth i
     builder.add_edge("summarize", END)
     builder.add_edge("plan_augment", END)
     builder.add_edge("run_augment", END)
-    builder.add_conditional_edges("agent", route_after_agent, {"tools": "tools", END: END})
+    builder.add_conditional_edges(
+        "agent", route_after_agent, {"tools": "tools", "validate_citations": "validate_citations"}
+    )
     builder.add_conditional_edges("tools", route_after_tools, {"agent": "agent", "clarify": "clarify"})
+    builder.add_conditional_edges("validate_citations", route_after_citation_check, {"agent": "agent", END: END})
     builder.add_edge("clarify", END)
     return builder.compile()

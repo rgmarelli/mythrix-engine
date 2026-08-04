@@ -44,7 +44,24 @@ def test_get_sign_with_tradition_returns_facts_and_citations(stores: Stores, set
     tools = tools_by_name(stores, settings, FakeChatClient())
     result = tools["get_sign"].invoke({"sign": "the-magician", "tradition": "rider-waite"})
     assert result["display_name"] == "The Magician"
-    assert result["citations"] == [{"source": "The Pictorial Key to the Tarot", "locator": "p. 71"}]
+    assert len(result["citations"]) == 1
+    citation = result["citations"][0]
+    assert citation["source"] == "The Pictorial Key to the Tarot"
+    assert citation["locator"] == "p. 71"
+    assert citation["grounding_id"].startswith("G")
+    assert len(citation["grounding_id"]) > 1
+
+
+def test_get_sign_citation_grounding_ids_are_independently_generated(
+    stores: Stores, settings: Settings, tools_by_name
+) -> None:  # noqa: ANN001
+    """ADR-022: two calls returning the same citation must not reuse the same
+    id — it is opaque and independently generated per render, not derived
+    from the citation's content or position."""
+    tools = tools_by_name(stores, settings, FakeChatClient())
+    first = tools["get_sign"].invoke({"sign": "the-magician", "tradition": "rider-waite"})
+    second = tools["get_sign"].invoke({"sign": "the-magician", "tradition": "rider-waite"})
+    assert first["citations"][0]["grounding_id"] != second["citations"][0]["grounding_id"]
 
 
 def test_get_sign_unknown_slug_returns_error(stores: Stores, settings: Settings, tools_by_name) -> None:  # noqa: ANN001

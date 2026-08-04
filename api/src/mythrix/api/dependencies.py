@@ -61,5 +61,6 @@ def get_agent_graph(request: Request) -> CompiledStateGraph:
             toolset,
             augment_max_regions=settings.augment_max_regions,
             augment_consolidation_group_size=settings.augment_consolidation_group_size,
+            citation_max_retries=settings.citation_max_retries,
         )
     return request.app.state.agent_graph

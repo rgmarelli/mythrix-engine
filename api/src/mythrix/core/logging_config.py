@@ -22,7 +22,7 @@ def configure_logging(level: int = logging.INFO) -> None:
     logging.basicConfig(level=level, format=_FORMAT)
 
 
-def truncate(text: str, limit: int = 500) -> str:
+def truncate(text: str, limit: int = 5000) -> str:
     """Returns `text` unchanged at or under `limit` characters; otherwise the
     first `limit` characters plus a marker noting the full length. Pure
     string slicing — cannot raise on any `str` input."""

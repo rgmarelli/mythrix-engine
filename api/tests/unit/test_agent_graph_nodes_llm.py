@@ -5,7 +5,6 @@
 agent turn and the deterministic `clarify_node` (ADR-006, agent.md FR-AG-18)."""
 
 from langchain_core.messages import AIMessage, ToolMessage
-from langgraph.graph import END
 
 from mythrix.agent.graph.nodes.llm import clarify_node, route_after_agent, route_after_tools
 
@@ -15,9 +14,11 @@ def test_route_after_agent_routes_to_tools_when_tool_calls_present() -> None:
     assert route_after_agent(state) == "tools"
 
 
-def test_route_after_agent_routes_to_end_when_no_tool_calls() -> None:
+def test_route_after_agent_routes_to_validate_citations_when_no_tool_calls() -> None:
+    """A final answer is citation-checked (ADR-023) before it can end the
+    turn — it no longer goes straight to `END`."""
     state = {"messages": [AIMessage(content="a plain answer")]}
-    assert route_after_agent(state) == END
+    assert route_after_agent(state) == "validate_citations"
 
 
 def test_route_after_tools_routes_to_clarify_on_needs_tradition() -> None:

@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from uuid import uuid4
+
 from mythrix.core.chat import ChatClient
 from mythrix.core.errors import MythrixError
 from mythrix.core.models import GraphFacts, RegionQueryResult, Tradition
@@ -12,6 +14,14 @@ from mythrix.core.models import GraphFacts, RegionQueryResult, Tradition
 
 def _error(exc: MythrixError) -> dict:
     return {"error": str(exc)}
+
+
+def _new_grounding_id(prefix: str) -> str:
+    """An opaque, independently-generated citation marker id (ADR-022) — not
+    derived from position or a shared counter, so a model cannot produce a
+    valid-looking marker without having actually seen this exact id in a tool
+    result this turn."""
+    return f"{prefix}{uuid4().hex[:6]}"
 
 
 def _generated(chat_client: ChatClient, prompt: str, key: str) -> dict:
@@ -86,35 +96,48 @@ def _render_graph_facts(facts: GraphFacts) -> dict:
             for ii in sign.intersemiotic_interpretants
         ],
         "citations": [
-            {"source": c.source.citation_label or c.source.title, "locator": c.locator} for c in manifestation.citations
+            {
+                "source": c.source.citation_label or c.source.title,
+                "locator": c.locator,
+                "grounding_id": _new_grounding_id("G"),
+            }
+            for c in manifestation.citations
         ],
     }
 
 
 def _render_regions(result: RegionQueryResult) -> dict:
-    """Compact rendering of a region query result — mirrors the shape
-    `GET /api/query` returns, trimmed to what the agent needs to relay:
-    ranked regions with their matches, verbatim segments, and citations."""
+    """Compact rendering of a region query result for the agent to relay:
+    ranked regions with their verbatim segments and citations. Not shared
+    with `GET /api/query`'s own `RegionQueryResult` rendering — this one is
+    scoped to exactly what `query_sign`'s docstring asks the model to relay
+    (verbatim text, scores, and citations), nothing the model can act on
+    further.
+
+    Deliberately omits `region.region_id` (the model has no tool that
+    accepts one — `read_region` is `node_tools`-only, ADR-015 — and it read
+    enough like a citation, `"<source>::<start>-<end>"`, that a real model
+    echoed it as one instead of a segment's actual `grounding_id`) and
+    `region.matches` (per-interpretant ranking detail — a second `score`
+    field one level down from the region's own, and a `segment_ordinal`
+    that only repeats each segment's own `ordinal`; not something the
+    docstring asks the model to relay, and not actionable by any tool)."""
     return {
         "regions": [
             {
-                "region_id": region.region_id,
                 "source": region.source.citation_label or region.source.title,
                 "source_id": region.source.id,
                 "locator": region.locator,
                 "score": region.score,
                 "convergence_count": region.convergence_count,
-                "matches": [
-                    {
-                        "interpretant": match.interpretant,
-                        "kind": match.kind,
-                        "score": match.score,
-                        "segment_ordinal": match.segment_ordinal,
-                    }
-                    for match in region.matches
-                ],
                 "segments": [
-                    {"ordinal": seg.ordinal, "locator": seg.locator, "section": seg.section, "text": seg.text}
+                    {
+                        "ordinal": seg.ordinal,
+                        "locator": seg.locator,
+                        "section": seg.section,
+                        "text": seg.text,
+                        "grounding_id": _new_grounding_id("S"),
+                    }
                     for seg in region.segments
                 ],
             }

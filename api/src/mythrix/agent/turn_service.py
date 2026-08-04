@@ -24,7 +24,8 @@ from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel
 
 from mythrix.agent.capabilities import InstructionType
-from mythrix.agent.citations import find_invalid_markers, strip_markers
+from mythrix.agent.citation_grounding import grounding_ids, only_listing_tools_called
+from mythrix.agent.citations import CITATION_FAILURE_MESSAGE, find_invalid_markers, strip_markers
 from mythrix.agent.commands import PendingCommands
 from mythrix.agent.commands.adhoc import is_adhoc_command
 from mythrix.agent.context import (
@@ -44,10 +45,6 @@ logger = logging.getLogger(__name__)
 _SESSION_SCOPED_RESET_FIELDS = ("semiotic_system", "sign", "tradition")
 _TOOL_FAILURE_MESSAGE = (
     "I hit a problem reaching one of Mythrix's own tools just now — try again, or rephrase the request."
-)
-_CITATION_FAILURE_MESSAGE = (
-    "I drafted a reply but it referenced something I couldn't actually back up with a tool result, "
-    "so I'm not showing it. Could you ask again, maybe more specifically?"
 )
 
 
@@ -104,57 +101,28 @@ def _new_messages(previous_history: list, new_history: list) -> list:
     return new_history[len(previous_history) :]
 
 
-_LISTING_TOOL_NAMES = frozenset({"list_signs", "list_traditions", "list_semiotic_systems"})
-
-
-def _only_listing_tools_called(tool_messages: list[ToolMessage]) -> bool:
-    """True when every tool call this turn was a plain enumeration with no
-    `citations` field to ever back a marker (`tools/list_signs.py` et al.) —
-    the one case where a marker the model attaches anyway is a formatting
-    slip on real, tool-derived data rather than an ungrounded claim FR-AG-06
-    requires rejecting."""
-    return bool(tool_messages) and all(message.name in _LISTING_TOOL_NAMES for message in tool_messages)
-
-
 def _build_valid_marker_ids(tool_messages: list[ToolMessage]) -> set[str]:
-    """Counts citable items across this turn's tool results, in the order
-    they appear, per `agent/prompts.py`'s marker convention: each
-    `get_sign` citation is a "G" item, each `query_sign`/`fetch_segments`
-    segment is an "S" item, and each augmented region is an "R" item.
-    Counting continues across multiple tool calls in the same turn rather than
-    restarting per call.
+    """Collects citable items' ids across this turn's tool results:
+    `get_sign`/`query_sign`/`fetch_segments`' own opaque `grounding_id`s
+    (ADR-022) via `citation_grounding.grounding_ids`, plus each augmented
+    region's "R" item, still numbered by supplied position (FR-AU-30) — a
+    distinct, position-based id space `citation_grounding` deliberately
+    doesn't handle, since only `/augment` produces it.
 
     An augmentation run's record carries exactly the regions it augmented, so
     the "R" ids and the labels its consolidation may cite are the same list by
     construction (FR-AU-30, FR-AU-36)."""
-    valid_ids: set[str] = set()
-    g_count = 0
-    s_count = 0
+    valid_ids = grounding_ids(tool_messages)
     r_count = 0
     for message in tool_messages:
         payload = _safe_json_loads(message.content)
-        if message.name == "get_sign" and isinstance(payload, dict) and "error" not in payload:
-            for _ in payload.get("citations", ()):
-                g_count += 1
-                valid_ids.add(f"G{g_count}")
-        elif message.name == "query_sign" and isinstance(payload, dict) and "error" not in payload:
-            for region in payload.get("regions", ()):
-                for _ in region.get("segments", ()):
-                    s_count += 1
-                    valid_ids.add(f"S{s_count}")
-        elif message.name == "augment_regions" and isinstance(payload, dict):
+        if message.name == "augment_regions" and isinstance(payload, dict):
             # Labelled by supplied position, so a skipped region leaves a gap
             # — the record carries the labels rather than implying them from
             # a count (FR-AU-30).
             for region in payload.get("regions", ()):
                 r_count += 1
                 valid_ids.add(region.get("label", f"[R{r_count}]").strip("[]"))
-        elif message.name == "fetch_segments" and isinstance(payload, list):
-            for segment in payload:
-                if "error" in segment:
-                    continue
-                s_count += 1
-                valid_ids.add(f"S{s_count}")
     return valid_ids
 
 
@@ -165,7 +133,7 @@ def _ungrounded_markers(reply: str, tool_messages: list[ToolMessage], backend_au
     marker-shaped sequence there came from the backend's own composition or
     from the user's own input echoed back, neither of which is the ungrounded
     claim FR-AG-06 exists to reject."""
-    if backend_authored or _only_listing_tools_called(tool_messages):
+    if backend_authored or only_listing_tools_called(tool_messages):
         return ()
     return find_invalid_markers(reply, _build_valid_marker_ids(tool_messages))
 
@@ -295,14 +263,31 @@ def stream_chat_turn(
 
         visible_reply = result.reply.strip()
 
+        # `validate_citations_node` (ADR-023) already exhausted its retry
+        # budget and substituted this exact reply before the graph ever
+        # returned — it carries no markers of its own for `_ungrounded_markers`
+        # below to catch, so it needs its own check to still log the failure
+        # and skip persisting history, matching the branch just below it.
+        if visible_reply == CITATION_FAILURE_MESSAGE:
+            logger.info("turn failed: citation validation: exhausted in-graph retries")
+            session.context = context
+            _log_outcome(CITATION_FAILURE_MESSAGE, result.tool_calls, thread_reset)
+            yield TurnEvent(
+                context=context,
+                reply_text=CITATION_FAILURE_MESSAGE,
+                instructions=[],
+                thread_reset=thread_reset,
+            )
+            return
+
         invalid_markers = _ungrounded_markers(visible_reply, tool_messages, result.backend_authored)
         if invalid_markers:
             logger.info("turn failed: citation validation: %s", CitationValidationError(invalid_markers))
             session.context = context
-            _log_outcome(_CITATION_FAILURE_MESSAGE, result.tool_calls, thread_reset)
+            _log_outcome(CITATION_FAILURE_MESSAGE, result.tool_calls, thread_reset)
             yield TurnEvent(
                 context=context,
-                reply_text=_CITATION_FAILURE_MESSAGE,
+                reply_text=CITATION_FAILURE_MESSAGE,
                 instructions=[],
                 thread_reset=thread_reset,
             )

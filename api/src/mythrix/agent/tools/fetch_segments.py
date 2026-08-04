@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from langchain_core.tools import tool
 
-from mythrix.agent.tools._shared import _error
+from mythrix.agent.tools._shared import _error, _new_grounding_id
 from mythrix.core.bootstrap import Stores
 from mythrix.core.errors import MythrixError
 from mythrix.core.query_service import fetch_source_segments
@@ -30,7 +30,13 @@ def build_fetch_segments_tool(stores: Stores):
         except MythrixError as exc:
             return [_error(exc)]
         return [
-            {"ordinal": seg.ordinal, "locator": seg.locator, "section": seg.section, "text": seg.text}
+            {
+                "ordinal": seg.ordinal,
+                "locator": seg.locator,
+                "section": seg.section,
+                "text": seg.text,
+                "grounding_id": _new_grounding_id("S"),
+            }
             for seg in segments
         ]
 

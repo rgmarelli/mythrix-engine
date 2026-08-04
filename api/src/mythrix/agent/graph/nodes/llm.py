@@ -11,7 +11,6 @@ import json
 import logging
 
 from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
-from langgraph.graph import END
 
 from mythrix.agent.graph.state import AgentState
 from mythrix.agent.prompts import SYSTEM_PROMPT
@@ -41,10 +40,13 @@ def agent_node(state: AgentState, llm_with_tools) -> dict:  # noqa: ANN001 - Run
 
 
 def route_after_agent(state: AgentState) -> str:
+    """A reply carrying tool calls goes to `tools`; a final answer goes to
+    `validate_citations` (ADR-023) rather than straight to `END` — every
+    model-authored reply is citation-checked before it can end the turn."""
     last_message = state["messages"][-1]
     if isinstance(last_message, AIMessage) and last_message.tool_calls:
         return "tools"
-    return END
+    return "validate_citations"
 
 
 def _safe_json_loads(content: object) -> object:

@@ -26,8 +26,7 @@ Tools rules:
 
 Response rules:
 - Ground all analysis, explanations, or sentiments strictly and EXCLUSIVELY on the text returned by tools in the current thread.
-- Citation indexing: Number returned tool items in the order they appear starting at 1. Graph facts are [G1], [G2]... and passage segments are [S1], [S2]...
-- ALWAYS include these exact citation markers (e.g., [S1], [S2]) whenever referencing, quoting, or analyzing a segment.
+- Each tool result item carries its own grounding id. End every sentence that references, quotes, or analyzes that item with its id in square brackets, e.g. "The Sun symbolizes joy and vitality [G4f9a2c]." Never cite a source name or page number instead of the bracketed id — the bracketed id is the only valid citation. Never invent, renumber, or reuse an id of your own.
 - Be concise and direct.
 """
 
@@ -134,4 +133,21 @@ def render_rollup_prompt(focus: str, summaries: tuple[str, ...]) -> str:
         "renumber one, and never merge two into one. The 'Summary N' labels "
         "above are for your reference only, are not citation markers, and must "
         "not appear in your answer."
+    )
+
+
+def render_citation_pushback(invalid_markers: tuple[str, ...]) -> str:
+    """The corrective message `graph/nodes/citation_check.py::validate_citations_node`
+    injects when the model's reply cites a marker no tool result this turn
+    actually carries (ADR-023) — delivered as a `HumanMessage`, giving the
+    model a bounded number of chances to fix it before the turn falls back to
+    `citations.py::CITATION_FAILURE_MESSAGE`. Names the specific marker(s) at
+    fault rather than restating the citation rule in the abstract, since the
+    model has already seen that rule once this turn and evidently didn't
+    apply it — repeating it unchanged is less likely to help than pointing at
+    exactly what was wrong."""
+    return (
+        f"Your last answer used a citation marker that doesn't match any tool result from this turn: "
+        f"{', '.join(invalid_markers)}. Answer again. Use only the grounding ids shown in the tool "
+        f"results above, in square brackets exactly as given. Do not invent, renumber, or omit them."
     )

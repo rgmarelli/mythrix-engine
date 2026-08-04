@@ -84,6 +84,14 @@ class Settings(BaseSettings):
     rendered prompt well inside `generation_num_ctx` regardless of how large
     `augment_max_regions` is set. Must be at least `2`: a group of `1` never
     shrinks the reduce loop.
+
+    `citation_max_retries` (ADR-023) bounds how many times the in-graph
+    citation-check node may push a corrective message back at the model and
+    ask it to re-answer, once per invalid reply, before falling back to the
+    fixed citation-failure message. Read only by the conversational agent
+    path, like `agent_max_tool_iterations`, which it is independent of: both
+    still count toward the same outer `recursion_limit` `runner.py` applies
+    per turn.
     """
 
     model_config = SettingsConfigDict(env_prefix="MYTHRIX_", env_file=".env", extra="ignore")
@@ -103,3 +111,4 @@ class Settings(BaseSettings):
     agent_max_tool_iterations: int = 8
     augment_max_regions: int = 1000
     augment_consolidation_group_size: int = Field(default=8, ge=2)
+    citation_max_retries: int = 2

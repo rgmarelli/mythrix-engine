@@ -21,8 +21,18 @@ from __future__ import annotations
 
 import re
 
-_MARKER_PATTERN = re.compile(r"\[(G\d+|S\d+|C\d+|R\d+)\]")
-_STRIP_PATTERN = re.compile(r"\[(G\d+|S\d+|C\d+)\]")
+_MARKER_PATTERN = re.compile(r"\[\s*(G[0-9a-f]+|S[0-9a-f]+|C[0-9a-f]+|R\d+)\s*\]")
+_STRIP_PATTERN = re.compile(r"\[\s*(G[0-9a-f]+|S[0-9a-f]+|C[0-9a-f]+)\s*\]")
+
+CITATION_FAILURE_MESSAGE = (
+    "I drafted a reply but it referenced something I couldn't actually back up with a tool result, "
+    "so I'm not showing it. Could you ask again, maybe more specifically?"
+)
+"""The reply shown once a citation-invalid turn has no more chances to
+self-correct — `turn_service.py`'s backstop for every reply path, and
+`graph/nodes/citation_check.py::validate_citations_node`'s exhausted-retries
+fallback for the conversational path (ADR-023). Public and shared so the two
+never drift apart."""
 
 
 def extract_markers(text: str) -> tuple[str, ...]:
