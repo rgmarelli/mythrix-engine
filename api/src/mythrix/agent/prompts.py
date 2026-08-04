@@ -145,11 +145,21 @@ def render_citation_pushback(invalid_markers: tuple[str, ...]) -> str:
     fault rather than restating the citation rule in the abstract, since the
     model has already seen that rule once this turn and evidently didn't
     apply it — repeating it unchanged is less likely to help than pointing at
-    exactly what was wrong."""
+    exactly what was wrong.
+
+    Explicitly says the answer's *content* was fine and only the marker needs
+    fixing: real-model retries (`qwen3:1.7b`, ADR-023) showed that a pushback
+    focused only on the marker can read as "give me the id," collapsing a
+    full answer into a bare id list on retry — which then fails validation
+    again for having no prose to attach a citation to, burning the retry
+    budget on a reply that was never going to pass."""
     return (
-        f"Your last answer used a citation marker that doesn't match any tool result from this turn: "
-        f"{', '.join(invalid_markers)}. Answer again. Use only the grounding ids shown in the tool "
-        f"results above, in square brackets exactly as given. Do not invent, renumber, or omit them."
+        f"Your last answer's content was fine — only the citation needs fixing. It used a citation "
+        f"marker that doesn't match any tool result from this turn: {', '.join(invalid_markers)}. Repeat "
+        f"the same answer in full, in full sentences, replacing the wrong marker(s) with the correct "
+        f"grounding ids shown in the tool results above — each id in its own square brackets, e.g. "
+        f"[id1] [id2], never [id1, id2]. Do not invent, renumber, or omit them, and do not shorten your "
+        f"answer to a bare list of ids."
     )
 
 
@@ -161,9 +171,15 @@ def render_missing_citation_pushback(uncited_ids: set[str]) -> str:
     counterpart to `render_citation_pushback` for omission rather than a
     wrong marker. Lists only the ids still needing a citation, not every
     valid id, for the same reason `render_citation_pushback` names the
-    specific marker at fault."""
+    specific marker at fault.
+
+    Same "content was fine, only the citation needs fixing" framing as
+    `render_citation_pushback`, and the same warning against collapsing to a
+    bare id list — see that docstring for the observed failure mode."""
     ids = ", ".join(f"[{marker_id}]" for marker_id in sorted(uncited_ids))
     return (
-        f"Your last answer left some of this turn's citable items uncited: {ids}. Answer again, and "
-        f"cite the grounding id(s) your claim actually draws on, in square brackets exactly as given."
+        f"Your last answer's content was fine — only the citation needs fixing. It left some of this "
+        f"turn's citable items uncited: {ids}. Repeat the same answer in full, in full sentences, and add "
+        f"a citation for the claim(s) that draw on {ids} — each id in its own square brackets, e.g. "
+        f"[id1] [id2], never [id1, id2]. Do not shorten your answer to a bare list of ids."
     )
