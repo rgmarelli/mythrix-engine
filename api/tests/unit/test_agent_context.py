@@ -29,8 +29,8 @@ def test_detect_thread_reset_true_on_session_scoped_field_change() -> None:
 
 
 def test_detect_thread_reset_false_when_nothing_relevant_changed() -> None:
-    previous = AgentContext(region_id="waite::0-1", sign="the-tower", source_id="waite")
-    incoming = AgentContext(region_id="waite::0-1", sign="the-tower", source_id="other")
+    previous = AgentContext(region_id="waite::0-1", sign="the-tower", interpretant="joy")
+    incoming = AgentContext(region_id="waite::0-1", sign="the-tower", interpretant="grief")
     assert detect_thread_reset(previous, incoming) is False
 
 

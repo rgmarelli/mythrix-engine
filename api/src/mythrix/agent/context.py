@@ -18,9 +18,9 @@ from pydantic import BaseModel
 # Session-scoped fields (specs/interfaces/agent.md FR-AG-17's Context object) whose change
 # identifies a different query subject, not just a display filter — these,
 # plus a changed `region_id`, are what trigger a thread reset (FR-AG-16).
-# `source_id`, `interpretant`, and `min_score` are also session-scoped per
-# FR-AG-17, but they refine which hotspots are *shown*, not which hotspot the
-# thread is actively grounded in, so they do not reset the thread.
+# `interpretant` and `min_score` are also session-scoped per FR-AG-17, but
+# they refine which hotspots are *shown*, not which hotspot the thread is
+# actively grounded in, so they do not reset the thread.
 _RESET_FIELDS = ("semiotic_system", "sign", "tradition")
 
 
@@ -33,7 +33,6 @@ class AgentContext(BaseModel):
     semiotic_system: str | None = None
     sign: str | None = None
     tradition: str | None = None
-    source_id: str | None = None
     interpretant: str | None = None
     min_score: float | None = None
     region_id: str | None = None
@@ -53,9 +52,9 @@ def detect_thread_reset(previous: AgentContext, incoming: AgentContext) -> bool:
     """`True` if the incoming turn's UI selection no longer matches the
     hotspot/subject the stored context was scoped to (specs/interfaces/agent.md FR-AG-16): a different
     `region_id`, or a different `semiotic_system`/`sign`/`tradition`. Facet
-    selection (`source_id`/`interpretant`) and `min_score` changing alone
-    does not reset the thread — those narrow which hotspots are displayed,
-    they don't change what the active hotspot is.
+    selection (`interpretant`) and `min_score` changing alone does not reset
+    the thread — those narrow which hotspots are displayed, they don't
+    change what the active hotspot is.
 
     `extended_region_id`/`extended_locator` are deliberately excluded from
     this comparison: widening the active hotspot's context is not selecting
@@ -88,7 +87,7 @@ def apply_ui_selection(context: AgentContext, incoming: AgentContext) -> AgentCo
         "extended_region_id": incoming.extended_region_id,
         "extended_locator": incoming.extended_locator,
     }
-    for field_name in ("semiotic_system", "sign", "tradition", "source_id", "interpretant", "min_score"):
+    for field_name in ("semiotic_system", "sign", "tradition", "interpretant", "min_score"):
         value = getattr(incoming, field_name)
         if value is not None:
             updates[field_name] = value

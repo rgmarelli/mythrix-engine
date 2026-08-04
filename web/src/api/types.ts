@@ -170,7 +170,6 @@ export interface AgentContextWire {
   semiotic_system: string | null;
   sign: string | null;
   tradition: string | null;
-  source_id: string | null;
   interpretant: string | null;
   min_score: number | null;
   region_id: string | null;
@@ -301,7 +300,6 @@ export interface AgentContext {
   semioticSystem: string | null;
   sign: string | null;
   tradition: string | null;
-  sourceId: string | null;
   interpretant: string | null;
   minScore: number | null;
   regionId: string | null;
