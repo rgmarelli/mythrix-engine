@@ -28,7 +28,7 @@ def create_chat_model(
     *,
     model: str,
     base_url: str,
-    temperature: float = 0.0,
+    temperature: float = 0.05,
     num_ctx: int = 8192,
 ) -> ChatOllama:
     """A `ChatOllama` validated against the daemon at construction, so an

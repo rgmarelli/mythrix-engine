@@ -13,10 +13,10 @@ from __future__ import annotations
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.graph import END
 
-from mythrix.agent.citation_grounding import grounding_ids, only_listing_tools_called
-from mythrix.agent.citations import CITATION_FAILURE_MESSAGE, find_invalid_markers
+from mythrix.agent.citation_grounding import grounding_ids, only_listing_tools_called, uncited_valid_ids
+from mythrix.agent.citations import CITATION_FAILURE_MESSAGE, extract_markers, find_invalid_markers
 from mythrix.agent.graph.state import AgentState
-from mythrix.agent.prompts import render_citation_pushback
+from mythrix.agent.prompts import render_citation_pushback, render_missing_citation_pushback
 
 
 def validate_citations_node(state: AgentState, *, max_retries: int) -> dict:
@@ -27,26 +27,32 @@ def validate_citations_node(state: AgentState, *, max_retries: int) -> dict:
 
     A valid reply, or one where only listing tools were called (nothing to
     cite), is a no-op: the reply already on `state["messages"]` stands, and
-    `route_after_citation_check` sends it straight to `END`. An invalid reply
-    either gets a pushback naming exactly what was wrong (retries remaining)
-    or is replaced with `CITATION_FAILURE_MESSAGE` (retries exhausted) —
-    either way, this node's own return is the only state change; it never
-    calls the model."""
+    `route_after_citation_check` sends it straight to `END`. An invalid
+    reply — a marker naming no real grounding id, or this turn's tools
+    returned citable ids from a prefix (`G`/`S`, ADR-022) the reply cited
+    none of (FR-CR-07/11) — either gets a pushback naming exactly what was
+    wrong (retries remaining) or is replaced with `CITATION_FAILURE_MESSAGE`
+    (retries exhausted) — either way, this node's own return is the only
+    state change; it never calls the model."""
     reply = state["messages"][-1]
     turn_start_index = state.get("turn_start_index", 0)
     tool_messages = [m for m in state["messages"][turn_start_index:] if isinstance(m, ToolMessage)]
     if only_listing_tools_called(tool_messages):
         return {}
 
-    invalid = find_invalid_markers(str(reply.content), grounding_ids(tool_messages))
-    if not invalid:
+    valid_ids = grounding_ids(tool_messages)
+    invalid = find_invalid_markers(str(reply.content), valid_ids)
+    cited = set(extract_markers(str(reply.content)))
+    missing = uncited_valid_ids(cited, valid_ids) if not invalid else set()
+    if not invalid and not missing:
         return {}
 
     retries_used = state.get("citation_retry_count", 0)
     if retries_used >= max_retries:
         return {"messages": [AIMessage(content=CITATION_FAILURE_MESSAGE)]}
+    pushback = render_citation_pushback(invalid) if invalid else render_missing_citation_pushback(missing)
     return {
-        "messages": [HumanMessage(content=render_citation_pushback(invalid))],
+        "messages": [HumanMessage(content=pushback)],
         "citation_retry_count": retries_used + 1,
     }
 

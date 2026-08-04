@@ -70,6 +70,45 @@ def test_get_sign_unknown_slug_returns_error(stores: Stores, settings: Settings,
     assert "error" in result
 
 
+def test_get_sign_unknown_sign_error_lists_available_signs(stores: Stores, settings: Settings, tools_by_name) -> None:  # noqa: ANN001
+    tools = tools_by_name(stores, settings, FakeChatClient())
+    result = tools["get_sign"].invoke({"sign": "nonexistent"})
+    assert "The Tower" in result["error"]
+    assert "The Magician" in result["error"]
+    assert "Peh" in result["error"]
+
+
+def test_get_sign_unknown_sign_error_scopes_the_list_to_the_given_tradition(
+    stores: Stores, settings: Settings, tools_by_name
+) -> None:  # noqa: ANN001
+    tools = tools_by_name(stores, settings, FakeChatClient())
+    result = tools["get_sign"].invoke({"sign": "nonexistent", "tradition": "rider-waite"})
+    assert "The Tower" in result["error"]
+    assert "The Magician" in result["error"]
+    assert "Peh" not in result["error"]
+
+
+def test_get_sign_resolves_a_shortened_name_by_containment(stores: Stores, settings: Settings, tools_by_name) -> None:  # noqa: ANN001
+    """A real failure mode: the model drops a sign's leading article
+    ("Magician" instead of "The Magician"). Containment in either direction
+    must still resolve it, as long as exactly one sign matches."""
+    tools = tools_by_name(stores, settings, FakeChatClient())
+    result = tools["get_sign"].invoke({"sign": "Magician", "tradition": "rider-waite"})
+    assert result["display_name"] == "The Magician"
+    assert "error" not in result
+
+
+def test_get_sign_ambiguous_containment_match_returns_error_not_a_guess(
+    stores: Stores, settings: Settings, tools_by_name
+) -> None:  # noqa: ANN001
+    """ "the" is contained in both "The Tower" and "The Magician" — resolving
+    to either would be a silent guess, so this must fail closed rather than
+    pick one."""
+    tools = tools_by_name(stores, settings, FakeChatClient())
+    result = tools["get_sign"].invoke({"sign": "the"})
+    assert "error" in result
+
+
 def test_get_sign_resolves_by_canonical_name_not_only_slug(stores: Stores, settings: Settings, tools_by_name) -> None:  # noqa: ANN001
     """A real failure mode: the model derives `sign` from the user's own
     wording ("The Magician") before any tool has surfaced the slug

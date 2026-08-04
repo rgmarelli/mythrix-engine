@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from langchain_core.tools import tool
 
-from mythrix.agent.tools._shared import _error, _render_regions, _resolve_sign, _resolve_tradition
+from mythrix.agent.tools._shared import _error, _render_regions, _resolve_sign, _resolve_tradition, _unknown_sign_error
 from mythrix.core.bootstrap import Stores
 from mythrix.core.config import Settings
 from mythrix.core.errors import MythrixError
@@ -32,9 +32,11 @@ def build_query_sign_tool(stores: Stores, settings: Settings):
         as retrieved — verbatim passage text, scores, and citations — without
         paraphrasing or adding your own interpretation of what a passage
         means; use summarize_passage for that, and only if the user asks."""
-        summary = _resolve_sign(stores.graph_store.list_signs(), sign)
+        signs = stores.graph_store.list_signs()
+        summary = _resolve_sign(signs, sign)
         if summary is None:
-            return {"error": f"unknown sign {sign!r}"}
+            resolved_tradition = _resolve_tradition(stores.graph_store.list_traditions(), tradition)
+            return _unknown_sign_error(signs, sign, resolved_tradition)
         resolved = _resolve_tradition(stores.graph_store.list_traditions(), tradition)
         if resolved is None:
             return {"error": f"unknown tradition {tradition!r}"}

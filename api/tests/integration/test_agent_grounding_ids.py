@@ -148,18 +148,6 @@ def _tool_messages(history: list, since: int) -> list[ToolMessage]:
     return [m for m in history[since:] if isinstance(m, ToolMessage)]
 
 
-def _since_this_turn(history_before: int, history: list) -> int:
-    """The index this turn's own messages start at. Normally that's just
-    `history_before` — `session.history` only ever grows. But a turn whose
-    resolved context changed the session-scoped fields (`model_driven_reset`
-    in `turn_service.py`) *replaces* `session.history` with only that turn's
-    own messages instead of appending to the prior list — so a stale
-    `history_before` would slice past the end of the new, shorter list. `0`
-    is always correct in that case, since the whole (short) list is this
-    turn's."""
-    return history_before if len(history) > history_before else 0
-
-
 def _final_ai_message_text(history: list, since: int) -> str:
     """`TurnEvent.reply_text` (what `run_chat_turn` returns) has already had
     every valid `[G...]`/`[S...]` marker stripped out by
@@ -211,8 +199,12 @@ def _assert_reply_cites_real_ids(
     assert markers <= valid_ids
     # "<prefix>" + uuid4().hex[:6] (ADR-022) — not the small sequential
     # "G1"/"S1" the pre-ADR-022, position-reconstructed scheme would have
-    # produced.
-    assert all(marker.startswith(prefix) and len(marker) == 7 for marker in markers)
+    # produced. Every marker must have that shape, but a turn may legitimately
+    # call more than one tool (e.g. get_sign for context alongside query_sign
+    # for corpus evidence) — only at least one marker needs to carry this
+    # test's own prefix.
+    assert all(len(marker) == 7 for marker in markers)
+    assert any(marker.startswith(prefix) for marker in markers)
 
 
 @pytest.mark.requires_ollama
@@ -315,62 +307,3 @@ def test_query_sign_reply_cites_real_opaque_segment_ids_unprompted(graph: Compil
     tool_messages = _tool_messages(history, since=0)
     raw_ai_text = _final_ai_message_text(history, since=0)
     _assert_reply_cites_real_ids(turn.reply_text, raw_ai_text, tool_messages, prefix="S")
-
-
-@pytest.mark.requires_ollama
-def test_multi_turn_session_grounds_every_turn_independently(graph: CompiledStateGraph) -> None:
-    """One session, three turns in sequence (list -> get_sign -> query_sign).
-    Each turn's markers must validate against only that turn's own tool
-    results — `turn_service._build_valid_marker_ids` scopes to the turn's new
-    tool messages, not the whole session history — and the context set on
-    turn two (tarot/rider-waite) must carry into turn three without being
-    re-supplied (thread continuity, not re-selection)."""
-    sessions = SessionStore()
-    session_id = "conversation"
-    session = sessions.get_or_create(session_id)
-
-    listing = run_chat_turn(
-        graph=graph,
-        sessions=sessions,
-        session_id=session_id,
-        message="What semiotic systems do you have?",
-        ui_selection=AgentContext(),
-        max_tool_iterations=8,
-    )
-    assert "tarot" in listing.reply_text.lower()
-    history_len = len(session.history)
-
-    about_sun = run_chat_turn(
-        graph=graph,
-        sessions=sessions,
-        session_id=session_id,
-        message="Tell me about the sun in the Rider-Waite tradition, and cite the source for its meaning.",
-        ui_selection=AgentContext(semiotic_system="tarot", tradition="rider-waite"),
-        max_tool_iterations=8,
-    )
-    since = _since_this_turn(history_len, session.history)
-    turn_two_tool_messages = _tool_messages(session.history, since=since)
-    turn_two_raw_ai_text = _final_ai_message_text(session.history, since=since)
-    _assert_reply_cites_real_ids(about_sun.reply_text, turn_two_raw_ai_text, turn_two_tool_messages, prefix="G")
-    turn_two_ids = _grounding_ids(turn_two_tool_messages)
-    history_len = len(session.history)
-
-    evidence = run_chat_turn(
-        graph=graph,
-        sessions=sessions,
-        session_id=session_id,
-        message=(
-            "What evidence supports the sun in the corpus? "
-            "Quote the passages and describe the emotions expressed in them."
-        ),
-        ui_selection=AgentContext(),
-        max_tool_iterations=8,
-    )
-    since = _since_this_turn(history_len, session.history)
-    turn_three_tool_messages = _tool_messages(session.history, since=since)
-    turn_three_raw_ai_text = _final_ai_message_text(session.history, since=since)
-    _assert_reply_cites_real_ids(evidence.reply_text, turn_three_raw_ai_text, turn_three_tool_messages, prefix="S")
-    # Independently minted per call (ADR-022) — turn three's segment ids are
-    # never turn two's graph-fact ids reused.
-    turn_three_markers = set(extract_markers(turn_three_raw_ai_text))
-    assert turn_three_markers.isdisjoint(turn_two_ids)

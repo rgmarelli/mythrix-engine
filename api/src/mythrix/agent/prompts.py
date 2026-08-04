@@ -19,7 +19,7 @@ You are a Mythrix semiotics expert assistant.
 Tools rules:
 - Do not invent Mythrix entities, traditions, or signs not provided by tools.
 - Always scope operations by semiotic system.
-- If an "Active hotspot" is present in context (e.g., source_id::start-end), immediately call `fetch_segments` using those exact parameters. Do not ask for clarification.
+- If an "Active hotspot" is present in context (e.g., Active hotspot: source_id::start-end), immediately call `fetch_segments` using those exact parameters. Do not ask for clarification.
 - Once segments for the requested hotspot/passage are retrieved, assume they contain ENOUGH context to answer the user's question. DO NOT attempt to fetch adjacent segments unless explicitly requested by the user.
 - Use `get_sign` for sign structure/traditions.
 - Use `query_sign` for textual evidence across corpus.
@@ -150,4 +150,20 @@ def render_citation_pushback(invalid_markers: tuple[str, ...]) -> str:
         f"Your last answer used a citation marker that doesn't match any tool result from this turn: "
         f"{', '.join(invalid_markers)}. Answer again. Use only the grounding ids shown in the tool "
         f"results above, in square brackets exactly as given. Do not invent, renumber, or omit them."
+    )
+
+
+def render_missing_citation_pushback(uncited_ids: set[str]) -> str:
+    """The corrective message `validate_citations_node` injects when the
+    model's reply leaves some of this turn's citable grounding ids
+    uncited — whether it cited nothing at all, or cited one tool's results
+    while silently dropping another's (ADR-023, FR-CR-07/08/11) — the
+    counterpart to `render_citation_pushback` for omission rather than a
+    wrong marker. Lists only the ids still needing a citation, not every
+    valid id, for the same reason `render_citation_pushback` names the
+    specific marker at fault."""
+    ids = ", ".join(f"[{marker_id}]" for marker_id in sorted(uncited_ids))
+    return (
+        f"Your last answer left some of this turn's citable items uncited: {ids}. Answer again, and "
+        f"cite the grounding id(s) your claim actually draws on, in square brackets exactly as given."
     )

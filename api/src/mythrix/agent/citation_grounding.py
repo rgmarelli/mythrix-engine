@@ -43,6 +43,21 @@ def only_listing_tools_called(tool_messages: list[ToolMessage]) -> bool:
     return bool(tool_messages) and all(message.name in _LISTING_TOOL_NAMES for message in tool_messages)
 
 
+def uncited_valid_ids(cited_markers: set[str], valid_ids: set[str]) -> set[str]:
+    """The valid ids belonging to a distinct grounding-id prefix (`G` from
+    `get_sign`, `S` from `query_sign`/`fetch_segments`, ADR-022) that
+    `cited_markers` cites none of. A turn calling more than one citable tool
+    must cite from each one's results, not just one of them — citing only
+    the `get_sign` fact while silently dropping every `query_sign` marker
+    leaves that tool's evidence exactly as ungrounded as citing nothing at
+    all would (FR-CR-11, generalizes FR-CR-07's all-or-nothing check to
+    per-prefix coverage). Returns only the ids still needing a citation, not
+    every valid id, so the retry pushback can point at exactly what's
+    missing."""
+    cited_prefixes = {marker[0] for marker in cited_markers if marker}
+    return {valid_id for valid_id in valid_ids if valid_id and valid_id[0] not in cited_prefixes}
+
+
 def grounding_ids(tool_messages: list[ToolMessage]) -> set[str]:
     """Every opaque `grounding_id` (ADR-022) this turn's `get_sign`,
     `query_sign`, and `fetch_segments` tool results carry — read directly off

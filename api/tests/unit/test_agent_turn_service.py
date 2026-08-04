@@ -13,7 +13,7 @@ from langchain_core.tools import tool
 
 from mythrix.agent.citations import CITATION_FAILURE_MESSAGE
 from mythrix.agent.context import AgentContext
-from mythrix.agent.prompts import render_citation_pushback
+from mythrix.agent.prompts import render_citation_pushback, render_missing_citation_pushback
 from mythrix.agent.sessions import SessionStore
 from mythrix.agent.turn_service import AgentInstruction, TurnEvent, run_chat_turn, stream_chat_turn
 from mythrix.core.errors import ModelRequestError
@@ -334,6 +334,114 @@ def test_citation_retries_exhausted_falls_back_to_the_same_rejection() -> None:
 
     assert response.reply_text == CITATION_FAILURE_MESSAGE
     assert sessions.get_or_create("s1").history == []
+
+
+def test_missing_citation_gets_a_pushback_naming_the_available_ids_then_self_corrects() -> None:
+    """FR-CR-07/08: a reply that cites nothing at all, despite a citable tool
+    result this turn, is treated the same as a wrong-marker reply — a
+    pushback naming the ids actually available, then another attempt."""
+    call = {"name": "get_sign", "args": {"sign": "The Magician", "tradition": "rider-waite"}, "id": "c1"}
+    script = [
+        AIMessage(content="", tool_calls=[call]),
+        AIMessage(content="The Magician represents willpower."),
+        AIMessage(content="The Magician represents willpower [G1]."),
+    ]
+    sessions = SessionStore()
+
+    response = run_chat_turn(
+        graph=_graph(script, citation_max_retries=1),
+        sessions=sessions,
+        session_id="s1",
+        message="tell me about the magician in rider-waite",
+        ui_selection=AgentContext(),
+        max_tool_iterations=8,
+    )
+
+    assert "[G1]" not in response.reply_text
+    assert "represents willpower" in response.reply_text
+    pushback_texts = [m.content for m in sessions.get_or_create("s1").history if isinstance(m, HumanMessage)]
+    assert render_missing_citation_pushback({"G1"}) in pushback_texts
+
+
+def test_missing_citation_retries_exhausted_falls_back_to_the_same_rejection() -> None:
+    """A model that never cites anything still ends in the same fallback as
+    a wrong-marker turn would once retries run out."""
+    call = {"name": "get_sign", "args": {"sign": "The Magician", "tradition": "rider-waite"}, "id": "c1"}
+    script = [
+        AIMessage(content="", tool_calls=[call]),
+        AIMessage(content="The Magician represents willpower."),
+        AIMessage(content="Still no citation here."),
+    ]
+    sessions = SessionStore()
+
+    response = run_chat_turn(
+        graph=_graph(script, citation_max_retries=1),
+        sessions=sessions,
+        session_id="s1",
+        message="tell me about the magician in rider-waite",
+        ui_selection=AgentContext(),
+        max_tool_iterations=8,
+    )
+
+    assert response.reply_text == CITATION_FAILURE_MESSAGE
+    assert sessions.get_or_create("s1").history == []
+
+
+def test_partial_citation_gets_a_pushback_naming_only_the_uncited_prefixes_ids_then_self_corrects() -> None:
+    """FR-CR-11: a reply that cites one tool's marker but omits another's,
+    despite both returning citable ids this turn, is retried just like a
+    fully marker-free reply — the pushback names only the ids still
+    uncited, not the ones already covered."""
+    get_sign_call = {"name": "get_sign", "args": {"sign": "The Magician", "tradition": "rider-waite"}, "id": "c1"}
+    fetch_call = {
+        "name": "fetch_segments",
+        "args": {"source_id": "genesis", "start_ordinal": 1, "end_ordinal": 1},
+        "id": "c2",
+    }
+    script = [
+        AIMessage(content="", tool_calls=[get_sign_call, fetch_call]),
+        AIMessage(content="The Magician represents willpower [G1]."),
+        AIMessage(content="The Magician represents willpower [G1], echoed in the passage [S1]."),
+    ]
+    sessions = SessionStore()
+
+    response = run_chat_turn(
+        graph=_graph(script, citation_max_retries=1),
+        sessions=sessions,
+        session_id="s1",
+        message="tell me about the magician and the passage",
+        ui_selection=AgentContext(),
+        max_tool_iterations=8,
+    )
+
+    assert "[G1]" not in response.reply_text
+    assert "[S1]" not in response.reply_text
+    assert "echoed in the passage" in response.reply_text
+    pushback_texts = [m.content for m in sessions.get_or_create("s1").history if isinstance(m, HumanMessage)]
+    assert render_missing_citation_pushback({"S1"}) in pushback_texts
+
+
+def test_marker_free_reply_is_not_retried_when_nothing_this_turn_was_citable() -> None:
+    """FR-CR-09: `summarize_passage` carries no `grounding_id` of its own —
+    a marker-free reply drawing on it has nothing it could have cited, so it
+    is not subject to the missing-citation retry and passes through as-is."""
+    call = {"name": "summarize_passage", "args": {"passage_text": "text", "concepts": ["will"]}, "id": "c1"}
+    script = [
+        AIMessage(content="", tool_calls=[call]),
+        AIMessage(content="This passage is about willpower."),
+    ]
+    sessions = SessionStore()
+
+    response = run_chat_turn(
+        graph=_graph(script, citation_max_retries=1),
+        sessions=sessions,
+        session_id="s1",
+        message="summarize this passage",
+        ui_selection=AgentContext(),
+        max_tool_iterations=8,
+    )
+
+    assert response.reply_text == "This passage is about willpower."
 
 
 def test_stray_marker_on_a_listing_tool_reply_is_stripped_not_rejected() -> None:
