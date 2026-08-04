@@ -38,39 +38,44 @@ def _generated(chat_client: ChatClient, prompt: str, key: str) -> dict:
         return _error(exc)
 
 
-def _resolve_sign(signs, sign: str):  # noqa: ANN001, ANN201 - SignSummary | None; avoids importing it just for this
-    """Matches `sign` against a sign's slug or canonical name by substring
-    containment in either direction, case/whitespace-insensitive.
-    `get_sign`/`query_sign` take `sign` straight from the model's own
-    wording of the user's request — sometimes the full phrase ("The
-    Magician"), sometimes a shortened one ("Magician") — before any tool has
-    ever surfaced the real slug ("the-magician"); an exact-match-only
-    resolver fails on either a shortened or an elaborated name. Valid only
-    when exactly one sign satisfies the containment — an ambiguous match
-    (e.g. "the" against both "The Tower" and "The Magician") is treated the
-    same as no match, since guessing among candidates would be worse than
-    reporting none found."""
+def _resolve_sign(signs, sign: str, semiotic_system: str | None = None):  # noqa: ANN001, ANN201 - SignSummary | None; avoids importing it just for this
+    # Optionally scoped to one semiotic_system first, then resolved by exact
+    # slug, then exact name, then substring match — checked in that order so
+    # an exact match is never shadowed by an unrelated fuzzy one (ADR-024).
     normalized = sign.strip().casefold()
     if not normalized:
         return None
-    matches = [
-        s
-        for s in signs
-        if normalized in s.canonical_name.casefold()
-        or normalized in s.slug.casefold()
-        or s.slug.casefold() in normalized
-        or s.canonical_name.casefold() in normalized
-    ]
-    return matches[0] if len(matches) == 1 else None
+
+    exact_slug, exact_name, fuzzy = [], [], []
+    for s in signs:
+        if semiotic_system is not None and s.semiotic_system != semiotic_system:
+            continue
+        slug, name = s.slug.casefold(), s.canonical_name.casefold()
+        if slug == normalized:
+            exact_slug.append(s)
+        elif name == normalized:
+            exact_name.append(s)
+        elif normalized in name or normalized in slug or slug in normalized or name in normalized:
+            fuzzy.append(s)
+
+    for tier in (exact_slug, exact_name, fuzzy):
+        if tier:
+            return tier[0] if len(tier) == 1 else None
+    return None
 
 
-def _unknown_sign_error(signs, sign: str, tradition: Tradition | None) -> dict:  # noqa: ANN001 - see _resolve_sign
+def _unknown_sign_error(signs, sign: str, tradition: Tradition | None, semiotic_system: str | None = None) -> dict:  # noqa: ANN001 - see _resolve_sign
     """The `{"error": ...}` `get_sign`/`query_sign` return when
     `_resolve_sign` finds no single match — names the signs the model could
-    retry with instead of leaving it to guess, scoped to `tradition` when one
-    was already resolved (a signs-in-this-tradition list is more useful to
-    retry with than every sign in the graph)."""
-    candidates = [s for s in signs if tradition is None or tradition.slug in s.tradition_slugs]
+    retry with instead of leaving it to guess, scoped to `tradition` and/or
+    `semiotic_system` when either was already established (a narrower list is
+    more useful to retry with than every sign in the graph)."""
+    candidates = [
+        s
+        for s in signs
+        if (tradition is None or tradition.slug in s.tradition_slugs)
+        and (semiotic_system is None or s.semiotic_system == semiotic_system)
+    ]
     names = ", ".join(sorted(s.canonical_name for s in candidates))
     scope = f" in {tradition.name}" if tradition is not None else ""
     return {"error": f"unknown sign {sign!r}. Available signs{scope}: {names}."}

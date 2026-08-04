@@ -114,6 +114,63 @@ def graph_store(tmp_path: Path) -> KuzuGraphStore:
         created_at=CREATED_AT,
     )
     store.upsert_sign_with_manifestation(peh, peh_manifestation)
+
+    the_sun = Sign(
+        id="the-sun", slug="the-sun", canonical_name="The Sun", sign_type="major-arcana", semiotic_system="tarot"
+    )
+    sun_manifestation = Manifestation(
+        id="the-sun::rider-waite",
+        sign_id="the-sun",
+        tradition=RIDER_WAITE,
+        display_name="The Sun",
+        created_at=CREATED_AT,
+    )
+    store.upsert_sign_with_manifestation(the_sun, sun_manifestation)
+
+    he = Sign(id="he", slug="he", canonical_name="He", sign_type="hebrew-letter", semiotic_system="hebrew_alef_bet")
+    he_manifestation = Manifestation(
+        id="he::golden-dawn-kabbalah",
+        sign_id="he",
+        tradition=GOLDEN_DAWN,
+        display_name="He",
+        created_at=CREATED_AT,
+    )
+    store.upsert_sign_with_manifestation(he, he_manifestation)
+
+    # A same-named pair, isolated to the semiotic-system-scoping tests below —
+    # deliberately not reusing an existing sign's name so unrelated tests that
+    # resolve "The Tower"/"The Magician"/etc. by name are unaffected.
+    tarot_threshold = Sign(
+        id="threshold-tarot",
+        slug="threshold-tarot",
+        canonical_name="Threshold",
+        sign_type="major-arcana",
+        semiotic_system="tarot",
+    )
+    tarot_threshold_manifestation = Manifestation(
+        id="threshold-tarot::rider-waite",
+        sign_id="threshold-tarot",
+        tradition=RIDER_WAITE,
+        display_name="Threshold",
+        created_at=CREATED_AT,
+    )
+    store.upsert_sign_with_manifestation(tarot_threshold, tarot_threshold_manifestation)
+
+    hebrew_threshold = Sign(
+        id="threshold-hebrew",
+        slug="threshold-hebrew",
+        canonical_name="Threshold",
+        sign_type="hebrew-letter",
+        semiotic_system="hebrew_alef_bet",
+    )
+    hebrew_threshold_manifestation = Manifestation(
+        id="threshold-hebrew::golden-dawn-kabbalah",
+        sign_id="threshold-hebrew",
+        tradition=GOLDEN_DAWN,
+        display_name="Threshold",
+        created_at=CREATED_AT,
+    )
+    store.upsert_sign_with_manifestation(hebrew_threshold, hebrew_threshold_manifestation)
     return store
 
 

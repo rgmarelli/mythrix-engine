@@ -20,6 +20,7 @@ def build_query_sign_tool(stores: Stores, settings: Settings):
         sign: str,
         tradition: str,
         min_score: float | None = None,
+        semiotic_system: str | None = None,
     ) -> dict:
         """Retrieve ranked textual evidence regions (hotspots) for a sign in
         a tradition — corpus passages where the sign's interpretants converge,
@@ -31,12 +32,15 @@ def build_query_sign_tool(stores: Stores, settings: Settings):
         after get_sign asked which one to use. Relay the returned regions
         as retrieved — verbatim passage text, scores, and citations — without
         paraphrasing or adding your own interpretation of what a passage
-        means; use summarize_passage for that, and only if the user asks."""
+        means; use summarize_passage for that, and only if the user asks.
+        Pass semiotic_system (its slug, e.g. "tarot") when the conversation
+        has already established which system to search, to resolve sign
+        against only that system's signs."""
         signs = stores.graph_store.list_signs()
-        summary = _resolve_sign(signs, sign)
+        summary = _resolve_sign(signs, sign, semiotic_system)
         if summary is None:
             resolved_tradition = _resolve_tradition(stores.graph_store.list_traditions(), tradition)
-            return _unknown_sign_error(signs, sign, resolved_tradition)
+            return _unknown_sign_error(signs, sign, resolved_tradition, semiotic_system)
         resolved = _resolve_tradition(stores.graph_store.list_traditions(), tradition)
         if resolved is None:
             return {"error": f"unknown tradition {tradition!r}"}

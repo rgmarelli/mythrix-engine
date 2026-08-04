@@ -154,6 +154,35 @@ def test_get_sign_tradition_match_is_case_and_whitespace_insensitive(
         assert result["tradition"] == "rider-waite", spelling
 
 
+def test_get_sign_exact_slug_match_is_not_shadowed_by_an_unrelated_fuzzy_match(
+    stores: Stores, settings: Settings, tools_by_name
+) -> None:  # noqa: ANN001
+    """Regression: the Hebrew Alef-Bet letter slug "he" is a substring of
+    "the-sun", so the old flat containment check treated the two as an
+    ambiguous match and reported "the-sun" as unknown even though it is an
+    exact slug. An exact match at tier 1 must resolve immediately, before the
+    fuzzy tier ever runs."""
+    tools = tools_by_name(stores, settings, FakeChatClient())
+    result = tools["get_sign"].invoke({"sign": "the-sun", "tradition": "rider-waite"})
+    assert result["display_name"] == "The Sun"
+    assert "error" not in result
+
+
+def test_get_sign_semiotic_system_scopes_ambiguous_exact_name_match(
+    stores: Stores, settings: Settings, tools_by_name
+) -> None:  # noqa: ANN001
+    """Two unrelated signs sharing a display name ("Threshold" in tarot and
+    in hebrew_alef_bet) are genuinely ambiguous without a system scope, and
+    resolvable with one."""
+    tools = tools_by_name(stores, settings, FakeChatClient())
+    ambiguous = tools["get_sign"].invoke({"sign": "Threshold"})
+    assert "error" in ambiguous
+
+    result = tools["get_sign"].invoke({"sign": "Threshold", "semiotic_system": "tarot"})
+    assert result["sign"] == "threshold-tarot"
+    assert "error" not in result
+
+
 def test_get_sign_tradition_the_sign_lacks_returns_manifestation_error(
     stores: Stores, settings: Settings, tools_by_name
 ) -> None:  # noqa: ANN001
