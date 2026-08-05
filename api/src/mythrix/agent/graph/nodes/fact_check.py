@@ -14,13 +14,7 @@ answer's own text at all (only numbered sentences and evidence, ADR-025's
 JSON-classification design) and never returns any — so there is no
 reproduction step for the reply the user sees to survive or fail. The reply
 returned to the user is always the primary model's own original answer,
-verbatim, with at most a score footer appended.
-
-On success, every classified sentence's verdict is logged individually at
-`INFO` (`_log_verdicts`) — the aggregate score alone doesn't say which
-sentence was marked unsupported or why, and a low score on a plausible-
-looking answer is otherwise undiagnosable without re-running against a
-local daemon."""
+verbatim, with at most a score footer appended."""
 
 from __future__ import annotations
 
@@ -28,8 +22,8 @@ import logging
 
 from langchain_core.messages import AIMessage, ToolMessage
 
-from mythrix.agent.citation_grounding import evidence_from_tool_messages
-from mythrix.agent.fact_check import SentenceVerdict, grounding_score, is_grounded, run_fact_check, split_sentences
+from mythrix.agent.citation_grounding import evidence_from_tool_messages, strip_grounding_prefix
+from mythrix.agent.fact_check import grounding_score, run_fact_check, split_sentences
 from mythrix.agent.graph.state import AgentState
 from mythrix.core.chat import ChatClient
 
@@ -67,35 +61,11 @@ def fact_check_node(state: AgentState, chat_client: ChatClient) -> dict:
         logger.warning("fact-check: call failed or returned an unparseable response — showing the original answer")
         return {}
 
-    valid_ids = {e.grounding_id for e in evidence}
+    valid_ids = {strip_grounding_prefix(e.grounding_id) for e in evidence}
     score = grounding_score(verdicts, valid_ids)
     if score is None:
         logger.info("fact-check: no score — nothing was classified as a claim")
         return {}
 
     logger.info("fact-check: succeeded — grounding_score=%.2f", score)
-    _log_verdicts(verdicts, sentences, valid_ids)
     return {"messages": [AIMessage(content=f"{answer}\n###### facts checked: {score:.0%}")]}
-
-
-def _log_verdicts(verdicts: tuple[SentenceVerdict, ...], sentences: tuple[str, ...], valid_ids: set[str]) -> None:
-    """One line per classified sentence — at `INFO`, not `DEBUG`: this app's
-    production logging runs at `INFO` (`core/logging_config.py`), so a
-    `DEBUG` call here would never actually surface and a low score would
-    stay unexplainable outside a local debugging session. Shows exactly what
-    the fact-checker decided and why `is_grounded` agreed or disagreed, so a
-    surprising score (e.g. `25%` on an answer that reads as well-grounded)
-    can be diagnosed straight from a normal deployment's logs."""
-    for verdict in verdicts:
-        sentence = sentences[verdict.index]
-        grounded = is_grounded(verdict, valid_ids)
-        status = "supported" if grounded else "unsupported"
-        reason = "" if verdict.supported == grounded else " (claimed supported, no valid citation)"
-        logger.info(
-            "fact-check:   [%d] %s%s citations=%s — %r",
-            verdict.index,
-            status,
-            reason,
-            list(verdict.citations),
-            sentence,
-        )

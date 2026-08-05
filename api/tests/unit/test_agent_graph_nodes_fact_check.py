@@ -10,9 +10,7 @@ else it could return). No live Ollama; a fake `ChatClient` stands in,
 scripted with the JSON response `run_fact_check` parses."""
 
 import json
-import logging
 
-import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from mythrix.agent.graph.nodes.fact_check import fact_check_node
@@ -83,7 +81,7 @@ def test_well_behaved_classification_gets_a_score_footer_on_the_original_answer(
             AIMessage(content="The Sun symbolizes joy."),
         ]
     )
-    client = FakeChatClient(response=_verdicts_response({"index": 0, "supported": True, "citations": ["G111111"]}))
+    client = FakeChatClient(response=_verdicts_response({"index": 0, "supported": True, "citations": ["111111"]}))
 
     result = fact_check_node(state, client)
 
@@ -128,7 +126,7 @@ def test_an_unsupported_claim_lowers_the_score() -> None:
     )
     client = FakeChatClient(
         response=_verdicts_response(
-            {"index": 0, "supported": True, "citations": ["G111111"]},
+            {"index": 0, "supported": True, "citations": ["111111"]},
             {"index": 1, "supported": False},
         )
     )
@@ -167,65 +165,11 @@ def test_markdown_in_the_answer_is_preserved_in_the_scored_reply() -> None:
             AIMessage(content="The **Sun** symbolizes joy."),
         ]
     )
-    client = FakeChatClient(response=_verdicts_response({"index": 0, "supported": True, "citations": ["G111111"]}))
+    client = FakeChatClient(response=_verdicts_response({"index": 0, "supported": True, "citations": ["111111"]}))
 
     result = fact_check_node(state, client)
 
     assert result["messages"][0].content == "The **Sun** symbolizes joy.\n###### facts checked: 100%"
-
-
-def test_a_low_score_logs_a_per_sentence_breakdown_at_info(caplog: pytest.LogCaptureFixture) -> None:
-    """The aggregate score alone doesn't say which sentence was marked
-    unsupported or why — logged at `INFO`, since this app's production
-    logging runs at `INFO` and a `DEBUG` call here would never surface."""
-    state = _state(
-        messages=[
-            HumanMessage(content="what does the sun mean"),
-            _get_sign_message(),
-            AIMessage(content="The Sun symbolizes joy. It also predicts next week's weather."),
-        ]
-    )
-    client = FakeChatClient(
-        response=_verdicts_response(
-            {"index": 0, "supported": True, "citations": ["G111111"]},
-            {"index": 1, "supported": False},
-        )
-    )
-
-    with caplog.at_level(logging.INFO, logger="mythrix.agent.graph.nodes.fact_check"):
-        fact_check_node(state, client)
-
-    assert "[0] supported" in caplog.text
-    assert "The Sun symbolizes joy." in caplog.text
-    assert "[1] unsupported" in caplog.text
-    assert "It also predicts next week's weather." in caplog.text
-
-
-def test_a_claimed_supported_verdict_with_no_valid_citation_is_logged_as_unsupported_with_a_reason(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """A verdict that claims `supported=True` but names no real evidence id
-    is scored as unsupported (`is_grounded`) — the log line says so
-    explicitly, rather than silently disagreeing with what the model
-    claimed."""
-    state = _state(
-        messages=[
-            HumanMessage(content="what does the sun mean"),
-            _get_sign_message(),
-            AIMessage(content="The Sun symbolizes joy. It also predicts next week's weather."),
-        ]
-    )
-    client = FakeChatClient(
-        response=_verdicts_response(
-            {"index": 0, "supported": True, "citations": ["G111111"]},
-            {"index": 1, "supported": True, "citations": ["G999999"]},
-        )
-    )
-
-    with caplog.at_level(logging.INFO, logger="mythrix.agent.graph.nodes.fact_check"):
-        fact_check_node(state, client)
-
-    assert "[1] unsupported (claimed supported, no valid citation)" in caplog.text
 
 
 def test_evidence_is_scoped_to_this_turn_via_turn_start_index() -> None:
@@ -242,7 +186,7 @@ def test_evidence_is_scoped_to_this_turn_via_turn_start_index() -> None:
         ],
         turn_start_index=2,
     )
-    client = FakeChatClient(response=_verdicts_response({"index": 0, "supported": True, "citations": ["G111111"]}))
+    client = FakeChatClient(response=_verdicts_response({"index": 0, "supported": True, "citations": ["111111"]}))
 
     result = fact_check_node(state, client)
 

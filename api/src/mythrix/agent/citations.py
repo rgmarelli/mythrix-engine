@@ -1,19 +1,15 @@
 # SPDX-FileCopyrightText: 2026 Guido Marelli
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Citation-marker extraction over the `[G#]`/`[S#]`/`[C#]`/`[R#]`/`[UNSUPPORTED]`
-vocabulary — the code guarantee (FR-RT-04) behind the instruction to use it.
-A prompt can *ask* a model to cite only real markers; this is what checks it
-did.
+"""Citation-marker extraction over the `[G#]`/`[S#]`/`[R#]` vocabulary — the
+code guarantee (FR-RT-04) behind the instruction to use it. A prompt can
+*ask* a model to cite only real markers; this is what checks it did.
 
 Validation and stripping are separate predicates. Every marker kind is
 validated against the caller's identifier set; only the kinds that name an item
 *inside* a tool result are then removed from the visible reply. A region marker
 names a section of the reply itself, so it is kept — it is what lets a
 consolidated claim be traced to the finding supporting it (FR-DS-23).
-`UNSUPPORTED` (ADR-025) strips like a grounding id: it names no durable item,
-only a fact-check verdict on a sentence, and is exactly as internal as a
-`[G#]`/`[S#]` marker was already.
 
 Deliberately typeless: it works on text and a set of valid identifiers, never
 on retrieval or graph models, so `turn_service.py` can validate against the
@@ -25,8 +21,8 @@ from __future__ import annotations
 
 import re
 
-_MARKER_PATTERN = re.compile(r"\[\s*(G[0-9a-f]+|S[0-9a-f]+|C[0-9a-f]+|R\d+)\s*\]")
-_STRIP_PATTERN = re.compile(r"\[\s*(G[0-9a-f]+|S[0-9a-f]+|C[0-9a-f]+)\s*\]")
+_MARKER_PATTERN = re.compile(r"\[\s*(G[0-9a-f]+|S[0-9a-f]+|R\d+)\s*\]")
+_STRIP_PATTERN = re.compile(r"\[\s*(G[0-9a-f]+|S[0-9a-f]+)\s*\]")
 
 CITATION_FAILURE_MESSAGE = (
     "I drafted a reply but it referenced something I couldn't actually back up with a tool result, "
@@ -50,7 +46,7 @@ def extract_markers(text: str) -> tuple[str, ...]:
 
 
 def strip_markers(text: str) -> str:
-    """Removes every `[G#]`/`[S#]`/`[C#]` marker from `text`, valid or not —
+    """Removes every `[G#]`/`[S#]` marker from `text`, valid or not —
     the agent never shows those in a visible reply, regardless of validation
     outcome. Region markers survive (FR-DS-23)."""
     return _STRIP_PATTERN.sub("", text)

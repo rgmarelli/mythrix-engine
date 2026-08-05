@@ -44,6 +44,14 @@ class Evidence:
     text: str
 
 
+def strip_grounding_prefix(grounding_id: str) -> str:
+    """Drops the origin-tagging prefix letter (`G`/`S`, ADR-022) a grounding
+    id always carries. No consumer branches on the letter — `agent/fact_check.py`'s
+    prompt shows and reads an id back without it, saving a character per id
+    in a prompt/response the model otherwise has no use for."""
+    return grounding_id[1:]
+
+
 def _safe_json_loads(content: object) -> object:
     try:
         return json.loads(content)  # type: ignore[arg-type]

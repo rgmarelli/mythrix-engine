@@ -150,7 +150,8 @@ def test_run_fact_check_prompt_carries_the_sentences_and_evidence() -> None:
     run_fact_check(client, evidence=_EVIDENCE, sentences=("The Sun symbolizes joy.",))
 
     assert client.last_prompt is not None
-    assert "G111111" in client.last_prompt
+    assert "[111111]" in client.last_prompt
+    assert "G111111" not in client.last_prompt
     assert "Joy and vitality." in client.last_prompt
     assert '"index": 0' in client.last_prompt
     assert '"text": "The Sun symbolizes joy."' in client.last_prompt

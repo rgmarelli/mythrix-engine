@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import json
 
-from mythrix.agent.citation_grounding import Evidence
+from mythrix.agent.citation_grounding import Evidence, strip_grounding_prefix
 
 SYSTEM_PROMPT = """
 You are a Mythrix semiotics expert assistant.
@@ -159,7 +159,13 @@ def render_fact_check_prompt(evidence: tuple[Evidence, ...], sentences: tuple[st
 
     The evidence block carries only an item's id and text, not its
     `source`/`locator` — those fields still live on `Evidence` for other
-    consumers.
+    consumers. The id itself is shown without its origin-tagging prefix
+    letter (`strip_grounding_prefix`, ADR-022) — the letter is a
+    human/log-reading mnemonic no consumer branches on, so there is nothing
+    for the model to lose by not seeing it, and one fewer character per id
+    to read and echo back. `graph/nodes/fact_check.py` builds the valid-id
+    set the same way, so a citation compares against what the model was
+    actually shown.
 
     A faithful summary or reasonable paraphrase of the evidence counts as
     supported; `supported: false` is reserved for a sentence that introduces
@@ -174,7 +180,7 @@ def render_fact_check_prompt(evidence: tuple[Evidence, ...], sentences: tuple[st
         },
         indent=2,
     )
-    rendered_evidence = "\n\n".join(f"[{e.grounding_id}]\n{e.text}" for e in evidence)
+    rendered_evidence = "\n\n".join(f"[{strip_grounding_prefix(e.grounding_id)}]\n{e.text}" for e in evidence)
     return (
         "You are a factual verification assistant.\n\n"
         "You are given:\n\n"

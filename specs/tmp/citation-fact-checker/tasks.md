@@ -280,6 +280,20 @@ text with the pound signs visible.
 - [x] `pytest api/tests/unit` — clean, 615 passed; `ruff check .`/
   `ruff format --check .` — clean.
 
+## Fix: removed per-sentence verdict logging (2026-08-05)
+
+- [x] `agent/graph/nodes/fact_check.py`: removed `_log_verdicts` and its call
+  site — the aggregate `grounding_score=%.2f` line stays, per-sentence
+  `[i] supported/unsupported citations=[...] — "..."` lines are gone.
+  Removed the now-unused `SentenceVerdict`/`is_grounded` imports.
+- [x] `tests/unit/test_agent_graph_nodes_fact_check.py`: removed the two
+  tests that existed solely to exercise this logging
+  (`test_a_low_score_logs_a_per_sentence_breakdown_at_info`,
+  `test_a_claimed_supported_verdict_with_no_valid_citation_is_logged_as_unsupported_with_a_reason`);
+  dropped the now-unused `logging`/`pytest` imports.
+- [x] `pytest api/tests/unit` — clean, 613 passed; `ruff check .`/
+  `ruff format --check .` — clean.
+
 ## Fix: silent invented citation ids (2026-08-05)
 
 Real production log: a sentence cited `["S247c9a", "Sse60ed"]` against
@@ -301,3 +315,40 @@ that an invented id contributed to a passing score with nothing logged.
 - [x] `pytest api/tests/unit` — clean, 614 passed; `ruff check .`/
   `ruff format --check .` — clean.
 
+## Fix: shorter ids in the fact-check prompt, dropped unused `C` prefix (2026-08-05)
+
+Grounding ids (`prefix + uuid4().hex[:6]`, ADR-022) carry an origin letter
+(`G` from `get_sign`, `S` from `query_sign`/`fetch_segments`) that no
+consumer branches on — confirmed across `citation_grounding.py`,
+`citations.py`, `fact_check.py`, and the frontend, all of which treat
+`grounding_id` as an opaque string. User-directed: keep `G`/`S` (and `R` for
+`/augment`'s unrelated region markers) as they are — ADR-022's id format is
+unchanged — but stop showing the prefix to the fact-check model, since it
+reads/writes it purely as extra characters. `agent/citations.py`'s marker
+regex also listed a `C` alternative that no code has ever minted; dropped
+as dead per this repo's standard.
+
+- [x] `agent/citation_grounding.py`: added `strip_grounding_prefix(grounding_id) -> str`
+  (drops the single leading letter).
+- [x] `agent/prompts.py::render_fact_check_prompt`: evidence ids rendered via
+  `strip_grounding_prefix` — the model now sees/returns e.g. `111111`
+  instead of `G111111`.
+- [x] `agent/graph/nodes/fact_check.py::fact_check_node`: `valid_ids` built
+  the same stripped way, so a citation is compared against what the model
+  was actually shown.
+- [x] `agent/citations.py`: removed the unused `C[0-9a-f]+` alternative from
+  `_MARKER_PATTERN`/`_STRIP_PATTERN`; corrected the module's own docstring,
+  which still described a `[C#]`/`[UNSUPPORTED]` vocabulary neither the
+  regex nor any generator has produced since an earlier revision.
+- [x] `tests/unit/test_agent_citations.py`: dropped the `C1` case.
+- [x] `tests/unit/test_agent_fact_check.py`: prompt-rendering test now
+  asserts the stripped id (`[111111]`) appears and the prefixed form does
+  not.
+- [x] `tests/unit/test_agent_graph_nodes_fact_check.py`: canned model
+  responses' `citations` changed from `["G111111"]` to `["111111"]` to
+  match what a well-behaved model is now actually shown — the evidence
+  fixture's own `grounding_id` stays `"G111111"` (the real, prefixed id a
+  tool result carries; only what the fact-checker sees/returns is
+  stripped).
+- [x] `pytest api/tests/unit` — clean, 614 passed; `ruff check .`/
+  `ruff format --check .` — clean.
