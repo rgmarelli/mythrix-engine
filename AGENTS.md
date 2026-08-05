@@ -36,6 +36,8 @@ Non-trivial changes follow four stages under `specs/tmp/<feature-slug>/`:
 - Record significant architectural decisions under `specs/architecture-decisions/`.
 - Use ADRs only for decisions with lasting architectural impact.
 - ADRs should capture **Context**, **Decision**, and **Consequences**.
+- Focus on the architectural decision and its rationale, not implementation details or debugging history.
+- Keep ADRs concise. Move implementation details, experiments, and failure analyses to design documents or Git history.
 - Once accepted, supersede an ADR instead of rewriting it.
 
 ## Code Documentation
