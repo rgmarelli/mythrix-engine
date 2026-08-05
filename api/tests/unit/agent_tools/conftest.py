@@ -19,7 +19,7 @@ from mythrix.core.models import Citation, Interpretant, Manifestation, Sign, Sou
 from mythrix.core.vector.store import ChromaVectorStore
 
 RIDER_WAITE = Tradition(id="rider-waite", slug="rider-waite", name="Rider-Waite-Smith", domain="tarot")
-MARSEILLE = Tradition(id="marseille", slug="marseille", name="Tarot de Marseille", domain="tarot")
+MARSEILLE = Tradition(id="marseille", slug="marseille", name="Marseille", domain="tarot")
 GOLDEN_DAWN = Tradition(
     id="golden-dawn-kabbalah", slug="golden-dawn-kabbalah", name="Golden Dawn Kabbalah", domain="kabbalah"
 )

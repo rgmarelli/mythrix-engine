@@ -85,7 +85,7 @@ def _resolve_tradition(traditions: tuple[Tradition, ...], tradition: str) -> Tra
     """Matches `tradition` against a tradition's slug or name,
     case/whitespace-insensitive — the tradition counterpart to
     `_resolve_sign`, and needed for the same reason: a request names its
-    tradition in the user's own words ("Tarot de Marseille") before any tool
+    tradition in the user's own words ("Marseille") before any tool
     has surfaced the slug ("marseille"), and the two are unrelated strings.
     Resolving here keeps display names out of the store, which accepts slugs
     only (ADR-014)."""

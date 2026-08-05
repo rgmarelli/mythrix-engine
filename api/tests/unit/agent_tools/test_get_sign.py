@@ -35,7 +35,7 @@ def test_get_sign_needs_tradition_for_multi_tradition_sign(stores: Stores, setti
         "sign_name": "The Magician",
         "traditions": [
             {"slug": "rider-waite", "name": "Rider-Waite-Smith"},
-            {"slug": "marseille", "name": "Tarot de Marseille"},
+            {"slug": "marseille", "name": "Marseille"},
         ],
     }
 
@@ -136,10 +136,10 @@ def test_get_sign_unknown_tradition_returns_error(stores: Stores, settings: Sett
 
 def test_get_sign_resolves_tradition_by_name_not_only_slug(stores: Stores, settings: Settings, tools_by_name) -> None:  # noqa: ANN001
     """A tradition's slug and its display name are unrelated strings
-    ("marseille" / "Tarot de Marseille"), and a request names it the way the
+    ("marseille" / "Marseille"), and a request names it the way the
     user said it — before any tool has surfaced the slug."""
     tools = tools_by_name(stores, settings, FakeChatClient())
-    result = tools["get_sign"].invoke({"sign": "the-magician", "tradition": "Tarot de Marseille"})
+    result = tools["get_sign"].invoke({"sign": "the-magician", "tradition": "Marseille"})
     assert "error" not in result
     assert result["tradition"] == "marseille"
     assert result["display_name"] == "Le Bateleur"
@@ -190,5 +190,5 @@ def test_get_sign_tradition_the_sign_lacks_returns_manifestation_error(
     at the store with the more specific error — resolution is deliberately not
     scoped to the sign's own traditions."""
     tools = tools_by_name(stores, settings, FakeChatClient())
-    result = tools["get_sign"].invoke({"sign": "the-tower", "tradition": "Tarot de Marseille"})
+    result = tools["get_sign"].invoke({"sign": "the-tower", "tradition": "Marseille"})
     assert "error" in result

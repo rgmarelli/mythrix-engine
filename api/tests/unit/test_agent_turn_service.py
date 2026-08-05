@@ -28,7 +28,7 @@ def get_sign(sign: str, tradition: str | None = None) -> dict:
             "sign_name": "The Magician",
             "traditions": [
                 {"slug": "rider-waite", "name": "Rider-Waite-Smith"},
-                {"slug": "marseille", "name": "Tarot de Marseille"},
+                {"slug": "marseille", "name": "Marseille"},
             ],
         }
     return {
@@ -261,7 +261,7 @@ def test_ambiguous_tradition_short_circuits_with_no_second_model_call() -> None:
     assert llm.calls == 1
     # The user is asked in display names, not slugs (FR-AG-07, ADR-014).
     assert "Rider-Waite-Smith" in response.reply_text
-    assert "Tarot de Marseille" in response.reply_text
+    assert "Marseille" in response.reply_text
     assert response.context.sign is None
 
 

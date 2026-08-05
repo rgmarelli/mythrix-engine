@@ -59,7 +59,7 @@ def test_clarify_node_builds_a_deterministic_reply_from_the_payload() -> None:
     payload = (
         '{"needs_tradition": true, "sign": "the-magician", "sign_name": "The Magician", '
         '"traditions": [{"slug": "rider-waite", "name": "Rider-Waite-Smith"}, '
-        '{"slug": "marseille", "name": "Tarot de Marseille"}]}'
+        '{"slug": "marseille", "name": "Marseille"}]}'
     )
     state = {"messages": [ToolMessage(content=payload, name="get_sign", tool_call_id="c")]}
 
@@ -69,7 +69,7 @@ def test_clarify_node_builds_a_deterministic_reply_from_the_payload() -> None:
     assert isinstance(reply, AIMessage)
     assert not reply.tool_calls
     assert reply.content == (
-        "Which tradition would you like to use for The Magician? Available: Rider-Waite-Smith, Tarot de Marseille."
+        "Which tradition would you like to use for The Magician? Available: Rider-Waite-Smith, Marseille."
     )
     assert "the-magician" not in reply.content
 
