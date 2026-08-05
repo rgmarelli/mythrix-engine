@@ -1,8 +1,8 @@
 # The Agent Graph
 
 This document is a reference for the LangGraph state machine one conversational
-turn runs through: every node and edge, the tool-calling loop, the citation
-retry loop, and the full `/` command vocabulary. It complements
+turn runs through: every node and edge, the tool-calling loop, the post-hoc
+fact-check pass, and the full `/` command vocabulary. It complements
 [architecture.md §5](architecture.md#5-the-conversational-agent), which gives
 the narrative version — this one is the diagram and the tables. The graph
 itself is built by
@@ -15,7 +15,7 @@ which stays the source of truth if this document and the code ever disagree.
 - [2. Nodes](#2-nodes)
 - [3. Command dispatch](#3-command-dispatch)
 - [4. The tool-calling loop](#4-the-tool-calling-loop)
-- [5. Citation validation and retry](#5-citation-validation-and-retry)
+- [5. Post-hoc fact-checking](#5-post-hoc-fact-checking)
 - [6. Bounds and the recursion budget](#6-bounds-and-the-recursion-budget)
 - [7. Turn state](#7-turn-state)
 - [8. Related specs and ADRs](#8-related-specs-and-adrs)
@@ -28,7 +28,7 @@ flowchart TB
     AGENT["agent\n(model call)"]
     TOOLS["tools\n(ToolNode)"]
     CLARIFY["clarify"]
-    VALIDATE["validate_citations"]
+    FACTCHECK["fact_check\n(model call)"]
     PARSE["parse_query"]
     EXEC["execute_query"]
     SUMMARIZE["summarize"]
@@ -50,19 +50,18 @@ flowchart TB
     RUN --> END_
 
     AGENT -- "tool_calls present" --> TOOLS
-    AGENT -- "final answer" --> VALIDATE
+    AGENT -- "final answer" --> FACTCHECK
     TOOLS -- "needs_* key" --> CLARIFY
     TOOLS -- "otherwise" --> AGENT
     CLARIFY --> END_
 
-    VALIDATE -- "invalid, retries left\n(pushback HumanMessage)" --> AGENT
-    VALIDATE -- "valid, or retries exhausted" --> END_
+    FACTCHECK --> END_
 ```
 
-Two loops share the graph: the **tool-calling loop** (`agent` ⇄ `tools`) and
-the **citation-retry loop** (`agent` → `validate_citations` → `agent`). Both
-count toward the same outer `recursion_limit` (§6) — there is one budget, not
-two independent ones.
+One loop remains in the graph: the **tool-calling loop** (`agent` ⇄ `tools`),
+which counts toward the outer `recursion_limit` (§6). `fact_check` is a single
+pass, not a loop — it never routes back to `agent` (ADR-025 superseded the
+in-graph citation-retry loop this diagram used to show).
 
 ## 2. Nodes
 
@@ -71,7 +70,7 @@ two independent ones.
 | `agent` | model call | Prepends the system prompt (+ `context_summary`) fresh every call, invokes the tool-bound model. | [`graph/nodes/llm.py::agent_node`](../api/src/mythrix/agent/graph/nodes/llm.py) |
 | `tools` | deterministic | A `ToolNode` over `toolset.model_tools`, the fixed read-only tool set. | `langgraph.prebuilt.ToolNode` |
 | `clarify` | deterministic | Builds a clarifying question straight from a tool result's `needs_*` payload — no model call. | [`graph/nodes/llm.py::clarify_node`](../api/src/mythrix/agent/graph/nodes/llm.py) |
-| `validate_citations` | deterministic | Checks the reply's `[G#]`/`[S#]`/`[C#]` markers against this turn's tool results; pushes back, falls back, or lets it through. | [`graph/nodes/citation_check.py::validate_citations_node`](../api/src/mythrix/agent/graph/nodes/citation_check.py) |
+| `fact_check` | model call | Classifies the reply's sentences against this turn's tool-returned evidence with a second, narrow model call — never given the reply's own text to reproduce, never loops back. | [`graph/nodes/fact_check.py::fact_check_node`](../api/src/mythrix/agent/graph/nodes/fact_check.py) |
 | `parse_query` | deterministic | Parses an ad-hoc query into a pending confirmation. | [`graph/nodes/adhoc.py::parse_query_node`](../api/src/mythrix/agent/graph/nodes/adhoc.py) |
 | `execute_query` | deterministic | Runs a previously parsed and confirmed ad-hoc query. | [`graph/nodes/adhoc.py::execute_query_node`](../api/src/mythrix/agent/graph/nodes/adhoc.py) |
 | `summarize` | deterministic + 1 generative step | Fetches the active hotspot's passage, then summarizes it. | [`graph/nodes/summary.py::summarize_node`](../api/src/mythrix/agent/graph/nodes/summary.py) |
@@ -127,53 +126,75 @@ state anything the tool didn't actually return
 ([ADR-006](../specs/architecture-decisions/adr-006-conversational-agent-orchestration-boundary.md)).
 `clarify` goes straight to `END`.
 
-## 5. Citation validation and retry
+## 5. Post-hoc fact-checking
 
 Every reply with no further tool calls is checked before it can end the
-turn — `route_after_agent` sends it to `validate_citations`, never straight
-to `END`.
+turn — `route_after_agent` sends it to `fact_check`, never straight to
+`END`. Unlike every other node in this graph, `fact_check` makes a model
+call of its own — a second, narrow call over this turn's evidence, distinct
+from the primary tool-calling model
+([ADR-025](../specs/architecture-decisions/adr-025-post-hoc-fact-checker-replaces-self-citation.md)).
 
-`validate_citations_node` finds this turn's own tool results via
-`turn_start_index` (fixed once per turn, so a prior retry's own pushback
-message can't be mistaken for the turn boundary), then checks the reply's
-`[G#]`/`[S#]` markers — the opaque, tool-issued grounding ids
-([ADR-022](../specs/architecture-decisions/adr-022-tool-owned-opaque-grounding-ids.md))
-— against that set:
+The primary model's own prompt (`prompts.py::SYSTEM_PROMPT`) carries no
+citation instruction at all — composing the answer is its only job.
+`fact_check_node` finds this turn's own tool results via `turn_start_index`
+(fixed once per turn) and builds an evidence list — source, locator, and
+text for every citable item `get_sign`/`query_sign`/`fetch_segments`
+returned — from `citation_grounding.py`. A turn with no such evidence (no
+tool calls, or only enumeration tools), or a reply with no sentences at
+all, is a no-op.
 
-- **Valid**, or only listing tools were called (nothing to cite): no-op, the
-  reply stands, the graph proceeds to `END`.
-- **Invalid, retries remaining**: a corrective `HumanMessage`
-  (`prompts.py::render_citation_pushback` /
-  `render_missing_citation_pushback`) naming exactly what was wrong is
-  appended, and the graph routes back to `agent` for another attempt.
-- **Invalid, retries exhausted**: the reply is replaced with the fixed
-  `CITATION_FAILURE_MESSAGE` and the graph proceeds to `END`.
+Otherwise, the reply is split into sentences deterministically, in code
+(`fact_check.py::split_sentences`), and the fact-check model is given only
+those numbered sentences and the evidence — never the reply's own text as
+something to reproduce. It returns a compact JSON classification keyed by
+sentence index (supported/not, and which evidence id(s) support it),
+omitting a sentence entirely when it states no factual claim.
+`fact_check_node` parses this into `SentenceVerdict`s and validates its
+*structure* (a well-formed response, an in-range index, a boolean
+`supported`) — there is nothing to reword, since the model was never given
+custody of the reply's text to begin with:
 
-This replaced a one-shot post-hoc reject that discarded the entire reply on
-any invalid marker with no chance to correct it
-([ADR-023](../specs/architecture-decisions/adr-023-in-graph-citation-retry.md)).
-Real-model testing found the model rarely fabricates a grounding id but
-often *formats* a real one wrong — a recoverable mistake a bounded retry can
-fix, rather than one that needs the whole answer thrown away.
+- **Well-formed classification**: a `grounding_score`
+  (`fact_check.py::grounding_score`) is computed from the parsed verdicts —
+  a verdict counts as supported only when `supported=true` *and* at least
+  one of its citations is a real evidence id, so the model's own boolean is
+  never simply trusted. A `facts checked: NN%` footer is appended to the
+  *original* reply's own text, unmodified. Individual per-sentence verdicts
+  never reach the user; only the aggregate score does.
+- **Model call failed, or the response could not be parsed into any usable
+  verdicts**: the fact-checker's output is discarded and the original reply
+  is used — with no footer. There is no retry, and grounding is never a
+  reason to withhold the reply (`CITATION_FAILURE_MESSAGE` is not produced
+  by this node at all).
+
+This replaced the in-graph citation-retry loop
+([ADR-023](../specs/architecture-decisions/adr-023-in-graph-citation-retry.md),
+superseded), which asked the primary model to self-cite inline and gave it a
+bounded number of corrective pushbacks when it got the marker syntax wrong.
+An earlier draft of `fact_check_node` itself asked the fact-checker to echo
+the reply back with tags inserted inline, verified by a no-reword text
+comparison — replaced by the sentence-classification design above after
+real-model testing found reproduction drift a small local model could not
+reliably avoid, in several different shapes, regardless of how the tagging
+instruction was worded (ADR-025's Revision section). `turn_service.py`'s own
+marker check still runs, unchanged, as the sole gate for `/augment`'s `[R#]`
+region markers and a redundant backstop on the conversational path — which
+`fact_check_node` never trips in practice, since it no longer writes a
+marker into the reply's text at all.
 
 ## 6. Bounds and the recursion budget
 
 | Setting | Env var | Default | Governs |
 |---|---|---|---|
-| `agent_max_tool_iterations` | `MYTHRIX_AGENT_MAX_TOOL_ITERATIONS` | `16` | The graph's `recursion_limit` for one turn (`runner.py::stream_turn`) — every step through `agent`, `tools`, and `validate_citations` counts against it, not just tool calls. |
-| `citation_max_retries` | `MYTHRIX_CITATION_MAX_RETRIES` | `2` | How many times `validate_citations_node` may push back before falling back to `CITATION_FAILURE_MESSAGE`. |
+| `agent_max_tool_iterations` | `MYTHRIX_AGENT_MAX_TOOL_ITERATIONS` | `16` | The graph's `recursion_limit` for one turn (`runner.py::stream_turn`) — every step through `agent` and `tools` counts against it, not just tool calls. `fact_check` runs at most once per turn and is not part of this loop. |
+| `fact_check_model` | `MYTHRIX_FACT_CHECK_MODEL` | unset (falls back to `agent_model`, then `generation_model`) | Which model `fact_check_node` calls (ADR-025). |
 | `augment_max_regions` | `MYTHRIX_AUGMENT_MAX_REGIONS` | `1000` | How many visible regions one `/augment` run reads. Does not consume `agent_max_tool_iterations` — `run_augment` is a deterministic node the model's tool loop never enters. |
 | `augment_consolidation_group_size` | `MYTHRIX_AUGMENT_CONSOLIDATION_GROUP_SIZE` | `8` (min `2`) | How many results one hierarchical-consolidation call may be given, at every level of `/augment`'s reduce (§4.2 in architecture.md). |
 
-`agent_max_tool_iterations` and `citation_max_retries` are independent
-budgets that both draw on the **same** `recursion_limit`: a full
-citation-retry cycle costs two graph steps (the agent's reattempt, then the
-citation check), so exhausting the default `citation_max_retries` alone can
-cost up to `2 * (citation_max_retries + 1)` steps before a single tool call
-is even counted. `agent_max_tool_iterations`'s default is sized with that
-overhead in mind. Hitting the limit ends the turn with a fixed message
-(`runner.py`'s `_RECURSION_LIMIT_MESSAGE`) and discards the runaway turn's
-messages — `TurnResult.history` is the history that was passed in.
+Hitting the `agent_max_tool_iterations` limit ends the turn with a fixed
+message (`runner.py`'s `_RECURSION_LIMIT_MESSAGE`) and discards the runaway
+turn's messages — `TurnResult.history` is the history that was passed in.
 
 ## 7. Turn state
 
@@ -181,15 +202,14 @@ messages — `TurnResult.history` is the history that was passed in.
 
 | Field | Type | Notes |
 |---|---|---|
-| `messages` | `list` (`add_messages`) | The conversation, including this turn's pushback/tool messages. |
+| `messages` | `list` (`add_messages`) | The conversation, including this turn's tool messages and, once `fact_check` runs, the same reply text with a score footer appended. |
 | `context_summary` | `str` | Folded into the system prompt by `agent_node`. |
 | `pending_query` | `PendingAdhocQuery \| None` | Round-tripped through `PendingCommands`; the graph holds no state across turns. |
 | `pending_augmentation` | `PendingAugmentation \| None` | Same, for `/augment`. |
 | `instructions` | `list[dict]` | Instructions emitted for the viewer (e.g. `execute_query`, `augment_region`). |
 | `region_id`, `interpretant`, `visible_regions` | turn-scoped inputs | The session's active hotspot and the consumer's current display; read by the deterministic nodes, never read back off final state. |
 | `backend_authored` | `bool` | Marks a reply with no model-authored text, so `turn_service.py` can distinguish an ungrounded citation from a marker sequence the backend itself put there. |
-| `turn_start_index` | `int` | Index into `messages` where this turn began; lets `validate_citations_node` find this turn's tool messages across zero or more retries. |
-| `citation_retry_count` | `int` | This turn's citation-pushback count so far, compared against `citation_max_retries`. |
+| `turn_start_index` | `int` | Index into `messages` where this turn began; lets `fact_check_node` find this turn's tool messages and its own originating `HumanMessage`. |
 
 ## 8. Related specs and ADRs
 
@@ -201,4 +221,5 @@ messages — `TurnResult.history` is the history that was passed in.
 - [ADR-012](../specs/architecture-decisions/adr-012-deterministic-command-nodes-bypass-tool-selection.md) — deterministic command nodes.
 - [ADR-015](../specs/architecture-decisions/adr-015-deterministic-augmentation-over-viewer-regions.md), [ADR-016](../specs/architecture-decisions/adr-016-hierarchical-map-reduce-augmentation-consolidation.md) — `/augment`'s deterministic pipeline and consolidation shape.
 - [ADR-022](../specs/architecture-decisions/adr-022-tool-owned-opaque-grounding-ids.md) — grounding id format.
-- [ADR-023](../specs/architecture-decisions/adr-023-in-graph-citation-retry.md) — the citation retry loop this document diagrams.
+- [ADR-023](../specs/architecture-decisions/adr-023-in-graph-citation-retry.md) — the in-graph citation retry loop, superseded by ADR-025.
+- [ADR-025](../specs/architecture-decisions/adr-025-post-hoc-fact-checker-replaces-self-citation.md) — the post-hoc fact-check pass this document diagrams.

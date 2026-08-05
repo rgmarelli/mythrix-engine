@@ -1,15 +1,19 @@
 # SPDX-FileCopyrightText: 2026 Guido Marelli
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Citation-marker extraction over the `[G#]`/`[S#]`/`[C#]`/`[R#]` vocabulary —
-the code guarantee (FR-RT-04) behind the instruction to use it. A prompt can
-*ask* a model to cite only real markers; this is what checks it did.
+"""Citation-marker extraction over the `[G#]`/`[S#]`/`[C#]`/`[R#]`/`[UNSUPPORTED]`
+vocabulary — the code guarantee (FR-RT-04) behind the instruction to use it.
+A prompt can *ask* a model to cite only real markers; this is what checks it
+did.
 
 Validation and stripping are separate predicates. Every marker kind is
 validated against the caller's identifier set; only the kinds that name an item
 *inside* a tool result are then removed from the visible reply. A region marker
 names a section of the reply itself, so it is kept — it is what lets a
 consolidated claim be traced to the finding supporting it (FR-DS-23).
+`UNSUPPORTED` (ADR-025) strips like a grounding id: it names no durable item,
+only a fact-check verdict on a sentence, and is exactly as internal as a
+`[G#]`/`[S#]` marker was already.
 
 Deliberately typeless: it works on text and a set of valid identifiers, never
 on retrieval or graph models, so `turn_service.py` can validate against the
@@ -28,11 +32,16 @@ CITATION_FAILURE_MESSAGE = (
     "I drafted a reply but it referenced something I couldn't actually back up with a tool result, "
     "so I'm not showing it. Could you ask again, maybe more specifically?"
 )
-"""The reply shown once a citation-invalid turn has no more chances to
-self-correct — `turn_service.py`'s backstop for every reply path, and
-`graph/nodes/citation_check.py::validate_citations_node`'s exhausted-retries
-fallback for the conversational path (ADR-023). Public and shared so the two
-never drift apart."""
+"""The reply shown when `turn_service.py`'s own marker check
+(`_ungrounded_markers`) finds an invalid marker it did not expect —
+`/augment`'s `[R#]` region markers are the mechanism this still actively
+gates; on the conversational path it now runs only as a redundant backstop
+over `fact_check_node`'s reply (ADR-025), which should never trip it in
+practice since that node never inserts a marker into the reply it returns.
+`fact_check_node` itself never produces this message: a failed fact-check
+falls back to the original, untouched answer, not a rejection (ADR-025
+supersedes ADR-023's in-graph retry, which used to fall back to this
+message too)."""
 
 
 def extract_markers(text: str) -> tuple[str, ...]:

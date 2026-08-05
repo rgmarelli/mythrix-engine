@@ -3,8 +3,8 @@
 
 """Unit tests for `agent/citations.py` — marker extraction and validation over
 the `[G#]`/`[S#]`/`[C#]`/`[R#]` vocabulary, checked against a caller-supplied
-set of valid identifiers, plus the split between what is validated and what is
-stripped from a visible reply."""
+set of valid identifiers, plus the split between what is validated and what
+is stripped from a visible reply."""
 
 from mythrix.agent.citations import extract_markers, find_invalid_markers, strip_all_markers, strip_markers
 

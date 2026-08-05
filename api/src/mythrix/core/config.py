@@ -85,18 +85,14 @@ class Settings(BaseSettings):
     `augment_max_regions` is set. Must be at least `2`: a group of `1` never
     shrinks the reduce loop.
 
-    `citation_max_retries` (ADR-023) bounds how many times the in-graph
-    citation-check node may push a corrective message back at the model and
-    ask it to re-answer, once per invalid reply, before falling back to the
-    fixed citation-failure message. Read only by the conversational agent
-    path, like `agent_max_tool_iterations`, which it is independent of: both
-    still count toward the same outer `recursion_limit` `runner.py` applies
-    per turn (ADR-023) — a full citation-retry cycle costs two steps (the
-    agent's reattempt, then the citation check), so exhausting the default
-    `citation_max_retries` alone can cost up to `2 * (citation_max_retries +
-    1)` steps before a single tool call is counted. `agent_max_tool_iterations`
-    is sized with that overhead in mind, not just the tool-call count its own
-    name suggests.
+    `fact_check_model` (ADR-025) is the model the post-hoc fact-check node
+    uses to tag a conversational reply's claims against this turn's tool
+    results. Falls back to `agent_model`, then `generation_model`, when
+    unset — the same resolution order `agent_model` itself already
+    establishes. Unlike `citation_max_retries` (ADR-023, removed — the
+    in-graph retry it bounded no longer exists), the fact-check node runs at
+    most once per turn and never loops back into `agent_max_tool_iterations`'s
+    budget.
     """
 
     model_config = SettingsConfigDict(env_prefix="MYTHRIX_", env_file=".env", extra="ignore")
@@ -116,4 +112,4 @@ class Settings(BaseSettings):
     agent_max_tool_iterations: int = 16
     augment_max_regions: int = 1000
     augment_consolidation_group_size: int = Field(default=8, ge=2)
-    citation_max_retries: int = 2
+    fact_check_model: str | None = None

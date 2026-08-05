@@ -41,12 +41,12 @@ def agent_node(state: AgentState, llm_with_tools) -> dict:  # noqa: ANN001 - Run
 
 def route_after_agent(state: AgentState) -> str:
     """A reply carrying tool calls goes to `tools`; a final answer goes to
-    `validate_citations` (ADR-023) rather than straight to `END` — every
-    model-authored reply is citation-checked before it can end the turn."""
+    `fact_check` (ADR-025) rather than straight to `END` — every
+    model-authored reply is fact-checked before it can end the turn."""
     last_message = state["messages"][-1]
     if isinstance(last_message, AIMessage) and last_message.tool_calls:
         return "tools"
-    return "validate_citations"
+    return "fact_check"
 
 
 def _safe_json_loads(content: object) -> object:

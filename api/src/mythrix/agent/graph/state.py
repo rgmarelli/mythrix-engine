@@ -24,13 +24,13 @@ class AgentState(TypedDict):
     turn-scoped input (FR-AU-12) — read by the planning node and never read
     back off the final state, like `region_id`/`interpretant`.
 
-    `turn_start_index` (ADR-023) is the index into `messages` where this
-    turn's own messages begin — set once by `runner.py::stream_turn`, never
-    touched again mid-turn. `validate_citations_node` reads it to find this
-    turn's tool messages regardless of how many citation-retry pushback
-    messages have since been appended; a naive "scan back to the most recent
-    `HumanMessage`" would find its own pushback instead of the turn's real
-    boundary once a retry has happened."""
+    `turn_start_index` (ADR-023, still used by `fact_check_node`, ADR-025) is
+    the index into `messages` where this turn's own messages begin — set
+    once by `runner.py::stream_turn`, never touched again mid-turn. It lets a
+    node find this turn's own tool messages (and, for `fact_check_node`, the
+    turn's own originating `HumanMessage`) without relying on "the most
+    recent `HumanMessage`", which is no longer even at risk of ambiguity now
+    that no node appends an intermediate pushback message mid-turn."""
 
     messages: Annotated[list, add_messages]
     context_summary: str
@@ -42,4 +42,3 @@ class AgentState(TypedDict):
     visible_regions: list[str]
     backend_authored: bool
     turn_start_index: int
-    citation_retry_count: int

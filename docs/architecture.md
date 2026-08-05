@@ -317,7 +317,7 @@ starts a fresh thread rather than extending the old one, so the model's
 context never silently drifts across unrelated evidence.
 
 See [`docs/agent-graph.md`](agent-graph.md) for the full node/edge diagram,
-the citation-retry loop, and the complete `/` command reference.
+the post-hoc fact-check pass, and the complete `/` command reference.
 
 ## 6. The web viewer
 
@@ -371,5 +371,5 @@ behavior directly:
 - [`specs/retrieval/`](../specs/retrieval/) — corpus, retrieval, ranking, context-expansion specs.
 - [`specs/interfaces/`](../specs/interfaces/) — API, web viewer, agent, agnostic query, augmentation specs.
 - [`specs/architecture-decisions/`](../specs/architecture-decisions/) — every `ADR-*` referenced above, with full context/decision/consequences.
-- [`docs/agent-graph.md`](agent-graph.md) — the agent's LangGraph state machine in full: node/edge diagram, the tool-calling and citation-retry loops, and the complete `/` command reference.
+- [`docs/agent-graph.md`](agent-graph.md) — the agent's LangGraph state machine in full: node/edge diagram, the tool-calling loop and the post-hoc fact-check pass, and the complete `/` command reference.
 - [`docs/SETUP.md`](SETUP.md) — running the system locally.

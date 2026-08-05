@@ -14,11 +14,11 @@ def test_route_after_agent_routes_to_tools_when_tool_calls_present() -> None:
     assert route_after_agent(state) == "tools"
 
 
-def test_route_after_agent_routes_to_validate_citations_when_no_tool_calls() -> None:
-    """A final answer is citation-checked (ADR-023) before it can end the
-    turn — it no longer goes straight to `END`."""
+def test_route_after_agent_routes_to_fact_check_when_no_tool_calls() -> None:
+    """A final answer is fact-checked (ADR-025) before it can end the turn —
+    it no longer goes straight to `END`."""
     state = {"messages": [AIMessage(content="a plain answer")]}
-    assert route_after_agent(state) == "validate_citations"
+    assert route_after_agent(state) == "fact_check"
 
 
 def test_route_after_tools_routes_to_clarify_on_needs_tradition() -> None:

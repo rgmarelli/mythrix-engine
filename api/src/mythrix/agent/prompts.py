@@ -2,8 +2,11 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """The operator system prompt (specs/interfaces/agent.md FR-AG-05, FR-AG-06,
-FR-AG-09), which defines the `[G#]`/`[S#]` marker vocabulary `citations.py`
-validates against, plus the ad-hoc prompts the generative tools render.
+FR-AG-09), plus the ad-hoc prompts the generative tools render, including
+the fact-check prompt (ADR-025) that defines the `[G#]`/`[S#]`/`[UNSUPPORTED]`
+marker vocabulary `citations.py` validates against — the primary model's own
+prompt asks for none of it; grounding is checked after the fact, not
+composed inline (ADR-025).
 
 Each renderable prompt belongs to exactly one tool. They deliberately do not
 share a template: a summary of a selected passage, a reading of a retrieved
@@ -12,6 +15,8 @@ in what they are allowed to use and what they must say when they have nothing
 to say (ADR-015)."""
 
 from __future__ import annotations
+
+from mythrix.agent.citation_grounding import Evidence
 
 SYSTEM_PROMPT = """
 You are a Mythrix semiotics expert assistant.
@@ -26,7 +31,6 @@ Tools rules:
 
 Response rules:
 - Ground all analysis, explanations, or sentiments strictly and EXCLUSIVELY on the text returned by tools in the current thread.
-- Each tool result item carries its own grounding id. End every sentence that references, quotes, or analyzes that item with its id in square brackets, e.g. "The Sun symbolizes joy and vitality [G4f9a2c]." Never cite a source name or page number instead of the bracketed id — the bracketed id is the only valid citation. Never invent, renumber, or reuse an id of your own.
 - Be concise and direct.
 """
 
@@ -136,58 +140,111 @@ def render_rollup_prompt(focus: str, summaries: tuple[str, ...]) -> str:
     )
 
 
-def render_citation_pushback(invalid_markers: tuple[str, ...]) -> str:
-    """The corrective message `graph/nodes/citation_check.py::validate_citations_node`
-    injects when the model's reply cites a marker no tool result this turn
-    actually carries (ADR-023) — delivered as a `HumanMessage`, giving the
-    model a bounded number of chances to fix it before the turn falls back to
-    `citations.py::CITATION_FAILURE_MESSAGE`. Names the specific marker(s) at
-    fault rather than restating the citation rule in the abstract, since the
-    model has already seen that rule once this turn and evidently didn't
-    apply it — repeating it unchanged is less likely to help than pointing at
-    exactly what was wrong. Naming the *wrong* marker is safe to do — unlike
-    the missing-citation case below, it doesn't hand the model a correct
-    answer to paste in, only tells it where it already went wrong.
+def render_fact_check_prompt(evidence: tuple[Evidence, ...], sentences: tuple[str, ...]) -> str:
+    """The fact-checking model's own prompt (ADR-025) — a second, narrow call
+    made after the primary model's answer is already final, classifying it
+    against this turn's evidence.
 
-    Also guards against collapsing to a bare id list: real-model retries
-    (`qwen3:1.7b`, ADR-023) showed that a pushback focused only on the marker
-    can read as "give me the id," which drops the prose entirely and then
-    fails validation again for having nothing left to attach a citation to,
-    burning the retry budget on a reply that was never going to pass. And it
-    ties each replacement marker to genuine support, not just a valid id
-    dropped in to pass the check — the checker only verifies a marker
-    matches a real grounding id, never that the sentence it's attached to
-    actually reflects what that result says."""
+    Unlike every earlier draft of this prompt, the model is never given the
+    answer as text to reproduce: it receives the answer pre-split into
+    numbered sentences (`fact_check.split_sentences`, done deterministically
+    in code) and returns a JSON classification keyed by sentence index —
+    never the sentences' own text. Six distinct real-model failure shapes
+    (an appended closing remark, a deleted clause, a duplicated/reordered
+    clause, reformatted markdown, an echoed evidence block, and a lost
+    citation clause) were all found while hardening an earlier
+    reproduce-and-tag design; every one of them was a way of getting the
+    reproduction task wrong, and none of them is possible against a task
+    that has no reproduction step in it. `graph/nodes/fact_check.py` parses
+    the response into structured verdicts and scores them in code — the
+    model's own `verified` field is never read, only `results`.
+
+    The evidence block deliberately carries only an item's id and text, not
+    its `source`/`locator` — a smaller prompt for the model to reason over;
+    those fields still live on `Evidence` for other consumers.
+
+    Framed as hallucination detection, not literal-wording verification
+    (user-directed revision, 2026-08-05): a first draft asked whether each
+    sentence was "fully supported" by the evidence, which real-model testing
+    (`phi4-mini`) found punished faithful paraphrase and summary — a
+    plausible restatement of an evidence item, not a fabricated claim, was
+    scored unsupported for not matching the evidence's own wording closely
+    enough. The instructions now explicitly accept a faithful summary or
+    reasonable paraphrase as supported, and reserve `unsupported` for a
+    sentence that introduces information, an interpretation stated as fact,
+    or a conclusion the evidence does not reasonably support — closer to
+    what "hallucination" actually means for this check.
+
+    Completeness contract, added the same day (user-directed): real-model
+    output kept silently dropping an index from `results` entirely — not
+    marking it unsupported, just omitting it, which `_parse_verdicts`
+    tolerates by design but which quietly undercounts what the answer
+    actually claimed. The original schema's "omit sentences with no factual
+    claims" instruction gave the model an easy excuse to omit *any*
+    sentence it found awkward, not just a genuine non-claim one — a
+    sentence fragmented by a citation abbreviation (`"(p."`/`"143),..."`,
+    the bug `fact_check.py::split_sentences`'s digit-lookahead fix now
+    prevents) got silently skipped rather than classified. The schema now
+    requires exactly one result per sentence, in order, replacing the old
+    omit-if-no-claim instruction with an explicit `"claim": false` value —
+    still excluded from scoring (`_parse_verdicts` skips a `"claim": false`
+    entry the same way it used to skip an absent one), but now a positive
+    statement the model must make for every index rather than a silent
+    non-appearance the model could default into for any sentence."""
+    rendered_sentences = "\n".join(f"{i}. {s}" for i, s in enumerate(sentences))
+    rendered_evidence = "\n\n".join(f"[{e.grounding_id}]\n{e.text}" for e in evidence)
+    count = len(sentences)
     return (
-        f"Your last answer used a citation marker that doesn't match any tool result from this turn: "
-        f"{', '.join(invalid_markers)}. Answer again in full sentences — do not shorten it to a bare list "
-        f"of ids. Replace each wrong marker with a real grounding id from the tool results above, but "
-        f"only where that result actually supports the claim — each id in its own square brackets, e.g. "
-        f"[id1] [id2], never [id1, id2]. Do not invent, renumber, or omit them."
-    )
-
-
-def render_missing_citation_pushback() -> str:
-    """The corrective message `validate_citations_node` injects when the
-    model's reply leaves some of this turn's citable grounding ids
-    uncited — whether it cited nothing at all, or cited one tool's results
-    while silently dropping another's (ADR-023, FR-CR-07/08/11) — the
-    counterpart to `render_citation_pushback` for omission rather than a
-    wrong marker.
-
-    Deliberately never names the uncited ids: doing so would hand the model
-    exactly the markers to paste onto whatever text is already there,
-    satisfying the checker without the claim actually being grounded in that
-    result — the checker only verifies a marker matches a real grounding id,
-    never that the sentence it's attached to reflects what that result says.
-    The model already has this turn's tool results in context; the fix is to
-    re-examine them, not to be handed the answer. Also guards against
-    collapsing to a bare id list — see `render_citation_pushback` for the
-    observed failure mode."""
-    return (
-        "Your last answer left some of this turn's citable tool results uncited. Answer again in full "
-        "sentences — do not shorten it to a bare list of ids. Look back at the tool results already in "
-        "this conversation, find the ones your claims actually draw on, and cite each with its own "
-        "grounding id exactly as it appears there, in its own square brackets, e.g. [id1] [id2], never "
-        "[id1, id2]. Only cite a result where your answer genuinely reflects what it says."
+        "You are a hallucination detector.\n\n"
+        "Input:\n"
+        "- Sentences\n"
+        "- Evidence items (each has an id)\n\n"
+        "Task:\n"
+        "For each sentence, first decide whether it contains a factual claim at all "
+        "(a greeting, a question, or a transition does not).\n"
+        "For each sentence that contains one or more factual claims:\n\n"
+        "- Determine whether the sentence is a faithful representation of the provided Evidence.\n"
+        "- Faithful summaries and reasonable paraphrases are considered supported.\n"
+        "- Do NOT require identical wording.\n"
+        "- Do NOT use outside knowledge.\n"
+        "- Mark a sentence as unsupported ONLY if it introduces new factual information, interpretations "
+        "presented as facts, or conclusions that cannot be reasonably inferred from the Evidence.\n\n"
+        f"There are {count} input sentences below. Return EXACTLY {count} results, in the same order. "
+        'For sentence i, result i MUST have "index": i. Do not omit any sentence.\n\n'
+        "Return ONLY valid JSON:\n\n"
+        "{\n"
+        '  "verified": true,\n'
+        '  "results": [\n'
+        "    {\n"
+        '      "index": 0,\n'
+        '      "claim": true,\n'
+        '      "supported": true,\n'
+        '      "citations": ["S48eda8"]\n'
+        "    },\n"
+        "    {\n"
+        '      "index": 1,\n'
+        '      "claim": false\n'
+        "    },\n"
+        "    {\n"
+        '      "index": 2,\n'
+        '      "claim": true,\n'
+        '      "supported": false\n'
+        "    }\n"
+        "  ]\n"
+        "}\n\n"
+        "Rules:\n"
+        "- The index refers to the sentence number.\n"
+        f"- There are {count} input sentences. Return exactly {count} results, one per sentence, in the same "
+        'order. Result i MUST have "index": i. Never omit a sentence, even one you are unsure about.\n'
+        '- Set "claim": false for a sentence with no factual claim (a greeting, a question, a transition) '
+        'and omit "supported"/"citations" for it.\n'
+        '- Set "claim": true for a sentence with one or more factual claims, and set "supported" per the '
+        "Task rules above.\n"
+        "- A sentence may cite multiple evidence ids.\n"
+        "- Every citation id must exist in the Evidence.\n"
+        "- Never invent citation ids.\n"
+        '- Set "verified" to false if any sentence is unsupported.\n'
+        "- Return JSON only.\n\n"
+        f"Sentences:\n\n{rendered_sentences}\n\n"
+        f"Evidence:\n\n{rendered_evidence}"
     )

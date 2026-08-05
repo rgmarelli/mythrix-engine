@@ -263,23 +263,6 @@ def stream_chat_turn(
 
         visible_reply = result.reply.strip()
 
-        # `validate_citations_node` (ADR-023) already exhausted its retry
-        # budget and substituted this exact reply before the graph ever
-        # returned — it carries no markers of its own for `_ungrounded_markers`
-        # below to catch, so it needs its own check to still log the failure
-        # and skip persisting history, matching the branch just below it.
-        if visible_reply == CITATION_FAILURE_MESSAGE:
-            logger.info("turn failed: citation validation: exhausted in-graph retries")
-            session.context = context
-            _log_outcome(CITATION_FAILURE_MESSAGE, result.tool_calls, thread_reset)
-            yield TurnEvent(
-                context=context,
-                reply_text=CITATION_FAILURE_MESSAGE,
-                instructions=[],
-                thread_reset=thread_reset,
-            )
-            return
-
         invalid_markers = _ungrounded_markers(visible_reply, tool_messages, result.backend_authored)
         if invalid_markers:
             logger.info("turn failed: citation validation: %s", CitationValidationError(invalid_markers))

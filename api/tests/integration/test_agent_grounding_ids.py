@@ -2,33 +2,45 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """Real-Ollama, real-graph/vector-store coverage for ADR-022's tool-owned
-opaque grounding ids — opt-in (`@pytest.mark.requires_ollama`), not run as
-part of the default `pytest tests/unit` suite; run explicitly with `pytest
-tests/integration -m requires_ollama` after `ollama pull qwen3:1.7b`
-(`SETUP.md`'s default model, mirrors `test_chat_ollama.py`).
+opaque grounding ids, now checked via the post-hoc fact-check pass (ADR-025)
+rather than the primary model's own self-citation — opt-in
+(`@pytest.mark.requires_ollama`), not run as part of the default `pytest
+tests/unit` suite; run explicitly with `pytest tests/integration -m
+requires_ollama` after `ollama pull qwen3:1.7b` (`SETUP.md`'s default model,
+mirrors `test_chat_ollama.py`).
 
 Drives the compiled agent graph end-to-end through
-`turn_service.run_chat_turn`, and asserts that every `[G...]`/`[S...]` marker
-a real model puts in its reply is one of the opaque ids that turn's own tool
-results actually carried — never a small sequential guess like `[G1]`/`[S1]`
-would have satisfied under the pre-ADR-022, position-reconstructed scheme.
-Graph/vector stores are real (`KuzuGraphStore`/`ChromaVectorStore` against
-`tmp_path`) with a fake embedder, mirroring `agent_tools/conftest.py`'s unit
-tests — only the chat model is real, so retrieval scoring stays
-deterministic while tool selection and reply composition are genuine model
-output."""
+`turn_service.run_chat_turn`, and asserts that a reply the fact-check pass
+scored carries a `facts checked: NN%` footer — the one signal of a
+successful real-model fact-check pass that survives to a stored or
+displayed message. Under the sentence-indexed JSON-classification design
+(ADR-025's Revision), the fact-checker never receives or returns any of the
+answer's own text at all — only numbered sentences and evidence go in, only
+a per-sentence classification comes back — so there is nothing shaped like
+the answer to inspect for opaque-id shape once real-model coverage is the
+goal; that guarantee is unit-tested directly
+(`test_agent_citation_grounding.py`) against fixed payloads instead. What
+only a real model can demonstrate is that it reliably classifies at all:
+every failure mode (a model error, or a response that could not be parsed
+into any usable verdicts) falls back to the plain answer with no footer, so
+the footer's presence is itself the pass/fail signal here. Graph/vector
+stores are real (`KuzuGraphStore`/`ChromaVectorStore` against `tmp_path`)
+with a fake embedder, mirroring `agent_tools/conftest.py`'s unit tests —
+only the chat models are real, so retrieval scoring stays deterministic
+while tool selection, reply composition, and fact-checking are genuine
+model output."""
 
 from __future__ import annotations
 
 import json
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-from langchain_core.messages import AIMessage, ToolMessage
+from langchain_core.messages import ToolMessage
 from langgraph.graph.state import CompiledStateGraph
 
-from mythrix.agent.citations import extract_markers
 from mythrix.agent.context import AgentContext
 from mythrix.agent.graph import compile_agent_graph
 from mythrix.agent.sessions import SessionStore
@@ -131,35 +143,29 @@ def graph(stores: Stores, settings: Settings) -> CompiledStateGraph:
     """Built once per module: `create_chat_model` validates the daemon on
     construction, so sharing one compiled graph across this file's tests
     avoids re-validating it per test (mirrors `api/dependencies.py`'s
-    once-per-process construction)."""
+    once-per-process construction). The fact-check role (ADR-025) is derived
+    from the same validated connection, mirroring `api/dependencies.py`'s
+    own default (no distinct `fact_check_model` configured here)."""
     llm = create_chat_model(model=GENERATION_MODEL, base_url=BASE_URL, num_ctx=8192)
     toolset = build_tools(stores, settings, OllamaChatClient(llm))
     agent_llm = derive_chat_model(llm, num_predict=2048)
+    # Mirrors `api/dependencies.py`'s own fact-check-role construction:
+    # `reasoning=False` since qwen3's default "thinking" pass only made this
+    # narrow classification call slower for no benefit; `format="json"`
+    # constrains decoding to syntactically valid JSON at the daemon level
+    # (ADR-025's sentence-indexed classification design).
+    fact_check_llm = derive_chat_model(llm, num_predict=512, reasoning=False, format="json")
     return compile_agent_graph(
         agent_llm.bind_tools(toolset.model_tools),
         toolset,
         augment_max_regions=settings.augment_max_regions,
         augment_consolidation_group_size=settings.augment_consolidation_group_size,
-        citation_max_retries=settings.citation_max_retries,
+        fact_check_chat_client=OllamaChatClient(fact_check_llm),
     )
 
 
 def _tool_messages(history: list, since: int) -> list[ToolMessage]:
     return [m for m in history[since:] if isinstance(m, ToolMessage)]
-
-
-def _final_ai_message_text(history: list, since: int) -> str:
-    """`TurnEvent.reply_text` (what `run_chat_turn` returns) has already had
-    every valid `[G...]`/`[S...]` marker stripped out by
-    `turn_service.py::run_chat_turn` — `strip_markers` runs unconditionally
-    on a validated reply before it's handed back, since the marker's job is
-    citation *validation*, not display. Marker presence has to be checked
-    against the raw model output instead: the last `AIMessage` this turn
-    added to `session.history`, which is never stripped — the same text
-    `_ungrounded_markers` itself validates against."""
-    ai_messages = [m for m in history[since:] if isinstance(m, AIMessage)]
-    assert ai_messages, "the turn should have produced at least one AI message"
-    return str(ai_messages[-1].content)
 
 
 def _grounding_ids(tool_messages: list[ToolMessage]) -> set[str]:
@@ -170,7 +176,13 @@ def _grounding_ids(tool_messages: list[ToolMessage]) -> set[str]:
     tools actually return."""
     ids: set[str] = set()
     for message in tool_messages:
-        payload = json.loads(str(message.content))
+        try:
+            payload = json.loads(str(message.content))
+        except json.JSONDecodeError:
+            # A failed tool invocation (bad args, retried by the model) carries
+            # a plain-text error, not the tool's real payload — nothing to
+            # read a grounding id from.
+            continue
         if message.name == "get_sign" and isinstance(payload, dict):
             ids.update(c["grounding_id"] for c in payload.get("citations", ()))
         elif message.name == "query_sign" and isinstance(payload, dict):
@@ -181,30 +193,28 @@ def _grounding_ids(tool_messages: list[ToolMessage]) -> set[str]:
     return ids
 
 
-def _assert_reply_cites_real_ids(
-    reply_text: str, raw_ai_text: str, tool_messages: list[ToolMessage], prefix: str
-) -> None:
-    """The shared assertion every case below makes: the delivered reply isn't
-    the citation-failure fallback, the turn's tools actually returned at
-    least one citable item, the model's raw output named at least one
-    marker, and every marker it named is a real tool-supplied id — never a
-    guess. Markers are checked against `raw_ai_text` (the unstripped
-    `AIMessage`), not `reply_text` — see `_final_ai_message_text`."""
-    assert _CITATION_FAILURE_SNIPPET not in reply_text
-    valid_ids = _grounding_ids(tool_messages)
-    assert valid_ids, f"the tool call should have returned at least one {prefix}-prefixed item"
+_FOOTER_PATTERN = re.compile(r"\nfacts checked: (\d+)%$")
 
-    markers = set(extract_markers(raw_ai_text))
-    assert markers, "the reply should cite the item(s) it drew on"
-    assert markers <= valid_ids
-    # "<prefix>" + uuid4().hex[:6] (ADR-022) — not the small sequential
-    # "G1"/"S1" the pre-ADR-022, position-reconstructed scheme would have
-    # produced. Every marker must have that shape, but a turn may legitimately
-    # call more than one tool (e.g. get_sign for context alongside query_sign
-    # for corpus evidence) — only at least one marker needs to carry this
-    # test's own prefix.
-    assert all(len(marker) == 7 for marker in markers)
-    assert any(marker.startswith(prefix) for marker in markers)
+
+def _assert_reply_was_fact_checked(reply_text: str, tool_messages: list[ToolMessage]) -> None:
+    """The shared assertion every case below makes. Under ADR-025's
+    sentence-indexed classification design, the fact-checker's response
+    (a JSON classification by sentence index) is never itself persisted
+    anywhere — `fact_check_node` builds its reply from the original
+    `answer` plus a score footer, never from anything the model returned —
+    so there is no marker or tagged text to inspect, real-model or not. The
+    only externally observable proof that a real model classified this
+    turn's answer successfully is the `facts checked: NN%` footer itself:
+    every failure mode (model error, or a response that could not be parsed
+    into any usable verdicts) falls back to the plain answer with no footer
+    at all."""
+    assert _CITATION_FAILURE_SNIPPET not in reply_text
+    assert _grounding_ids(tool_messages), "the tool call should have returned at least one citable item"
+
+    match = _FOOTER_PATTERN.search(reply_text)
+    assert match, f"expected a 'facts checked: NN%' footer on a fact-checked reply, got: {reply_text!r}"
+    score = int(match.group(1))
+    assert 0 <= score <= 100
 
 
 @pytest.mark.requires_ollama
@@ -223,7 +233,9 @@ def test_list_semiotic_systems_answers_from_the_real_graph(graph: CompiledStateG
 
 
 @pytest.mark.requires_ollama
-def test_get_sign_reply_cites_the_real_opaque_grounding_id_when_asked_to_cite(graph: CompiledStateGraph) -> None:
+def test_get_sign_reply_is_fact_checked_with_the_real_opaque_grounding_id_when_asked_to_cite(
+    graph: CompiledStateGraph,
+) -> None:
     sessions = SessionStore()
     session_id = "get-sign-primed"
     turn = run_chat_turn(
@@ -237,16 +249,18 @@ def test_get_sign_reply_cites_the_real_opaque_grounding_id_when_asked_to_cite(gr
 
     history = sessions.get_or_create(session_id).history
     tool_messages = _tool_messages(history, since=0)
-    raw_ai_text = _final_ai_message_text(history, since=0)
-    _assert_reply_cites_real_ids(turn.reply_text, raw_ai_text, tool_messages, prefix="G")
+    _assert_reply_was_fact_checked(turn.reply_text, tool_messages)
 
 
 @pytest.mark.requires_ollama
-def test_get_sign_reply_cites_the_real_opaque_grounding_id_unprompted(graph: CompiledStateGraph) -> None:
+def test_get_sign_reply_is_fact_checked_with_the_real_opaque_grounding_id_unprompted(
+    graph: CompiledStateGraph,
+) -> None:
     """No "cite"/"quote" instruction anywhere in the user's message — a marker
-    should still appear because `SYSTEM_PROMPT`'s response rules mandate it
-    unconditionally ("Copy that id verbatim whenever referencing, quoting, or
-    analyzing the item"), not because this turn's own wording asked for one."""
+    should still appear because the fact-check pass (ADR-025) runs
+    unconditionally on any reply with citable evidence, not because this
+    turn's own wording asked for one, and not because the primary model was
+    told to self-cite (its prompt carries no such instruction at all)."""
     sessions = SessionStore()
     session_id = "get-sign-unprompted"
     turn = run_chat_turn(
@@ -260,12 +274,13 @@ def test_get_sign_reply_cites_the_real_opaque_grounding_id_unprompted(graph: Com
 
     history = sessions.get_or_create(session_id).history
     tool_messages = _tool_messages(history, since=0)
-    raw_ai_text = _final_ai_message_text(history, since=0)
-    _assert_reply_cites_real_ids(turn.reply_text, raw_ai_text, tool_messages, prefix="G")
+    _assert_reply_was_fact_checked(turn.reply_text, tool_messages)
 
 
 @pytest.mark.requires_ollama
-def test_query_sign_reply_cites_real_opaque_segment_ids_when_asked_to_cite(graph: CompiledStateGraph) -> None:
+def test_query_sign_reply_is_fact_checked_with_real_opaque_segment_ids_when_asked_to_cite(
+    graph: CompiledStateGraph,
+) -> None:
     sessions = SessionStore()
     session_id = "query-sign-primed"
     turn = run_chat_turn(
@@ -282,16 +297,15 @@ def test_query_sign_reply_cites_real_opaque_segment_ids_when_asked_to_cite(graph
 
     history = sessions.get_or_create(session_id).history
     tool_messages = _tool_messages(history, since=0)
-    raw_ai_text = _final_ai_message_text(history, since=0)
-    _assert_reply_cites_real_ids(turn.reply_text, raw_ai_text, tool_messages, prefix="S")
+    _assert_reply_was_fact_checked(turn.reply_text, tool_messages)
 
 
 @pytest.mark.requires_ollama
-def test_query_sign_reply_cites_real_opaque_segment_ids_unprompted(graph: CompiledStateGraph) -> None:
+def test_query_sign_reply_is_fact_checked_with_real_opaque_segment_ids_unprompted(graph: CompiledStateGraph) -> None:
     """No "quote"/"cite" instruction — only enough wording to select the
     right tool (`query_sign`'s own docstring trigger phrase, "what evidence
-    supports X"). Any marker in the reply must still be real, and the system
-    prompt's mandate must be what puts it there."""
+    supports X"). Any marker in the reply must still be real, and the
+    fact-check pass, not the primary model, must be what puts it there."""
     sessions = SessionStore()
     session_id = "query-sign-unprompted"
     turn = run_chat_turn(
@@ -305,5 +319,4 @@ def test_query_sign_reply_cites_real_opaque_segment_ids_unprompted(graph: Compil
 
     history = sessions.get_or_create(session_id).history
     tool_messages = _tool_messages(history, since=0)
-    raw_ai_text = _final_ai_message_text(history, since=0)
-    _assert_reply_cites_real_ids(turn.reply_text, raw_ai_text, tool_messages, prefix="S")
+    _assert_reply_was_fact_checked(turn.reply_text, tool_messages)

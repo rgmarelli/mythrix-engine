@@ -11,9 +11,7 @@ from graph_helpers import compile_graph
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import tool
 
-from mythrix.agent.citations import CITATION_FAILURE_MESSAGE
 from mythrix.agent.context import AgentContext
-from mythrix.agent.prompts import render_citation_pushback, render_missing_citation_pushback
 from mythrix.agent.sessions import SessionStore
 from mythrix.agent.turn_service import AgentInstruction, TurnEvent, run_chat_turn, stream_chat_turn
 from mythrix.core.errors import ModelRequestError
@@ -89,8 +87,8 @@ class ScriptedLLM:
         return response
 
 
-def _graph(script: list[AIMessage], *, citation_max_retries: int = 0):
-    return compile_graph(ScriptedLLM(script), _TOOLS, citation_max_retries=citation_max_retries)
+def _graph(script: list[AIMessage]):
+    return compile_graph(ScriptedLLM(script), _TOOLS)
 
 
 def test_normal_turn_grounds_the_reply_and_backfills_context() -> None:
@@ -285,147 +283,12 @@ def test_fabricated_citation_marker_is_not_shown_and_history_is_not_persisted() 
     assert sessions.get_or_create("s1").history == []
 
 
-def test_invalid_citation_gets_a_pushback_naming_the_marker_then_self_corrects() -> None:
-    """ADR-023: with a retry budget, an invalid marker doesn't discard the
-    turn outright — the model is told exactly what was wrong and gets
-    another attempt, which here it uses correctly."""
-    call = {"name": "get_sign", "args": {"sign": "The Magician", "tradition": "rider-waite"}, "id": "c1"}
-    script = [
-        AIMessage(content="", tool_calls=[call]),
-        AIMessage(content="Fabricated claim [G9]."),
-        AIMessage(content="Corrected claim [G1]."),
-    ]
-    sessions = SessionStore()
-
-    response = run_chat_turn(
-        graph=_graph(script, citation_max_retries=1),
-        sessions=sessions,
-        session_id="s1",
-        message="tell me about the magician in rider-waite",
-        ui_selection=AgentContext(),
-        max_tool_iterations=8,
-    )
-
-    assert "[G1]" not in response.reply_text
-    assert "Corrected claim" in response.reply_text
-    pushback_texts = [m.content for m in sessions.get_or_create("s1").history if isinstance(m, HumanMessage)]
-    assert render_citation_pushback(("G9",)) in pushback_texts
-
-
-def test_citation_retries_exhausted_falls_back_to_the_same_rejection() -> None:
-    """A model that never corrects still ends in the same fallback as a
-    zero-retry rejection would — the retry budget only postpones it."""
-    call = {"name": "get_sign", "args": {"sign": "The Magician", "tradition": "rider-waite"}, "id": "c1"}
-    script = [
-        AIMessage(content="", tool_calls=[call]),
-        AIMessage(content="Fabricated claim [G9]."),
-        AIMessage(content="Still fabricated [G9]."),
-    ]
-    sessions = SessionStore()
-
-    response = run_chat_turn(
-        graph=_graph(script, citation_max_retries=1),
-        sessions=sessions,
-        session_id="s1",
-        message="tell me about the magician in rider-waite",
-        ui_selection=AgentContext(),
-        max_tool_iterations=8,
-    )
-
-    assert response.reply_text == CITATION_FAILURE_MESSAGE
-    assert sessions.get_or_create("s1").history == []
-
-
-def test_missing_citation_gets_a_pushback_without_naming_ids_then_self_corrects() -> None:
-    """FR-CR-07/08: a reply that cites nothing at all, despite a citable tool
-    result this turn, is treated the same as a wrong-marker reply — a
-    pushback that never names the available ids (doing so would hand the
-    model a correct answer to paste in rather than making it re-examine the
-    tool results), then another attempt."""
-    call = {"name": "get_sign", "args": {"sign": "The Magician", "tradition": "rider-waite"}, "id": "c1"}
-    script = [
-        AIMessage(content="", tool_calls=[call]),
-        AIMessage(content="The Magician represents willpower."),
-        AIMessage(content="The Magician represents willpower [G1]."),
-    ]
-    sessions = SessionStore()
-
-    response = run_chat_turn(
-        graph=_graph(script, citation_max_retries=1),
-        sessions=sessions,
-        session_id="s1",
-        message="tell me about the magician in rider-waite",
-        ui_selection=AgentContext(),
-        max_tool_iterations=8,
-    )
-
-    assert "[G1]" not in response.reply_text
-    assert "represents willpower" in response.reply_text
-    pushback_texts = [m.content for m in sessions.get_or_create("s1").history if isinstance(m, HumanMessage)]
-    assert render_missing_citation_pushback() in pushback_texts
-
-
-def test_missing_citation_retries_exhausted_falls_back_to_the_same_rejection() -> None:
-    """A model that never cites anything still ends in the same fallback as
-    a wrong-marker turn would once retries run out."""
-    call = {"name": "get_sign", "args": {"sign": "The Magician", "tradition": "rider-waite"}, "id": "c1"}
-    script = [
-        AIMessage(content="", tool_calls=[call]),
-        AIMessage(content="The Magician represents willpower."),
-        AIMessage(content="Still no citation here."),
-    ]
-    sessions = SessionStore()
-
-    response = run_chat_turn(
-        graph=_graph(script, citation_max_retries=1),
-        sessions=sessions,
-        session_id="s1",
-        message="tell me about the magician in rider-waite",
-        ui_selection=AgentContext(),
-        max_tool_iterations=8,
-    )
-
-    assert response.reply_text == CITATION_FAILURE_MESSAGE
-    assert sessions.get_or_create("s1").history == []
-
-
-def test_partial_citation_gets_a_pushback_without_naming_ids_then_self_corrects() -> None:
-    """FR-CR-11: a reply that cites one tool's marker but omits another's,
-    despite both returning citable ids this turn, is retried just like a
-    fully marker-free reply — the same id-free pushback either way."""
-    get_sign_call = {"name": "get_sign", "args": {"sign": "The Magician", "tradition": "rider-waite"}, "id": "c1"}
-    fetch_call = {
-        "name": "fetch_segments",
-        "args": {"source_id": "genesis", "start_ordinal": 1, "end_ordinal": 1},
-        "id": "c2",
-    }
-    script = [
-        AIMessage(content="", tool_calls=[get_sign_call, fetch_call]),
-        AIMessage(content="The Magician represents willpower [G1]."),
-        AIMessage(content="The Magician represents willpower [G1], echoed in the passage [S1]."),
-    ]
-    sessions = SessionStore()
-
-    response = run_chat_turn(
-        graph=_graph(script, citation_max_retries=1),
-        sessions=sessions,
-        session_id="s1",
-        message="tell me about the magician and the passage",
-        ui_selection=AgentContext(),
-        max_tool_iterations=8,
-    )
-
-    assert "[G1]" not in response.reply_text
-    assert "[S1]" not in response.reply_text
-    assert "echoed in the passage" in response.reply_text
-    pushback_texts = [m.content for m in sessions.get_or_create("s1").history if isinstance(m, HumanMessage)]
-    assert render_missing_citation_pushback() in pushback_texts
-
-
-def test_marker_free_reply_is_not_retried_when_nothing_this_turn_was_citable() -> None:
-    """FR-CR-09: `summarize_passage` carries no `grounding_id` of its own —
-    a marker-free reply drawing on it has nothing it could have cited, so it
-    is not subject to the missing-citation retry and passes through as-is."""
+def test_marker_free_reply_passes_through_when_nothing_this_turn_was_citable() -> None:
+    """`summarize_passage` carries no `grounding_id` of its own — a
+    marker-free reply drawing on it has nothing to fact-check against
+    (`fact_check_node` no-ops for want of evidence) and nothing for
+    `turn_service.py`'s own backstop to flag either, so it passes through
+    as-is."""
     call = {"name": "summarize_passage", "args": {"passage_text": "text", "concepts": ["will"]}, "id": "c1"}
     script = [
         AIMessage(content="", tool_calls=[call]),
@@ -434,7 +297,7 @@ def test_marker_free_reply_is_not_retried_when_nothing_this_turn_was_citable() -
     sessions = SessionStore()
 
     response = run_chat_turn(
-        graph=_graph(script, citation_max_retries=1),
+        graph=_graph(script),
         sessions=sessions,
         session_id="s1",
         message="summarize this passage",

@@ -1,6 +1,6 @@
 # ADR-023 — In-graph citation retry replaces the one-shot post-hoc reject
 
-- **Status**: Accepted
+- **Status**: Superseded by [ADR-025](adr-025-post-hoc-fact-checker-replaces-self-citation.md)
 - **Date**: 2026-08-03
 - **Extends**: [ADR-006](adr-006-conversational-agent-orchestration-boundary.md), [ADR-022](adr-022-tool-owned-opaque-grounding-ids.md)
 - **Realized by**: [agent.md](../interfaces/agent.md) FR-AG-06
