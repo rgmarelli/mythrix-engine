@@ -280,3 +280,24 @@ text with the pound signs visible.
 - [x] `pytest api/tests/unit` — clean, 615 passed; `ruff check .`/
   `ruff format --check .` — clean.
 
+## Fix: silent invented citation ids (2026-08-05)
+
+Real production log: a sentence cited `["S247c9a", "Sse60ed"]` against
+evidence containing `S247c9a` but not `Sse60ed` (a transposed, invented id
+— the real one was `Sef60ed`). `is_grounded` scored the sentence supported
+(one real citation is enough) and `grounding_score` came back `1.00` — the
+model violated the prompt's explicit "never invent citation ids" rule with
+no trace of it anywhere, since the invented id happened to ride alongside
+a real one. Confirmed (user-directed): the "at least one real citation is
+enough" scoring rule itself is correct and unchanged — the gap was purely
+that an invented id contributed to a passing score with nothing logged.
+
+- [x] `agent/fact_check.py::is_grounded`: logs a `WARNING` for every
+  citation not in `valid_ids`, regardless of whether the verdict still
+  passes on another citation — `"fact-check: citation %s invented by LLM
+  (sentence %d)"`. Scoring behavior unchanged.
+- [x] `tests/unit/test_agent_fact_check.py`: added
+  `test_is_grounded_warns_on_an_invented_citation_even_when_a_real_one_saves_the_verdict`.
+- [x] `pytest api/tests/unit` — clean, 614 passed; `ruff check .`/
+  `ruff format --check .` — clean.
+

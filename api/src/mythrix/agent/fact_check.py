@@ -223,10 +223,18 @@ def is_grounded(verdict: SentenceVerdict, valid_ids: set[str]) -> bool:
     least one of its citations is actually in `valid_ids`. The boolean alone
     is not trusted, since a claim tagged supported with no real evidence id
     behind it (empty citations, or every id hallucinated) is exactly as
-    ungrounded as one tagged unsupported outright. The one rule
-    `grounding_score` and the graph node's diagnostic logging both apply, so
-    a caller inspecting *why* a score came out low sees the same verdict the
-    score itself was computed from."""
+    ungrounded as one tagged unsupported outright — a sentence with one real
+    and one invented citation still counts as grounded, on the strength of
+    the real one alone.
+
+    Every citation not in `valid_ids` is logged at `WARNING`, regardless of
+    whether it changes this verdict's outcome — an invented id sitting next
+    to a real one costs nothing here, but it is still the model failing the
+    prompt's explicit "never invent citation ids" rule, and that failure
+    would otherwise be invisible."""
+    for citation in verdict.citations:
+        if citation not in valid_ids:
+            logger.warning("fact-check: citation %s invented by LLM (sentence %d)", citation, verdict.index)
     return verdict.supported and any(c in valid_ids for c in verdict.citations)
 
 

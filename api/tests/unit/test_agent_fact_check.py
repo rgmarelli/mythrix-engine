@@ -383,3 +383,17 @@ def test_is_grounded_false_for_an_unsupported_verdict_even_with_a_valid_citation
 def test_is_grounded_false_for_a_supported_verdict_with_no_valid_citation() -> None:
     assert is_grounded(SentenceVerdict(index=0, supported=True, citations=("G9",)), {"G1"}) is False
     assert is_grounded(SentenceVerdict(index=0, supported=True, citations=()), {"G1"}) is False
+
+
+def test_is_grounded_warns_on_an_invented_citation_even_when_a_real_one_saves_the_verdict(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A hallucinated id riding alongside a real one still counts the
+    sentence as grounded (the real citation carries it) — but the model
+    invented a citation, and that should not be silent."""
+    with caplog.at_level(logging.WARNING, logger="mythrix.agent.fact_check"):
+        result = is_grounded(SentenceVerdict(index=1, supported=True, citations=("G1", "Sse60ed")), {"G1"})
+
+    assert result is True
+    assert "Sse60ed" in caplog.text
+    assert "invented by LLM" in caplog.text
