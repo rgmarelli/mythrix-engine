@@ -16,6 +16,8 @@ to say (ADR-015)."""
 
 from __future__ import annotations
 
+import json
+
 from mythrix.agent.citation_grounding import Evidence
 
 SYSTEM_PROMPT = """
@@ -145,106 +147,65 @@ def render_fact_check_prompt(evidence: tuple[Evidence, ...], sentences: tuple[st
     made after the primary model's answer is already final, classifying it
     against this turn's evidence.
 
-    Unlike every earlier draft of this prompt, the model is never given the
-    answer as text to reproduce: it receives the answer pre-split into
-    numbered sentences (`fact_check.split_sentences`, done deterministically
-    in code) and returns a JSON classification keyed by sentence index —
-    never the sentences' own text. Six distinct real-model failure shapes
-    (an appended closing remark, a deleted clause, a duplicated/reordered
-    clause, reformatted markdown, an echoed evidence block, and a lost
-    citation clause) were all found while hardening an earlier
-    reproduce-and-tag design; every one of them was a way of getting the
-    reproduction task wrong, and none of them is possible against a task
-    that has no reproduction step in it. `graph/nodes/fact_check.py` parses
-    the response into structured verdicts and scores them in code — the
-    model's own `verified` field is never read, only `results`.
+    The model receives a JSON document with one entry per sentence
+    (`fact_check.split_sentences`, done deterministically in code) — each
+    entry already carrying its own `index` and `text` — and completes it,
+    replacing only `supported` and populating `citations` per entry.
+    `index`/`text` must not be modified, and no field or object may be
+    added, removed, reordered, or renamed. `graph/nodes/fact_check.py`
+    parses the response into verdicts keyed by `index` alone; an entry's
+    echoed `text` is read by nobody downstream, so a model that drifts on
+    that field cannot desync what a verdict is actually attributed to.
 
-    The evidence block deliberately carries only an item's id and text, not
-    its `source`/`locator` — a smaller prompt for the model to reason over;
-    those fields still live on `Evidence` for other consumers.
+    The evidence block carries only an item's id and text, not its
+    `source`/`locator` — those fields still live on `Evidence` for other
+    consumers.
 
-    Framed as hallucination detection, not literal-wording verification
-    (user-directed revision, 2026-08-05): a first draft asked whether each
-    sentence was "fully supported" by the evidence, which real-model testing
-    (`phi4-mini`) found punished faithful paraphrase and summary — a
-    plausible restatement of an evidence item, not a fabricated claim, was
-    scored unsupported for not matching the evidence's own wording closely
-    enough. The instructions now explicitly accept a faithful summary or
-    reasonable paraphrase as supported, and reserve `unsupported` for a
-    sentence that introduces information, an interpretation stated as fact,
-    or a conclusion the evidence does not reasonably support — closer to
-    what "hallucination" actually means for this check.
-
-    Completeness contract, added the same day (user-directed): real-model
-    output kept silently dropping an index from `results` entirely — not
-    marking it unsupported, just omitting it, which `_parse_verdicts`
-    tolerates by design but which quietly undercounts what the answer
-    actually claimed. The original schema's "omit sentences with no factual
-    claims" instruction gave the model an easy excuse to omit *any*
-    sentence it found awkward, not just a genuine non-claim one — a
-    sentence fragmented by a citation abbreviation (`"(p."`/`"143),..."`,
-    the bug `fact_check.py::split_sentences`'s digit-lookahead fix now
-    prevents) got silently skipped rather than classified. The schema now
-    requires exactly one result per sentence, in order, replacing the old
-    omit-if-no-claim instruction with an explicit `"claim": false` value —
-    still excluded from scoring (`_parse_verdicts` skips a `"claim": false`
-    entry the same way it used to skip an absent one), but now a positive
-    statement the model must make for every index rather than a silent
-    non-appearance the model could default into for any sentence."""
-    rendered_sentences = "\n".join(f"{i}. {s}" for i, s in enumerate(sentences))
+    A faithful summary or reasonable paraphrase of the evidence counts as
+    supported; `supported: false` is reserved for a sentence that introduces
+    new information or an interpretation not reasonably supported by the
+    evidence — not merely a departure from its exact wording."""
+    verification_json = json.dumps(
+        {
+            "results": [
+                {"index": i, "text": sentence, "supported": None, "citations": []}
+                for i, sentence in enumerate(sentences)
+            ]
+        },
+        indent=2,
+    )
     rendered_evidence = "\n\n".join(f"[{e.grounding_id}]\n{e.text}" for e in evidence)
-    count = len(sentences)
     return (
-        "You are a hallucination detector.\n\n"
-        "Input:\n"
-        "- Sentences\n"
-        "- Evidence items (each has an id)\n\n"
-        "Task:\n"
-        "For each sentence, first decide whether it contains a factual claim at all "
-        "(a greeting, a question, or a transition does not).\n"
-        "For each sentence that contains one or more factual claims:\n\n"
-        "- Determine whether the sentence is a faithful representation of the provided Evidence.\n"
-        "- Faithful summaries and reasonable paraphrases are considered supported.\n"
+        "You are a factual verification assistant.\n\n"
+        "You are given:\n\n"
+        "1. A JSON document containing sentences.\n"
+        "2. A list of Evidence items, each identified by a unique id.\n\n"
+        "Your task is to complete the JSON.\n\n"
+        'For each object in "results":\n\n'
+        '- Read the value of "text".\n'
+        "- Determine whether the factual claims in the text are supported by the provided Evidence.\n"
+        "- Faithful summaries and reasonable paraphrases of the Evidence are considered supported.\n"
         "- Do NOT require identical wording.\n"
-        "- Do NOT use outside knowledge.\n"
-        "- Mark a sentence as unsupported ONLY if it introduces new factual information, interpretations "
-        "presented as facts, or conclusions that cannot be reasonably inferred from the Evidence.\n\n"
-        f"There are {count} input sentences below. Return EXACTLY {count} results, in the same order. "
-        'For sentence i, result i MUST have "index": i. Do not omit any sentence.\n\n'
-        "Return ONLY valid JSON:\n\n"
-        "{\n"
-        '  "verified": true,\n'
-        '  "results": [\n'
-        "    {\n"
-        '      "index": 0,\n'
-        '      "claim": true,\n'
-        '      "supported": true,\n'
-        '      "citations": ["S48eda8"]\n'
-        "    },\n"
-        "    {\n"
-        '      "index": 1,\n'
-        '      "claim": false\n'
-        "    },\n"
-        "    {\n"
-        '      "index": 2,\n'
-        '      "claim": true,\n'
-        '      "supported": false\n'
-        "    }\n"
-        "  ]\n"
-        "}\n\n"
-        "Rules:\n"
-        "- The index refers to the sentence number.\n"
-        f"- There are {count} input sentences. Return exactly {count} results, one per sentence, in the same "
-        'order. Result i MUST have "index": i. Never omit a sentence, even one you are unsure about.\n'
-        '- Set "claim": false for a sentence with no factual claim (a greeting, a question, a transition) '
-        'and omit "supported"/"citations" for it.\n'
-        '- Set "claim": true for a sentence with one or more factual claims, and set "supported" per the '
-        "Task rules above.\n"
-        "- A sentence may cite multiple evidence ids.\n"
-        "- Every citation id must exist in the Evidence.\n"
-        "- Never invent citation ids.\n"
-        '- Set "verified" to false if any sentence is unsupported.\n'
-        "- Return JSON only.\n\n"
-        f"Sentences:\n\n{rendered_sentences}\n\n"
+        "- Mark a sentence as unsupported ONLY if it introduces new factual information or interpretations "
+        "that are not reasonably supported by the Evidence.\n"
+        "- Use ONLY the provided Evidence. Never use outside knowledge.\n\n"
+        "Rules:\n\n"
+        "- Do NOT add, remove, reorder, or rename any objects or fields.\n"
+        '- Do NOT modify the values of "index" or "text".\n'
+        '- Only replace the value of "supported".\n'
+        '- Only populate the "citations" array.\n'
+        "- A sentence with no factual claims should have:\n"
+        '    "supported": null\n'
+        '    "citations": []\n'
+        "- A supported sentence must have:\n"
+        '    "supported": true\n'
+        '    "citations": ["...", ...]\n'
+        "- An unsupported sentence must have:\n"
+        '    "supported": false\n'
+        '    "citations": []\n\n'
+        "Every citation id must exist in the Evidence.\n"
+        "Never invent citation ids.\n\n"
+        "Return ONLY the completed JSON.\n\n"
+        f"JSON:\n\n{verification_json}\n\n"
         f"Evidence:\n\n{rendered_evidence}"
     )

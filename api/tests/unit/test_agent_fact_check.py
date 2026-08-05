@@ -152,23 +152,27 @@ def test_run_fact_check_prompt_carries_the_sentences_and_evidence() -> None:
     assert client.last_prompt is not None
     assert "G111111" in client.last_prompt
     assert "Joy and vitality." in client.last_prompt
-    assert "0. The Sun symbolizes joy." in client.last_prompt
+    assert '"index": 0' in client.last_prompt
+    assert '"text": "The Sun symbolizes joy."' in client.last_prompt
 
 
-def test_run_fact_check_prompt_states_the_completeness_contract() -> None:
-    """User-directed fix for real-model output that silently dropped an
-    index from `results` instead of marking it unsupported or claim-free —
-    the prompt now states the exact sentence count and demands one result
-    per sentence, in order, matched by index."""
+def test_run_fact_check_prompt_states_the_completion_contract() -> None:
+    """The prompt hands the model a pre-filled JSON document (one entry per
+    sentence, `index`/`text` already set, `supported`/`citations` null/empty)
+    and asks it to complete rather than generate `results` — nothing to
+    omit, only nulls to fill in."""
     client = FakeChatClient(response=_results_json())
 
     run_fact_check(client, evidence=_EVIDENCE, sentences=("One.", "Two.", "Three."))
 
     assert client.last_prompt is not None
-    assert "There are 3 input sentences" in client.last_prompt
-    assert "Return EXACTLY 3 results" in client.last_prompt
-    assert "Do not omit any sentence" in client.last_prompt
-    assert '"claim": false' in client.last_prompt
+    assert "Your task is to complete the JSON" in client.last_prompt
+    assert "Do NOT add, remove, reorder, or rename any objects or fields" in client.last_prompt
+    assert 'Do NOT modify the values of "index" or "text"' in client.last_prompt
+    for i, sentence in enumerate(("One.", "Two.", "Three.")):
+        assert f'"index": {i}' in client.last_prompt
+        assert f'"text": "{sentence}"' in client.last_prompt
+    assert '"supported": null' in client.last_prompt
 
 
 def test_run_fact_check_logs_the_rendered_prompt_and_the_raw_response(caplog: pytest.LogCaptureFixture) -> None:
@@ -183,7 +187,7 @@ def test_run_fact_check_logs_the_rendered_prompt_and_the_raw_response(caplog: py
         run_fact_check(client, evidence=_EVIDENCE, sentences=("The Sun symbolizes joy.",))
 
     assert "fact-check model input" in caplog.text
-    assert "0. The Sun symbolizes joy." in caplog.text
+    assert '"text": "The Sun symbolizes joy."' in caplog.text
     assert "fact-check model output" in caplog.text
     assert '"index": 0' in caplog.text
     assert '"supported": true' in caplog.text
@@ -211,9 +215,9 @@ def test_run_fact_check_parses_clean_json_into_verdicts() -> None:
 
 
 def test_run_fact_check_tolerates_an_index_the_model_left_out_of_results() -> None:
-    """The model can still simply not return an entry for some index (a
-    tolerance the parser keeps regardless of the `claim` field below) — that
-    index contributes no verdict, same as an explicit `"claim": false`."""
+    """The model can still simply not return an entry for some index at
+    all — that index contributes no verdict, same as an explicit
+    `"supported": null`."""
     payload = {"verified": True, "results": [{"index": 1, "supported": False}]}
     client = FakeChatClient(response=json.dumps(payload))
 
@@ -222,16 +226,15 @@ def test_run_fact_check_tolerates_an_index_the_model_left_out_of_results() -> No
     assert result == (SentenceVerdict(index=1, supported=False, citations=()),)
 
 
-def test_run_fact_check_skips_an_entry_explicitly_marked_claim_false() -> None:
-    """`"claim": false` is the prompt's explicit way of saying "no factual
-    claim here" (replacing the earlier convention of just leaving the index
-    out of `results`, which gave the model an easy excuse to drop any
-    sentence it found awkward) — it contributes no verdict, same as an
-    absent index."""
+def test_run_fact_check_skips_an_entry_marked_supported_null() -> None:
+    """`"supported": null` is the prompt's explicit way of saying "no
+    factual claim here" — it contributes no verdict, same as an absent
+    index. The model's own echoed `"text"` for the skipped entry is never
+    read, only its `"index"`."""
     payload = {
         "results": [
-            {"index": 0, "claim": False},
-            {"index": 1, "claim": True, "supported": True, "citations": ["G111111"]},
+            {"index": 0, "text": "Hello!", "supported": None, "citations": []},
+            {"index": 1, "text": "The Sun symbolizes joy.", "supported": True, "citations": ["G111111"]},
         ]
     }
     client = FakeChatClient(response=json.dumps(payload))
@@ -239,18 +242,6 @@ def test_run_fact_check_skips_an_entry_explicitly_marked_claim_false() -> None:
     result = run_fact_check(client, evidence=_EVIDENCE, sentences=("Hello!", "The Sun symbolizes joy."))
 
     assert result == (SentenceVerdict(index=1, supported=True, citations=("G111111",)),)
-
-
-def test_run_fact_check_treats_a_missing_claim_field_as_a_claim() -> None:
-    """Backward-compatible: an entry with no `claim` field at all (the
-    pre-completeness-contract shape) is still parsed as a claim, not
-    silently dropped."""
-    payload = {"results": [{"index": 0, "supported": True, "citations": ["G111111"]}]}
-    client = FakeChatClient(response=json.dumps(payload))
-
-    result = run_fact_check(client, evidence=_EVIDENCE, sentences=("The Sun symbolizes joy.",))
-
-    assert result == (SentenceVerdict(index=0, supported=True, citations=("G111111",)),)
 
 
 def test_run_fact_check_strips_a_markdown_json_fence() -> None:
@@ -306,6 +297,20 @@ def test_run_fact_check_skips_an_entry_with_a_non_boolean_supported_field() -> N
     result = run_fact_check(client, evidence=_EVIDENCE, sentences=("The Sun symbolizes joy.",))
 
     assert result == ()
+
+
+def test_run_fact_check_strips_brackets_a_model_echoes_around_a_citation_id() -> None:
+    """Regression: the evidence block labels each item as `[id]`, and a
+    real model sometimes echoes a citation back the same bracketed way
+    instead of as the bare id `grounding_score` compares against — which,
+    unstripped, makes a correctly cited claim fail to match and score as
+    unsupported."""
+    payload = {"results": [{"index": 0, "supported": True, "citations": ["[G111111]"]}]}
+    client = FakeChatClient(response=json.dumps(payload))
+
+    result = run_fact_check(client, evidence=_EVIDENCE, sentences=("The Sun symbolizes joy.",))
+
+    assert result == (SentenceVerdict(index=0, supported=True, citations=("G111111",)),)
 
 
 def test_run_fact_check_keeps_the_first_entry_on_a_duplicate_index() -> None:

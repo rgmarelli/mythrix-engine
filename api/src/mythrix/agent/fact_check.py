@@ -8,15 +8,14 @@ the primary model to cite itself while composing it, and rather than asking
 the fact-checker to reproduce the answer's text at all.
 
 The model is given the answer pre-split into numbered sentences (in code,
-`split_sentences`) and returns a small JSON classification keyed by sentence
-index — never the answer text itself. This is a deliberate shift from an
-earlier draft of this design, which asked the fact-checker to echo the whole
-answer back with tags inserted inline: real-model testing against
-`qwen3:1.7b` found six distinct ways a reproduction task like that drifts
-(an appended remark, a deleted clause, reordered/duplicated text, reformatted
-markdown, an echoed evidence block). None of those failure modes are
-possible here, by construction — the model's output never contains any of
-the answer's own text, so there is nothing for it to rewrite.
+`split_sentences`) and is handed a JSON skeleton with one entry per
+sentence — `index` and `text` already filled in, `supported`/`citations`
+null/empty — that it completes rather than generates. The parser
+(`_parse_verdicts`) keys every verdict off `index` alone and never reads an
+entry's echoed `text` back, so what actually reaches the user is still,
+structurally, only ever the primary model's own original answer text: the
+fact-checker's copy of that text is read by the model itself and by no code
+downstream of it.
 
 Deliberately graph/LangChain-agnostic — `run_fact_check` takes and returns
 plain types only (`Evidence`, defined in `agent/citation_grounding.py`
@@ -74,23 +73,17 @@ def split_sentences(text: str) -> tuple[str, ...]:
     — a header line with no terminal punctuation (e.g. `"Key points:"`)
     survives as its own sentence rather than fusing with the next line's
     first clause. Without the per-line marker stripping, a markdown numbered
-    list fragments badly on its own: the period in a `1.`/`2.` marker reads
-    as a sentence end to the boundary regex by itself, producing a garbage
-    "sentence" like `"Key points:  \\n1."` — real-model output this fix is a
-    direct response to (a bulleted/numbered answer sent to the fact-checker
-    without it).
+    list fragments on its own: the period in a `1.`/`2.` marker otherwise
+    reads as a sentence end to the boundary regex.
 
-    The boundary itself also excludes a `.`/`!`/`?` immediately followed by
-    a digit — the same regex fired inside `"(p. 143)"`, splitting a page
-    citation into `"...(p."` and `"143), where it is..."`: a fragment with
-    no sentence of its own, which real-model output (`phi4-mini`) then
-    dropped from its classification results entirely rather than erroring,
-    silently undercounting the answer's actual claims. `"p."` is not
-    special-cased by name; excluding a digit right after the boundary covers
-    it and every other short citation abbreviation (`pp.`, `No.`, `Vol.`,
-    `Fig.`) the same way, at the acceptable cost of not splitting a genuine
-    sentence that starts with a number — rare, and a false negative here
-    only merges two sentences rather than fragmenting one."""
+    The boundary also excludes a `.`/`!`/`?` immediately followed by a
+    digit, so a page citation like `"(p. 143)"` is not split into
+    `"...(p."` and `"143), where it is..."`. `"p."` is not special-cased by
+    name; excluding a digit right after the boundary covers it and every
+    other short citation abbreviation (`pp.`, `No.`, `Vol.`, `Fig.`) the
+    same way, at the acceptable cost of not splitting a genuine sentence
+    that starts with a number — rare, and a false negative here only merges
+    two sentences rather than fragmenting one."""
     stripped = text.strip()
     if not stripped:
         return ()
@@ -132,26 +125,33 @@ def _pretty(text: str) -> str:
 
 
 def _parse_verdicts(response: str, *, sentence_count: int) -> tuple[SentenceVerdict, ...] | None:
-    """Parses the fact-checker's JSON response into verdicts. Tolerant at
-    two levels for two different reasons: a markdown code fence around the
-    whole response, or stray text around a JSON object, is stripped before
-    parsing (models add these despite being told not to, and stripping them
-    costs nothing); but a *malformed individual entry* (a bad `index`, a
-    missing `supported`, a duplicate index) is skipped rather than
-    invalidating the whole response — one bad entry is not a reason to
-    discard every other sentence's real classification, since there is no
-    reproduction guarantee at stake here to protect the way the old
-    no-reword check did.
+    """Parses the fact-checker's completed JSON skeleton into verdicts.
+    Tolerant at two levels for two different reasons: a markdown code fence
+    around the whole response, or stray text around a JSON object, is
+    stripped before parsing (models add these despite being told not to,
+    and stripping them costs nothing); but a *malformed individual entry*
+    (a bad `index`, a missing `supported`, a duplicate index) is skipped
+    rather than invalidating the whole response — one bad entry is not a
+    reason to discard every other sentence's real classification.
 
-    An entry with `"claim": false` (the prompt's explicit way of saying "no
-    factual claim here" — user-directed, replacing an earlier
-    omit-the-index-entirely convention that gave the model an easy excuse to
-    silently drop *any* sentence it found awkward, not just a genuine
-    non-claim one) is skipped the same way a missing index used to be: it
-    contributes no verdict, so it cannot affect `grounding_score` either
-    direction. Only `"claim": false` specifically triggers this — a missing
-    `claim` field defaults to treating the entry as a claim, so a response
-    from before this field existed still parses.
+    An entry's `"text"` is never read here — every verdict is keyed off
+    `"index"` alone, matched back to the original `sentences` tuple by the
+    caller. The skeleton the model was given already paired each index with
+    its text; nothing downstream needs the model's own copy of it back.
+
+    `"supported": null` is the prompt's explicit way of saying "no factual
+    claim here": it is skipped the same way a missing index is, so it
+    contributes no verdict and cannot affect `grounding_score` either
+    direction. Any other non-boolean `supported` (a string, a number, a
+    missing field) is treated as a malformed entry and skipped too.
+
+    Each citation id has a single layer of surrounding `[`/`]` stripped
+    before it is kept — the evidence block in the prompt labels each item
+    as `[id]`, and a citation is sometimes echoed back the same way instead
+    of as the bare id `grounding_score` actually compares against. Without
+    this, a citation naming a real, valid id fails to match purely on
+    formatting and the sentence scores as unsupported despite citing
+    correctly.
 
     The top-level `verified` field, if present, is read by nobody: the
     score is always computed in code from the parsed `results`, never from
@@ -173,13 +173,15 @@ def _parse_verdicts(response: str, *, sentence_count: int) -> tuple[SentenceVerd
             continue
         if index in verdicts:
             continue
-        if entry.get("claim") is False:
-            continue
         supported = entry.get("supported")
+        if supported is None:
+            continue
         if not isinstance(supported, bool):
             continue
         citations = entry.get("citations")
-        citation_ids = tuple(c for c in citations if isinstance(c, str)) if isinstance(citations, list) else ()
+        citation_ids = (
+            tuple(c.strip().strip("[]") for c in citations if isinstance(c, str)) if isinstance(citations, list) else ()
+        )
         verdicts[index] = SentenceVerdict(index=index, supported=supported, citations=citation_ids)
 
     return tuple(verdicts.values())
