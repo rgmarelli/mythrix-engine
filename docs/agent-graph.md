@@ -145,23 +145,29 @@ tool calls, or only enumeration tools), or a reply with no sentences at
 all, is a no-op.
 
 Otherwise, the reply is split into sentences deterministically, in code
-(`fact_check.py::split_sentences`), and the fact-check model is given only
-those numbered sentences and the evidence — never the reply's own text as
-something to reproduce. It returns a compact JSON classification keyed by
-sentence index (supported/not, and which evidence id(s) support it),
-omitting a sentence entirely when it states no factual claim.
-`fact_check_node` parses this into `SentenceVerdict`s and validates its
-*structure* (a well-formed response, an in-range index, a boolean
-`supported`) — there is nothing to reword, since the model was never given
-custody of the reply's text to begin with:
+(`fact_check.py::split_sentences`), and the fact-check model is given a JSON
+document with one entry per sentence already filled in — its index and text
+set, `supported` null, `citations` empty — and asked to *complete* it rather
+than generate one from scratch: filling only `supported`/`citations` per
+entry, never touching `index`/`text`, never adding, removing, reordering, or
+renaming a field or object. `supported` stays `null` for a sentence with no
+factual claim; there is nothing left for the model to enumerate, so the
+completeness guarantee no longer rests on an instruction it could ignore.
+The model never receives or returns the reply's own text as something to
+reproduce. `fact_check_node` parses the response into `SentenceVerdict`s and
+validates its *structure* (a well-formed response, an in-range index, a
+boolean `supported`) — there is nothing to reword, since the model was never
+given custody of the reply's text to begin with:
 
 - **Well-formed classification**: a `grounding_score`
   (`fact_check.py::grounding_score`) is computed from the parsed verdicts —
   a verdict counts as supported only when `supported=true` *and* at least
   one of its citations is a real evidence id, so the model's own boolean is
-  never simply trusted. A `facts checked: NN%` footer is appended to the
-  *original* reply's own text, unmodified. Individual per-sentence verdicts
-  never reach the user; only the aggregate score does.
+  never simply trusted. A `###### facts checked: NN%` footer (an `<h6>`
+  heading, rendered smaller than body text by the frontend's markdown
+  renderer) is appended to the *original* reply's own text, unmodified.
+  Individual per-sentence verdicts never reach the user; only the aggregate
+  score does.
 - **Model call failed, or the response could not be parsed into any usable
   verdicts**: the fact-checker's output is discarded and the original reply
   is used — with no footer. There is no retry, and grounding is never a

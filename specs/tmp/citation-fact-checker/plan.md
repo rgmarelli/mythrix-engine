@@ -189,3 +189,53 @@ was tried and why it changed, not deleted.
 `evidence_from_*` extractors, the graph wiring (`builder.py`/`llm.py`/
 `state.py`/`runner.py`), `core/config.py`'s `fact_check_model` setting, and
 everything under "Unaffected" above.
+
+## Revision (2026-08-05): complete a skeleton instead of generating one, plus two parsing/output fixes
+
+The previous revision's prompt (`tasks.md`'s "Fix: completeness contract"
+entry) asked the model to *generate* a `results` array from scratch and
+enumerate exactly as many entries as there were sentences, with an explicit
+`"claim": false` value replacing the old omit-if-no-claim convention. This
+still left the completeness guarantee resting on an instruction the model
+could violate. This revision removes the enumeration task itself:
+
+- `agent/prompts.py::render_fact_check_prompt` now builds a JSON document
+  with one entry per sentence already in it (`index`/`text` pre-filled,
+  `supported: null`, `citations: []`) and asks the model to *complete* it —
+  filling only `supported`/`citations` per entry, never adding, removing,
+  reordering, or renaming a field or object, never touching `index`/`text`.
+  `supported` is `null` for a sentence with no factual claim (replacing the
+  `"claim": false` field from the prior revision), `true`/`false` otherwise.
+  There is structurally nothing left to enumerate — the completeness
+  guarantee that used to depend on an instruction the model could ignore is
+  now a fact about what the model was handed.
+- `agent/fact_check.py::_parse_verdicts`: the no-claim check changed from
+  `entry.get("claim") is False` to `supported is None`, matching the new
+  convention; the top-level `"verified"` field is dropped from the skeleton
+  entirely (nothing downstream ever read it, including before this
+  revision).
+- `_parse_verdicts` also strips a single layer of surrounding `[`/`]` from
+  each citation id before keeping it. Root-caused from a real production
+  log scoring 25% despite several sentences citing correctly: the evidence
+  block labels each item as `[id]` (`f"[{e.grounding_id}]\n{e.text}"`), and
+  the model sometimes echoed a citation back the same bracketed way instead
+  of as the bare id `grounding_score` compares against — an exact-match
+  lookup against `valid_ids` then failed on a citation that was otherwise
+  correct and real. A code-side, prompt-independent fix; no prompt-approval
+  needed.
+- `agent/graph/nodes/fact_check.py::fact_check_node`'s score footer changed
+  from `\n---\nfacts checked: NN%` to `\n###### facts checked: NN%`. The
+  `---` divider, sent as plain text with no blank line separating it from
+  the answer, is ambiguous with CommonMark's Setext heading underline —
+  the frontend's `react-markdown`/`remark-gfm` renderer folded the
+  preceding line of the answer into a heading instead of rendering a
+  divider. `######` is a valid ATX heading (level 6, the maximum
+  CommonMark allows) with no such ambiguity, and browsers render `<h6>`
+  smaller than body text by default, which was the actual goal — no
+  frontend change needed.
+
+**What's unaffected:** everything under the prior revision's "What's
+unaffected", plus `SentenceVerdict`, `is_grounded`, `grounding_score`'s
+stricter valid-citation rule, and the graph node's control flow (still:
+`split_sentences` → `run_fact_check` → `grounding_score` → footer or
+fallback, no retry, no rejection message).

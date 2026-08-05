@@ -214,3 +214,44 @@ sentence, not only a genuine non-claim one.
   non-claim sentence (headers/transitions, indices 0/3/5/8) instead of
   omitting them — no more silent gaps. The `"(p. 143)"` abbreviation case
   also confirmed fixed: it now stays one sentence instead of fragmenting.
+
+## Revision (2026-08-05): complete a skeleton instead of generating one
+
+Directed after the "claim: false" completeness contract above still left
+completeness resting on an instruction the model could ignore. See
+ADR-025/`plan.md`'s Revision sections for the design.
+
+- [x] `agent/prompts.py::render_fact_check_prompt`: rewritten (user-directed
+  structure, user-authored final wording, approved per CLAUDE.md) to hand
+  the model a JSON document with one entry per sentence already filled in
+  (`index`/`text` set, `supported: null`, `citations: []`) and ask it to
+  complete rather than generate the `results` array — only `supported`/
+  `citations` may change per entry; no field or object may be added,
+  removed, reordered, or renamed.
+- [x] `agent/fact_check.py::_parse_verdicts`: no-claim detection changed
+  from `entry.get("claim") is False` to `supported is None`; dropped the
+  now-fully-removed `"claim"` field concept entirely.
+- [x] Docstrings on `render_fact_check_prompt`, the `fact_check.py` module,
+  and `split_sentences` rewritten after a CLAUDE.md violation was flagged
+  (implementation-history narrative — "an earlier draft", "user-directed
+  revision", dates — is forbidden by the Code Documentation rule); rewritten
+  to describe only current behavior.
+- [x] `tests/unit/test_agent_fact_check.py`: updated for the skeleton shape
+  (`"index"`/`"text"` assertions instead of positional text), the
+  completion-contract prompt wording, and `supported: null` replacing
+  `"claim": false`; removed the now-obsolete missing-`claim`-field
+  backward-compatibility test.
+- [x] Root-caused a real production log scoring 25% despite 2-of-6 sentences
+  citing correctly: the evidence block labels each item as `[id]`, and the
+  model sometimes echoed a citation back the same bracketed way instead of
+  as the bare id `grounding_score` compares against, failing the exact-match
+  lookup against `valid_ids`. Fixed in `_parse_verdicts` — strips a single
+  layer of surrounding `[`/`]` from each citation id before keeping it. A
+  code-side, prompt-independent fix; regression test added
+  (`test_run_fact_check_strips_brackets_a_model_echoes_around_a_citation_id`).
+- [x] `ruff check . && ruff format .` and `pytest api/tests/unit` — clean,
+  615 passed.
+- [x] Committed as two checkpoints per the user's explicit request to be
+  able to iterate and roll back: `96bcd8c` (full ADR-025 redesign), `2ca7d25`
+  (skeleton-completion prompt rewrite + bracket-stripping fix).
+

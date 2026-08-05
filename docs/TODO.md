@@ -26,8 +26,6 @@
 
 * [ ] **Fix UI randomly resetting after some time**
 
-* [ ] `_normalize` (agent/graph/nodes/fact_check.py) doesn't tolerate markdown list/whitespace restructuring — the fact-checker's tag pass on longer, bulleted `query_sign` answers occasionally reformats list structure while tagging, failing the no-reword check and silently dropping the score footer (safe fallback, but no score shown). Repro: `test_query_sign_reply_is_fact_checked_with_real_opaque_segment_ids_when_asked_to_cite` / `test_query_sign_reply_is_fact_checked_with_real_opaque_segment_ids_unprompted` (`tests/integration/test_agent_grounding_ids.py`), ~1-in-7 real-model runs. Fix: extend `_normalize` to fold list-formatting artifacts (bullet markers, numbering, blank-line runs), not a fuzzy similarity threshold.
-
 ## Features
 * [ ] **Augmentation: Clarify context.** Augmentation uses a context expansion feature that mentions fragments that can be "hidden" from the user. This is confusing, so we need to add clarification in the UI.
 
@@ -47,3 +45,6 @@
 * [ ] **Choose a default LLM.**.
 
 * [ ] **Improve settings**, e.g., model settings, documentation, etc.
+
+* [ ] **Extend fact-checking to commands**, e.g., /summarize, /augment
+
