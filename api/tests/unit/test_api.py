@@ -486,7 +486,7 @@ def _fake_get_sign(sign: str, tradition: str | None = None) -> dict:
         "sign": "The Magician",
         "semiotic_system": "tarot",
         "tradition": tradition,
-        "citations": [{"source": "Waite", "locator": "p. 1"}],
+        "citations": [{"source": "Waite", "locator": "p. 1", "grounding_id": "G1"}],
     }
 
 

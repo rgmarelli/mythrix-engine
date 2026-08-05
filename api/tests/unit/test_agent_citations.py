@@ -2,16 +2,16 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """Unit tests for `agent/citations.py` — marker extraction and validation over
-the `[G#]`/`[S#]`/`[C#]`/`[R#]` vocabulary, checked against a caller-supplied
-set of valid identifiers, plus the split between what is validated and what is
-stripped from a visible reply."""
+the `[G#]`/`[S#]`/`[R#]` vocabulary, checked against a caller-supplied
+set of valid identifiers, plus the split between what is validated and what
+is stripped from a visible reply."""
 
 from mythrix.agent.citations import extract_markers, find_invalid_markers, strip_all_markers, strip_markers
 
 
 def test_extract_markers_finds_all_distinct_markers_in_order() -> None:
-    text = "The Tower [G1] represents upheaval [S1], as also noted [G1] again, per [C1]."
-    assert extract_markers(text) == ("G1", "S1", "C1")
+    text = "The Tower [G1] represents upheaval [S1], as also noted [G1] again, per [S2]."
+    assert extract_markers(text) == ("G1", "S1", "S2")
 
 
 def test_extract_markers_ignores_non_marker_bracketed_text() -> None:

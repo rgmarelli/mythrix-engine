@@ -5,7 +5,6 @@
 agent turn and the deterministic `clarify_node` (ADR-006, agent.md FR-AG-18)."""
 
 from langchain_core.messages import AIMessage, ToolMessage
-from langgraph.graph import END
 
 from mythrix.agent.graph.nodes.llm import clarify_node, route_after_agent, route_after_tools
 
@@ -15,9 +14,11 @@ def test_route_after_agent_routes_to_tools_when_tool_calls_present() -> None:
     assert route_after_agent(state) == "tools"
 
 
-def test_route_after_agent_routes_to_end_when_no_tool_calls() -> None:
+def test_route_after_agent_routes_to_fact_check_when_no_tool_calls() -> None:
+    """A final answer is fact-checked (ADR-025) before it can end the turn —
+    it no longer goes straight to `END`."""
     state = {"messages": [AIMessage(content="a plain answer")]}
-    assert route_after_agent(state) == END
+    assert route_after_agent(state) == "fact_check"
 
 
 def test_route_after_tools_routes_to_clarify_on_needs_tradition() -> None:
@@ -58,7 +59,7 @@ def test_clarify_node_builds_a_deterministic_reply_from_the_payload() -> None:
     payload = (
         '{"needs_tradition": true, "sign": "the-magician", "sign_name": "The Magician", '
         '"traditions": [{"slug": "rider-waite", "name": "Rider-Waite-Smith"}, '
-        '{"slug": "marseille", "name": "Tarot de Marseille"}]}'
+        '{"slug": "marseille", "name": "Marseille"}]}'
     )
     state = {"messages": [ToolMessage(content=payload, name="get_sign", tool_call_id="c")]}
 
@@ -68,7 +69,7 @@ def test_clarify_node_builds_a_deterministic_reply_from_the_payload() -> None:
     assert isinstance(reply, AIMessage)
     assert not reply.tool_calls
     assert reply.content == (
-        "Which tradition would you like to use for The Magician? Available: Rider-Waite-Smith, Tarot de Marseille."
+        "Which tradition would you like to use for The Magician? Available: Rider-Waite-Smith, Marseille."
     )
     assert "the-magician" not in reply.content
 

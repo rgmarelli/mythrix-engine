@@ -4,7 +4,7 @@
 """Real-Ollama coverage for the consolidated construction path — opt-in, since
 it needs a running local Ollama daemon with the model pulled. Not run as part
 of the default `pytest tests/unit` suite; run explicitly with
-`pytest tests/integration -m requires_ollama` after `ollama pull llama3.2`.
+`pytest tests/integration -m requires_ollama` after `ollama pull qwen3:1.7b`.
 
 The query path itself invokes no generation model (FR-RT-10) — this exists to
 confirm `create_chat_model` and the `OllamaChatClient` adapter over it still
@@ -16,7 +16,7 @@ import pytest
 from mythrix.core.chat import OllamaChatClient
 from mythrix.core.ollama import create_chat_model
 
-GENERATION_MODEL = "llama3.2"
+GENERATION_MODEL = "qwen3:1.7b"
 BASE_URL = "http://localhost:11434"
 
 

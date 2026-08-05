@@ -38,7 +38,7 @@ Then pull the models you'll use:
 
 ```bash
 ollama pull nomic-embed-text   # embedding model (default)
-ollama pull qwen2.5:3b         # or any generation model you prefer
+ollama pull qwen3:1.7b        # or any generation model you prefer
 ```
 
 Confirm the daemon is running: `ollama list` should succeed without error.
@@ -59,7 +59,7 @@ list and precedence order. The two you'll set most often:
 ```bash
 export MYTHRIX_KUZU_DB_PATH="$HOME/.mythrix/graph.kuzu"
 export MYTHRIX_CHROMA_PERSIST_DIR="$HOME/.mythrix/chroma"
-export MYTHRIX_GENERATION_MODEL=qwen2.5:3b
+export MYTHRIX_GENERATION_MODEL=qwen3:1.7b
 ```
 
 (`kuzu_db_path`/`chroma_persist_dir` already default to exactly

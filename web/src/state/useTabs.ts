@@ -374,7 +374,6 @@ export function useTabs(capabilities: AgentCapabilities | null = null) {
       semioticSystem: tab.selectedSystem || null,
       sign: tab.selectedSign || null,
       tradition: tab.selectedTradition || null,
-      sourceId: tab.selectedSourceId,
       interpretant: tab.selectedInterpretant,
       minScore: tab.minScore,
       regionId: tab.selectedRegionId,

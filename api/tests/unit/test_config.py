@@ -42,11 +42,11 @@ def test_constructor_kwarg_takes_precedence_over_env_var(monkeypatch: pytest.Mon
 
 
 def test_generation_model_can_be_set_explicitly(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("MYTHRIX_GENERATION_MODEL", "llama3.1")
+    monkeypatch.setenv("MYTHRIX_GENERATION_MODEL", "qwen3:1.7b")
 
     settings = Settings(_env_file=None)  # type: ignore[call-arg]
 
-    assert settings.generation_model == "llama3.1"
+    assert settings.generation_model == "qwen3:1.7b"
 
 
 def test_generation_num_ctx_can_be_overridden(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -2,8 +2,11 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """The operator system prompt (specs/interfaces/agent.md FR-AG-05, FR-AG-06,
-FR-AG-09), which defines the `[G#]`/`[S#]` marker vocabulary `citations.py`
-validates against, plus the ad-hoc prompts the generative tools render.
+FR-AG-09), plus the ad-hoc prompts the generative tools render, including
+the fact-check prompt (ADR-025) that defines the `[G#]`/`[S#]`/`[UNSUPPORTED]`
+marker vocabulary `citations.py` validates against — the primary model's own
+prompt asks for none of it; grounding is checked after the fact, not
+composed inline (ADR-025).
 
 Each renderable prompt belongs to exactly one tool. They deliberately do not
 share a template: a summary of a selected passage, a reading of a retrieved
@@ -13,21 +16,23 @@ to say (ADR-015)."""
 
 from __future__ import annotations
 
+import json
+
+from mythrix.agent.citation_grounding import Evidence, strip_grounding_prefix
+
 SYSTEM_PROMPT = """
 You are a Mythrix semiotics expert assistant.
 
 Tools rules:
 - Do not invent Mythrix entities, traditions, or signs not provided by tools.
 - Always scope operations by semiotic system.
-- If an "Active hotspot" is present in context (e.g., source_id::start-end), immediately call `fetch_segments` using those exact parameters. Do not ask for clarification.
+- If an "Active hotspot" is present in context (e.g., Active hotspot: source_id::start-end), immediately call `fetch_segments` using those exact parameters. Do not ask for clarification.
 - Once segments for the requested hotspot/passage are retrieved, assume they contain ENOUGH context to answer the user's question. DO NOT attempt to fetch adjacent segments unless explicitly requested by the user.
 - Use `get_sign` for sign structure/traditions.
 - Use `query_sign` for textual evidence across corpus.
 
 Response rules:
 - Ground all analysis, explanations, or sentiments strictly and EXCLUSIVELY on the text returned by tools in the current thread.
-- Citation indexing: Number returned tool items in the order they appear starting at 1. Graph facts are [G1], [G2]... and passage segments are [S1], [S2]...
-- ALWAYS include these exact citation markers (e.g., [S1], [S2]) whenever referencing, quoting, or analyzing a segment.
 - Be concise and direct.
 """
 
@@ -134,4 +139,79 @@ def render_rollup_prompt(focus: str, summaries: tuple[str, ...]) -> str:
         "renumber one, and never merge two into one. The 'Summary N' labels "
         "above are for your reference only, are not citation markers, and must "
         "not appear in your answer."
+    )
+
+
+def render_fact_check_prompt(evidence: tuple[Evidence, ...], sentences: tuple[str, ...]) -> str:
+    """The fact-checking model's own prompt (ADR-025) — a second, narrow call
+    made after the primary model's answer is already final, classifying it
+    against this turn's evidence.
+
+    The model receives a JSON document with one entry per sentence
+    (`fact_check.split_sentences`, done deterministically in code) — each
+    entry already carrying its own `index` and `text` — and completes it,
+    replacing only `supported` and populating `citations` per entry.
+    `index`/`text` must not be modified, and no field or object may be
+    added, removed, reordered, or renamed. `graph/nodes/fact_check.py`
+    parses the response into verdicts keyed by `index` alone; an entry's
+    echoed `text` is read by nobody downstream, so a model that drifts on
+    that field cannot desync what a verdict is actually attributed to.
+
+    The evidence block carries only an item's id and text, not its
+    `source`/`locator` — those fields still live on `Evidence` for other
+    consumers. The id itself is shown without its origin-tagging prefix
+    letter (`strip_grounding_prefix`, ADR-022) — the letter is a
+    human/log-reading mnemonic no consumer branches on, so there is nothing
+    for the model to lose by not seeing it, and one fewer character per id
+    to read and echo back. `graph/nodes/fact_check.py` builds the valid-id
+    set the same way, so a citation compares against what the model was
+    actually shown.
+
+    A faithful summary or reasonable paraphrase of the evidence counts as
+    supported; `supported: false` is reserved for a sentence that introduces
+    new information or an interpretation not reasonably supported by the
+    evidence — not merely a departure from its exact wording."""
+    verification_json = json.dumps(
+        {
+            "results": [
+                {"index": i, "text": sentence, "supported": None, "citations": []}
+                for i, sentence in enumerate(sentences)
+            ]
+        },
+        indent=2,
+    )
+    rendered_evidence = "\n\n".join(f"[{strip_grounding_prefix(e.grounding_id)}]\n{e.text}" for e in evidence)
+    return (
+        "You are a factual verification assistant.\n\n"
+        "You are given:\n\n"
+        "1. A JSON document containing sentences.\n"
+        "2. A list of Evidence items, each identified by a unique id.\n\n"
+        "Your task is to complete the JSON.\n\n"
+        'For each object in "results":\n\n'
+        '- Read the value of "text".\n'
+        "- Determine whether the factual claims in the text are supported by the provided Evidence.\n"
+        "- Faithful summaries and reasonable paraphrases of the Evidence are considered supported.\n"
+        "- Do NOT require identical wording.\n"
+        "- Mark a sentence as unsupported ONLY if it introduces new factual information or interpretations "
+        "that are not reasonably supported by the Evidence.\n"
+        "- Use ONLY the provided Evidence. Never use outside knowledge.\n\n"
+        "Rules:\n\n"
+        "- Do NOT add, remove, reorder, or rename any objects or fields.\n"
+        '- Do NOT modify the values of "index" or "text".\n'
+        '- Only replace the value of "supported".\n'
+        '- Only populate the "citations" array.\n'
+        "- A sentence with no factual claims should have:\n"
+        '    "supported": null\n'
+        '    "citations": []\n'
+        "- A supported sentence must have:\n"
+        '    "supported": true\n'
+        '    "citations": ["...", ...]\n'
+        "- An unsupported sentence must have:\n"
+        '    "supported": false\n'
+        '    "citations": []\n\n'
+        "Every citation id must exist in the Evidence.\n"
+        "Never invent citation ids.\n\n"
+        "Return ONLY the completed JSON.\n\n"
+        f"JSON:\n\n{verification_json}\n\n"
+        f"Evidence:\n\n{rendered_evidence}"
     )

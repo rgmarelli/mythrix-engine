@@ -27,6 +27,9 @@ def test_fetch_segments_returns_the_ordinal_range(stores: Stores, settings: Sett
     result = tools["fetch_segments"].invoke({"source_id": "waite", "start_ordinal": 1, "end_ordinal": 3})
     assert [s["ordinal"] for s in result] == [1, 2, 3]
     assert [s["text"] for s in result] == ["verse 1", "verse 2", "verse 3"]
+    grounding_ids = [s["grounding_id"] for s in result]
+    assert all(gid.startswith("S") and len(gid) > 1 for gid in grounding_ids)
+    assert len(set(grounding_ids)) == len(grounding_ids)
 
 
 def test_fetch_segments_unknown_source_returns_error_list(stores: Stores, settings: Settings, tools_by_name) -> None:  # noqa: ANN001

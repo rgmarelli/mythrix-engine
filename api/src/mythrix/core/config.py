@@ -84,6 +84,15 @@ class Settings(BaseSettings):
     rendered prompt well inside `generation_num_ctx` regardless of how large
     `augment_max_regions` is set. Must be at least `2`: a group of `1` never
     shrinks the reduce loop.
+
+    `fact_check_model` (ADR-025) is the model the post-hoc fact-check node
+    uses to tag a conversational reply's claims against this turn's tool
+    results. Falls back to `agent_model`, then `generation_model`, when
+    unset — the same resolution order `agent_model` itself already
+    establishes. Unlike `citation_max_retries` (ADR-023, removed — the
+    in-graph retry it bounded no longer exists), the fact-check node runs at
+    most once per turn and never loops back into `agent_max_tool_iterations`'s
+    budget.
     """
 
     model_config = SettingsConfigDict(env_prefix="MYTHRIX_", env_file=".env", extra="ignore")
@@ -100,6 +109,7 @@ class Settings(BaseSettings):
     region_window_size: int = 3
     region_min_interpretants: int = 1
     agent_model: str | None = None
-    agent_max_tool_iterations: int = 8
+    agent_max_tool_iterations: int = 16
     augment_max_regions: int = 1000
     augment_consolidation_group_size: int = Field(default=8, ge=2)
+    fact_check_model: str | None = None

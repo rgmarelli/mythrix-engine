@@ -28,7 +28,7 @@ def get_sign(sign: str, tradition: str | None = None) -> dict:
             "sign_name": "The Magician",
             "traditions": [
                 {"slug": "rider-waite", "name": "Rider-Waite-Smith"},
-                {"slug": "marseille", "name": "Tarot de Marseille"},
+                {"slug": "marseille", "name": "Marseille"},
             ],
         }
     return {
@@ -37,7 +37,7 @@ def get_sign(sign: str, tradition: str | None = None) -> dict:
         "semiotic_system": "tarot",
         "tradition": "rider-waite",
         "tradition_name": "Rider-Waite-Smith",
-        "citations": [{"source": "Waite", "locator": "p. 1"}],
+        "citations": [{"source": "Waite", "locator": "p. 1", "grounding_id": "G1"}],
     }
 
 
@@ -51,7 +51,13 @@ def summarize_passage(passage_text: str, concepts: list[str]) -> dict:
 def fetch_segments(source_id: str, start_ordinal: int, end_ordinal: int) -> list[dict]:
     """Fake fetch_segments mirroring the real tool's shape."""
     return [
-        {"ordinal": ordinal, "locator": f"{source_id} {ordinal}", "section": None, "text": f"text {ordinal}"}
+        {
+            "ordinal": ordinal,
+            "locator": f"{source_id} {ordinal}",
+            "section": None,
+            "text": f"text {ordinal}",
+            "grounding_id": f"S{ordinal}",
+        }
         for ordinal in range(start_ordinal, end_ordinal + 1)
     ]
 
@@ -255,7 +261,7 @@ def test_ambiguous_tradition_short_circuits_with_no_second_model_call() -> None:
     assert llm.calls == 1
     # The user is asked in display names, not slugs (FR-AG-07, ADR-014).
     assert "Rider-Waite-Smith" in response.reply_text
-    assert "Tarot de Marseille" in response.reply_text
+    assert "Marseille" in response.reply_text
     assert response.context.sign is None
 
 
@@ -275,6 +281,31 @@ def test_fabricated_citation_marker_is_not_shown_and_history_is_not_persisted() 
     assert "[G9]" not in response.reply_text
     assert "fabricated" not in response.reply_text
     assert sessions.get_or_create("s1").history == []
+
+
+def test_marker_free_reply_passes_through_when_nothing_this_turn_was_citable() -> None:
+    """`summarize_passage` carries no `grounding_id` of its own — a
+    marker-free reply drawing on it has nothing to fact-check against
+    (`fact_check_node` no-ops for want of evidence) and nothing for
+    `turn_service.py`'s own backstop to flag either, so it passes through
+    as-is."""
+    call = {"name": "summarize_passage", "args": {"passage_text": "text", "concepts": ["will"]}, "id": "c1"}
+    script = [
+        AIMessage(content="", tool_calls=[call]),
+        AIMessage(content="This passage is about willpower."),
+    ]
+    sessions = SessionStore()
+
+    response = run_chat_turn(
+        graph=_graph(script),
+        sessions=sessions,
+        session_id="s1",
+        message="summarize this passage",
+        ui_selection=AgentContext(),
+        max_tool_iterations=8,
+    )
+
+    assert response.reply_text == "This passage is about willpower."
 
 
 def test_stray_marker_on_a_listing_tool_reply_is_stripped_not_rejected() -> None:

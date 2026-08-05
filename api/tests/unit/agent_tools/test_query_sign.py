@@ -39,7 +39,47 @@ def test_query_sign_unknown_sign_returns_error(stores: Stores, settings: Setting
     assert "error" in result
 
 
+def test_query_sign_unknown_sign_error_scopes_the_list_to_the_given_tradition(
+    stores: Stores, settings: Settings, tools_by_name
+) -> None:  # noqa: ANN001
+    tools = tools_by_name(stores, settings, FakeChatClient())
+    result = tools["query_sign"].invoke({"sign": "nonexistent", "tradition": "rider-waite"})
+    assert "The Tower" in result["error"]
+    assert "The Magician" in result["error"]
+    assert "Peh" not in result["error"]
+
+
+def test_query_sign_resolves_a_shortened_name_by_containment(stores: Stores, settings: Settings, tools_by_name) -> None:  # noqa: ANN001
+    tools = tools_by_name(stores, settings, FakeChatClient())
+    result = tools["query_sign"].invoke({"sign": "Tower", "tradition": "rider-waite"})
+    assert result["sign"] == "the-tower"
+    assert "error" not in result
+
+
 def test_query_sign_unknown_tradition_returns_error(stores: Stores, settings: Settings, tools_by_name) -> None:  # noqa: ANN001
     tools = tools_by_name(stores, settings, FakeChatClient())
     result = tools["query_sign"].invoke({"sign": "the-tower", "tradition": "nonexistent"})
     assert "error" in result
+
+
+def test_query_sign_exact_slug_match_is_not_shadowed_by_an_unrelated_fuzzy_match(
+    stores: Stores, settings: Settings, tools_by_name
+) -> None:  # noqa: ANN001
+    """Same regression as get_sign: "he" (hebrew_alef_bet) must not make
+    "the-sun" ambiguous."""
+    tools = tools_by_name(stores, settings, FakeChatClient())
+    result = tools["query_sign"].invoke({"sign": "the-sun", "tradition": "rider-waite"})
+    assert result["sign"] == "the-sun"
+    assert "error" not in result
+
+
+def test_query_sign_semiotic_system_scopes_ambiguous_exact_name_match(
+    stores: Stores, settings: Settings, tools_by_name
+) -> None:  # noqa: ANN001
+    tools = tools_by_name(stores, settings, FakeChatClient())
+    ambiguous = tools["query_sign"].invoke({"sign": "Threshold", "tradition": "rider-waite"})
+    assert "error" in ambiguous
+
+    result = tools["query_sign"].invoke({"sign": "Threshold", "tradition": "rider-waite", "semiotic_system": "tarot"})
+    assert result["sign"] == "threshold-tarot"
+    assert "error" not in result

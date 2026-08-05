@@ -20,6 +20,12 @@
 
 * [ ] **Enforce MYTHRIX_GENERATION_MODEL env var on startup.** Prevent the server from starting if MYTHRIX_GENERATION_MODEL is missing or empty.
 
+* [ ] **Agent capabilities are still hardcoded in the frontend**.
+
+* [ ] **Add autoscroll to the agent on message send and answer streaming**
+
+* [ ] **Fix UI randomly resetting after some time**
+
 ## Features
 * [ ] **Augmentation: Clarify context.** Augmentation uses a context expansion feature that mentions fragments that can be "hidden" from the user. This is confusing, so we need to add clarification in the UI.
 
@@ -27,9 +33,18 @@
 
 * [ ] **Add corpus ingestion user manual.**
 
+* [ ] **Add a welcome/help message to the Agent.**
+
 # Improvement
 * [ ] **Architecture: Improve session management.** Enhance session management scalability by adopting a stateless design. This can be achieved either by delegating session handling to the client side or integrating a centralized shared store (e.g., Redis). Avoid local, in-memory session persistence.
 
 * [ ] **Adopt Conventional Commits specification across the repository.** 
 
 * [ ] **Semiotic Models Update.**. Improve current sample models, add astrology models, and expand sources.
+
+* [ ] **Choose a default LLM.**.
+
+* [ ] **Improve settings**, e.g., model settings, documentation, etc.
+
+* [ ] **Extend fact-checking to commands**, e.g., /summarize, /augment
+
