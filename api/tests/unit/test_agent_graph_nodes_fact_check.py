@@ -89,7 +89,7 @@ def test_well_behaved_classification_gets_a_score_footer_on_the_original_answer(
 
     reply = result["messages"][0]
     assert isinstance(reply, AIMessage)
-    assert reply.content == "The Sun symbolizes joy.\n---\nfacts checked: 100%"
+    assert reply.content == "The Sun symbolizes joy.\n###### facts checked: 100%"
 
 
 def test_a_model_error_falls_back_to_the_original_answer_with_no_footer() -> None:
@@ -136,7 +136,7 @@ def test_an_unsupported_claim_lowers_the_score() -> None:
     result = fact_check_node(state, client)
 
     assert result["messages"][0].content == (
-        "The Sun symbolizes joy. It also predicts next week's weather.\n---\nfacts checked: 50%"
+        "The Sun symbolizes joy. It also predicts next week's weather.\n###### facts checked: 50%"
     )
 
 
@@ -171,7 +171,7 @@ def test_markdown_in_the_answer_is_preserved_in_the_scored_reply() -> None:
 
     result = fact_check_node(state, client)
 
-    assert result["messages"][0].content == "The **Sun** symbolizes joy.\n---\nfacts checked: 100%"
+    assert result["messages"][0].content == "The **Sun** symbolizes joy.\n###### facts checked: 100%"
 
 
 def test_a_low_score_logs_a_per_sentence_breakdown_at_info(caplog: pytest.LogCaptureFixture) -> None:

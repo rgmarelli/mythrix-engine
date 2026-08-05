@@ -75,7 +75,7 @@ def fact_check_node(state: AgentState, chat_client: ChatClient) -> dict:
 
     logger.info("fact-check: succeeded — grounding_score=%.2f", score)
     _log_verdicts(verdicts, sentences, valid_ids)
-    return {"messages": [AIMessage(content=f"{answer}\n---\nfacts checked: {score:.0%}")]}
+    return {"messages": [AIMessage(content=f"{answer}\n###### facts checked: {score:.0%}")]}
 
 
 def _log_verdicts(verdicts: tuple[SentenceVerdict, ...], sentences: tuple[str, ...], valid_ids: set[str]) -> None:

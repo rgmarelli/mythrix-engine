@@ -193,7 +193,7 @@ def _grounding_ids(tool_messages: list[ToolMessage]) -> set[str]:
     return ids
 
 
-_FOOTER_PATTERN = re.compile(r"\nfacts checked: (\d+)%$")
+_FOOTER_PATTERN = re.compile(r"\n###### facts checked: (\d+)%$")
 
 
 def _assert_reply_was_fact_checked(reply_text: str, tool_messages: list[ToolMessage]) -> None:

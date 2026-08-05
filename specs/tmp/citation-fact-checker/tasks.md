@@ -255,3 +255,28 @@ ADR-025/`plan.md`'s Revision sections for the design.
   able to iterate and roll back: `96bcd8c` (full ADR-025 redesign), `2ca7d25`
   (skeleton-completion prompt rewrite + bracket-stripping fix).
 
+## Fix: score footer broke frontend markdown rendering (2026-08-05)
+
+The `\n---\nfacts checked: NN%` footer, sent as plain text with no blank
+line separating it from the answer, is ambiguous with CommonMark's Setext
+heading underline: `react-markdown`/`remark-gfm` on the frontend
+(`web/src/components/AgentChatPanel.tsx`) folded the preceding line of the
+answer into a heading instead of rendering a divider. A markdown ATX
+heading of more than 6 `#` (`#######`) was tried and confirmed, by directly
+parsing both forms with the frontend's actual `remark-parse`/`remark-gfm`
+dependencies, to not be a heading at all — it renders as literal paragraph
+text with the pound signs visible.
+
+- [x] `agent/graph/nodes/fact_check.py::fact_check_node`: footer changed to
+  `\n###### facts checked: NN%` — a valid ATX heading (level 6, the maximum
+  CommonMark allows), unambiguous with any other construct, and rendered as
+  an `<h6>` by the browser's default stylesheet, which is smaller than body
+  text — achieving the original "smaller" goal with no frontend change.
+- [x] `tests/unit/test_agent_graph_nodes_fact_check.py`: updated the three
+  exact-content assertions from `\n---\nfacts checked: NN%` to
+  `\n###### facts checked: NN%`.
+- [x] `tests/integration/test_agent_grounding_ids.py::_FOOTER_PATTERN`:
+  updated to match the new footer line.
+- [x] `pytest api/tests/unit` — clean, 615 passed; `ruff check .`/
+  `ruff format --check .` — clean.
+
