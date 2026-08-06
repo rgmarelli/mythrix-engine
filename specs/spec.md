@@ -29,7 +29,6 @@ A domain-agnostic knowledge graph of signs, cross-referenced against real docume
 - Hardening against adversarial input / prompt injection beyond baseline mitigations (data-not-instructions framing, citation-id validation). v1 assumes curator-supplied, not arbitrary, source documents.
 - Verifying that LLM paraphrases are faithful to their cited source, beyond confirming the citation marker refers to real, in-context material. Faithfulness/entailment checking is future work.
 - Concurrent multi-process write access to the graph store or vector store (see [interfaces/api.md](interfaces/api.md) for the specific CLI/API exclusion).
-- Sentiment analysis — not designed or scoped here; deferred to the conversational agent layer. Tracked as an open idea in `docs/TODO.md`, not a v1 deliverable.
 
 Subsystem-specific non-goals (e.g. no BM25 ranking, no cross-tradition comparison UI, no mutating agent tools) are recorded in each subsystem's own spec under §6.
 
