@@ -20,10 +20,6 @@
 
 * [ ] **Enforce MYTHRIX_GENERATION_MODEL env var on startup.** Prevent the server from starting if MYTHRIX_GENERATION_MODEL is missing or empty.
 
-* [ ] **Agent capabilities are still hardcoded in the frontend**.
-
-* [ ] **Add autoscroll to the agent on message send and answer streaming**
-
 * [ ] **Fix UI randomly resetting after some time**
 
 ## Features
