@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Guido Marelli
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ComponentProps } from 'react';
 import { AgentChatPanel } from './AgentChatPanel';
@@ -64,7 +64,31 @@ it('shows the hotspot title and its matched interpretants in the context strip',
   expect(screen.getByText('reading Ecclesiasticus 43:1 · interpretants: sun')).toBeInTheDocument();
 });
 
-it('renders user, ai, reset, and error items by kind', () => {
+// `react-markdown` is lazy-loaded (specs/tmp/web-perf-alignment FR-PERF-01/02)
+// via a dynamic import inside `AgentChatPanel`'s own module, and `lazy()`
+// caches that import's resolution for the lifetime of the module instance —
+// which every test in this file shares. This must stay the first test to
+// render an `ai` item: once any earlier test has done so, the chunk is
+// already resolved and the fallback will never appear again.
+it('shows the markdown loading fallback before the lazy chunk resolves, then the real content', async () => {
+  const items: ThreadItem[] = [{ kind: 'ai', id: '1', text: 'Hello world.', instructions: [], regionMarkers: {} }];
+  const { container } = render(
+    <AgentChatPanel
+      items={items}
+      isSending={false}
+      onSend={vi.fn()}
+      onClear={vi.fn()}
+      onNavigateRegion={vi.fn()}
+      selectedHotspot={null}
+      capabilities={CAPABILITIES}
+    />,
+  );
+  expect(container.querySelector('.markdown-loading')).toBeInTheDocument();
+  expect(await screen.findByText('Hello world.')).toBeInTheDocument();
+  expect(container.querySelector('.markdown-loading')).not.toBeInTheDocument();
+});
+
+it('renders user, ai, reset, and error items by kind', async () => {
   const items: ThreadItem[] = [
     { kind: 'user', id: '1', text: 'What does the sun mean?' },
     { kind: 'ai', id: '2', text: 'It signifies vitality.', instructions: [], regionMarkers: {} },
@@ -73,12 +97,12 @@ it('renders user, ai, reset, and error items by kind', () => {
   ];
   renderPanel({ items });
   expect(screen.getByText('What does the sun mean?')).toBeInTheDocument();
-  expect(screen.getByText('It signifies vitality.')).toBeInTheDocument();
+  expect(await screen.findByText('It signifies vitality.')).toBeInTheDocument();
   expect(screen.getByText('now reading The Moon')).toBeInTheDocument();
   expect(screen.getByText('Something went wrong.')).toBeInTheDocument();
 });
 
-it('renders markdown formatting in an ai item as elements, not literal syntax', () => {
+it('renders markdown formatting in an ai item as elements, not literal syntax', async () => {
   const items: ThreadItem[] = [{ kind: 'ai', id: '1', text: 'This is **bold**.\n\n- first\n- second', instructions: [], regionMarkers: {} }];
   const { container } = render(
     <AgentChatPanel
@@ -91,12 +115,13 @@ it('renders markdown formatting in an ai item as elements, not literal syntax', 
       capabilities={CAPABILITIES}
     />,
   );
+  await waitFor(() => expect(container.querySelector('.bubble strong')).toBeInTheDocument());
   expect(container.querySelector('.bubble strong')).toHaveTextContent('bold');
   expect(container.querySelectorAll('.bubble li')).toHaveLength(2);
   expect(screen.queryByText('**bold**', { exact: false })).not.toBeInTheDocument();
 });
 
-it('renders HTML-like text in an ai item as inert text, not a live element', () => {
+it('renders HTML-like text in an ai item as inert text, not a live element', async () => {
   const items: ThreadItem[] = [{ kind: 'ai', id: '1', text: '<img src=x onerror="window.__pwned = true">', instructions: [], regionMarkers: {} }];
   const { container } = render(
     <AgentChatPanel
@@ -109,6 +134,7 @@ it('renders HTML-like text in an ai item as inert text, not a live element', () 
       capabilities={CAPABILITIES}
     />,
   );
+  await waitFor(() => expect(container.querySelector('.markdown-loading')).not.toBeInTheDocument());
   expect(container.querySelector('.bubble img')).not.toBeInTheDocument();
   expect((window as unknown as { __pwned?: boolean }).__pwned).toBeUndefined();
 });
@@ -120,17 +146,17 @@ it('renders a marker with a resolved region as a link that navigates on click', 
   ];
   renderPanel({ items, onNavigateRegion });
 
-  await userEvent.click(screen.getByRole('link', { name: '[R1]' }));
+  await userEvent.click(await screen.findByRole('link', { name: '[R1]' }));
 
   expect(onNavigateRegion).toHaveBeenCalledWith('src::1-2');
 });
 
-it('renders a marker absent from the map as plain text, not a link', () => {
+it('renders a marker absent from the map as plain text, not a link', async () => {
   const items: ThreadItem[] = [{ kind: 'ai', id: '1', text: 'Joy recurs [R9].', instructions: [], regionMarkers: {} }];
   renderPanel({ items });
 
+  expect(await screen.findByText('Joy recurs [R9].')).toBeInTheDocument();
   expect(screen.queryByRole('link', { name: '[R9]' })).not.toBeInTheDocument();
-  expect(screen.getByText('Joy recurs [R9].')).toBeInTheDocument();
 });
 
 it('renders the same marker at each of its occurrences as an independent link', async () => {
@@ -146,7 +172,7 @@ it('renders the same marker at each of its occurrences as an independent link', 
   ];
   renderPanel({ items, onNavigateRegion });
 
-  const links = screen.getAllByRole('link', { name: '[R1]' });
+  const links = await screen.findAllByRole('link', { name: '[R1]' });
   expect(links).toHaveLength(2);
   await userEvent.click(links[1]);
   expect(onNavigateRegion).toHaveBeenCalledWith('src::1-2');

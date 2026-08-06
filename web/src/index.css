@@ -851,6 +851,28 @@ button {
   border-collapse: collapse;
 }
 
+/* Suspense fallback for the lazy-loaded markdown renderer (chat bubbles and
+   AI-analysis blocks) — a skeleton bar on `currentColor` so it inherits
+   whichever container it sits in, shown only on the cold chunk load. */
+.markdown-loading {
+  display: inline-block;
+  width: 55%;
+  height: 0.85em;
+  border-radius: 4px;
+  background: currentColor;
+  animation: markdown-loading-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes markdown-loading-pulse {
+  0%,
+  100% {
+    opacity: 0.1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
 .reader-actions {
   display: flex;
   align-items: center;

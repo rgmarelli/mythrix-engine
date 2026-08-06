@@ -1,9 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Guido Marelli
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { useEffect, useRef, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import type { AgentCapabilities, AgentInstruction, CommandSpec, Hotspot } from '../api/types';
 import type { ThreadItem } from '../state/useTabs';
 import { argHintFor, completionOf, matchCommands } from '../utils/commands';
@@ -52,6 +50,38 @@ function RegionMarkerLink(
     </a>
   );
 }
+
+// `react-markdown` and `remark-gfm` pull in the unified/micromark parser
+// stack — not needed to paint the first screen, so both are fetched in one
+// dynamic import rather than sitting in the main bundle. A static
+// `import remarkGfm from 'remark-gfm'` would keep its whole dependency
+// chain in the main chunk regardless of when it runs, so it has to travel
+// inside this same lazy factory, not just alongside it.
+const AiMarkdown = lazy(async () => {
+  const [{ default: ReactMarkdown }, { default: remarkGfm }] = await Promise.all([
+    import('react-markdown'),
+    import('remark-gfm'),
+  ]);
+  function Rendered({
+    text,
+    regionMarkers,
+    onNavigateRegion,
+  }: {
+    text: string;
+    regionMarkers: Record<string, string>;
+    onNavigateRegion: (regionId: string) => void;
+  }) {
+    return (
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, [remarkRegionMarkers, regionMarkers]]}
+        components={{ a: (linkProps) => <RegionMarkerLink {...linkProps} onNavigateRegion={onNavigateRegion} /> }}
+      >
+        {text}
+      </ReactMarkdown>
+    );
+  }
+  return { default: Rendered };
+});
 
 // `/clear` is implemented here and nowhere else (agent.md FR-AG-22), so it
 // keeps working when the capabilities document is unavailable (FR-CAP-15).
@@ -337,12 +367,9 @@ export function AgentChatPanel({ items, isSending, onSend, onClear, onNavigateRe
             <div className="msg ai" key={item.id}>
               <AiAvatar />
               <div className="bubble">
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm, [remarkRegionMarkers, item.regionMarkers]]}
-                  components={{ a: (linkProps) => <RegionMarkerLink {...linkProps} onNavigateRegion={onNavigateRegion} /> }}
-                >
-                  {item.text}
-                </ReactMarkdown>
+                <Suspense fallback={<span className="markdown-loading" aria-hidden="true" />}>
+                  <AiMarkdown text={item.text} regionMarkers={item.regionMarkers} onNavigateRegion={onNavigateRegion} />
+                </Suspense>
               </div>
               <ConfirmActions instructions={item.instructions} onSend={send} />
             </div>

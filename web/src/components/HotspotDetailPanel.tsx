@@ -1,9 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Guido Marelli
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Fragment, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { Fragment, Suspense, lazy, useState } from 'react';
 import { extendContext } from '../api/client';
 import type { Augmentation, ExtendedRegionRef, Hotspot, HotspotSegment } from '../api/types';
 import { convergenceLabel, hotspotTitle } from '../utils/hotspot';
@@ -42,6 +40,21 @@ function segmentElementId(regionId: string, ordinal: number): string {
 function sortByOrdinal(segments: HotspotSegment[]): HotspotSegment[] {
   return [...segments].sort((a, b) => a.ordinal - b.ordinal);
 }
+
+// `react-markdown`/`remark-gfm` bundled together via one dynamic import, same
+// as `AgentChatPanel`'s `AiMarkdown` — a static `import remarkGfm from
+// 'remark-gfm'` would keep its dependency chain in the main chunk regardless
+// of when it runs, so it travels inside this same lazy factory.
+const AugmentedMarkdown = lazy(async () => {
+  const [{ default: ReactMarkdown }, { default: remarkGfm }] = await Promise.all([
+    import('react-markdown'),
+    import('remark-gfm'),
+  ]);
+  function Rendered({ text }: { text: string }) {
+    return <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>;
+  }
+  return { default: Rendered };
+});
 
 /** A hotspot's constituent segments rendered individually (never one merged blob), each
  * interpretant chip linking to the specific segment it anchors to (FR-RK-09) —
@@ -205,7 +218,9 @@ export function HotspotDetailPanel({
               <span>AI analysis</span>
             </div>
             <div className="augmented-body">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{augmentation.text}</ReactMarkdown>
+              <Suspense fallback={<span className="markdown-loading" aria-hidden="true" />}>
+                <AugmentedMarkdown text={augmentation.text} />
+              </Suspense>
             </div>
           </div>
         )}
