@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Guido Marelli
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ComponentProps } from 'react';
 import { AgentChatPanel } from './AgentChatPanel';
@@ -27,6 +27,13 @@ const CAPABILITIES: AgentCapabilities = {
   ],
   bindings: { confirm_query: null, confirm_augment: null },
 };
+
+// Scopes a query to the composer's own in-composer command list (FR-WEB-18),
+// disambiguating it from the welcome message's identical command text, which
+// is also on screen whenever the thread is empty (FR-AG-45).
+function composer(): HTMLElement {
+  return document.querySelector('.composer') as HTMLElement;
+}
 
 function renderPanel(overrides: Partial<ComponentProps<typeof AgentChatPanel>> = {}) {
   const props: ComponentProps<typeof AgentChatPanel> = {
@@ -153,7 +160,7 @@ it('/clear wipes the composer, calls onClear, and never calls onSend or appears 
   await userEvent.type(input, '/clear{enter}');
   expect(onClear).toHaveBeenCalledTimes(1);
   expect(onSend).not.toHaveBeenCalled();
-  expect(screen.queryByText('/clear')).not.toBeInTheDocument();
+  expect(document.querySelector('.msg.user')).not.toBeInTheDocument();
 });
 
 it('sends a trimmed message via onSend and clears the composer', async () => {
@@ -215,22 +222,22 @@ it('sends a server-handled command as an ordinary turn', async () => {
 it('lists only listed commands when the composer holds just "/"', async () => {
   renderPanel();
   await userEvent.type(screen.getByPlaceholderText('Ask about this hotspot…'), '/');
-  expect(screen.getByText('/clear')).toBeInTheDocument();
-  expect(screen.getByText('/query term[:exact|:filter], …')).toBeInTheDocument();
-  expect(screen.queryByText('/query-confirm <id>')).not.toBeInTheDocument();
+  expect(within(composer()).getByText('/clear')).toBeInTheDocument();
+  expect(within(composer()).getByText('/query term[:exact|:filter], …')).toBeInTheDocument();
+  expect(within(composer()).queryByText('/query-confirm <id>')).not.toBeInTheDocument();
 });
 
 it('narrows the list to the typed prefix as the user types', async () => {
   renderPanel();
   await userEvent.type(screen.getByPlaceholderText('Ask about this hotspot…'), '/s');
-  expect(screen.getByText('/summarize')).toBeInTheDocument();
-  expect(screen.queryByText('/clear')).not.toBeInTheDocument();
+  expect(within(composer()).getByText('/summarize')).toBeInTheDocument();
+  expect(within(composer()).queryByText('/clear')).not.toBeInTheDocument();
 });
 
 it('lists nothing when no command matches the typed prefix', async () => {
   renderPanel();
   await userEvent.type(screen.getByPlaceholderText('Ask about this hotspot…'), '/zzz');
-  expect(screen.queryByText('Clear this thread')).not.toBeInTheDocument();
+  expect(within(composer()).queryByText('Clear this thread')).not.toBeInTheDocument();
 });
 
 it('renders the active completion inline as ghost text, outside the message', async () => {
@@ -274,8 +281,8 @@ it('sends on Enter once the command is fully typed', async () => {
 it('keeps showing the argument syntax after the command name is complete', async () => {
   renderPanel();
   await userEvent.type(screen.getByPlaceholderText('Ask about this hotspot…'), '/query laughter');
-  expect(screen.getByText('/query term[:exact|:filter], …')).toBeInTheDocument();
-  expect(screen.queryByText('/clear')).not.toBeInTheDocument();
+  expect(within(composer()).getByText('/query term[:exact|:filter], …')).toBeInTheDocument();
+  expect(within(composer()).queryByText('/clear')).not.toBeInTheDocument();
 });
 
 it('offers no completion while arguments are typed — Enter sends, Tab does not rewrite', async () => {
@@ -291,7 +298,7 @@ it('offers no completion while arguments are typed — Enter sends, Tab does not
 it('stops showing a command that takes no arguments once its name is complete', async () => {
   renderPanel();
   await userEvent.type(screen.getByPlaceholderText('Ask about this hotspot…'), '/summarize ');
-  expect(screen.queryByText('/summarize')).not.toBeInTheDocument();
+  expect(within(composer()).queryByText('/summarize')).not.toBeInTheDocument();
 });
 
 it('dismisses the list on Escape, leaving the composed text alone', async () => {
@@ -299,7 +306,7 @@ it('dismisses the list on Escape, leaving the composed text alone', async () => 
   const input = screen.getByPlaceholderText('Ask about this hotspot…');
   await userEvent.type(input, '/s{Escape}');
   expect(input).toHaveValue('/s');
-  expect(screen.queryByText('/summarize')).not.toBeInTheDocument();
+  expect(within(composer()).queryByText('/summarize')).not.toBeInTheDocument();
   expect(document.querySelector('.ghost')).toBeNull();
 });
 
@@ -373,6 +380,32 @@ it('labels each confirmation chip by its own instruction type', () => {
 
   expect(screen.getByRole('button', { name: 'Run this query' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Run this augmentation' })).toBeInTheDocument();
+});
+
+it('shows a welcome message with every listed command when the thread is empty', () => {
+  renderPanel({ items: [] });
+  expect(screen.getByText('/clear')).toBeInTheDocument();
+  expect(screen.getByText('/query term[:exact|:filter], …')).toBeInTheDocument();
+  expect(screen.queryByText('/query-confirm')).not.toBeInTheDocument();
+});
+
+it('hides the welcome message once the thread holds an item', () => {
+  const items: ThreadItem[] = [{ kind: 'user', id: '1', text: 'hi' }];
+  renderPanel({ items });
+  expect(screen.queryByText('/clear')).not.toBeInTheDocument();
+});
+
+it('clicking a welcome-message command fills the composer without sending', async () => {
+  const onSend = vi.fn();
+  renderPanel({ items: [], onSend });
+  await userEvent.click(screen.getByRole('button', { name: /\/summarize/ }));
+  expect(screen.getByPlaceholderText('Ask about this hotspot…')).toHaveValue('/summarize ');
+  expect(onSend).not.toHaveBeenCalled();
+});
+
+it('shows only the welcome greeting, no command list, when capabilities are unavailable', () => {
+  renderPanel({ items: [], capabilities: null });
+  expect(screen.queryByText('/clear')).not.toBeInTheDocument();
 });
 
 it('renders no chip for an instruction type this build does not know', () => {
