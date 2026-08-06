@@ -456,6 +456,7 @@ Mythrix is developed using specification-driven development, with system require
 
 * [Setup Guide](docs/SETUP.md) — Run Mythrix locally and explore the system.
 * [Architecture](docs/architecture.md) — How the system is built: the retrieval pipeline, region augmentation, the agent, and the web viewer, with diagrams and links into the code.
+* [Corpus Ingestion](docs/corpus-ingestion.md) — Load primary-source documents into the vector-searchable corpus.
 * [System Specification](specs/spec.md) — Goals, non-goals, requirements, architecture, constraints, and end-to-end flows.
 * [Architecture Decision Records](specs/architecture-decisions) — The reasoning behind key architectural decisions.
 
