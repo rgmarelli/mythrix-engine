@@ -76,27 +76,31 @@ The `data/` directory ships a reference dataset proving the pipeline
 end-to-end: all 22 tarot Major Arcana (Rider-Waite tradition, structured from
 Waite's *Pictorial Key to the Tarot*), all 22 Hebrew letters (`kabbalah`
 domain, Sepher Yetzirah planetary/zodiac/elemental assignments) cross-linked
-to their tarot card via `corresponds_to`, and one independent corpus document
-(the complete Douay-Rheims Bible, Old and New Testament, public domain) — see
-`specs/spec.md`'s "Reference implementation scope"
-for why the corpus document is deliberately a different source.
+to their tarot card via `corresponds_to`, and a handful of independent corpus
+documents under `data/corpus/` (the complete Douay-Rheims Bible, Sefer
+HaBahir, and four `chapter_section`-structured works — Golden Bough, Secret
+Teachings, From Ritual to Romance, Primitive Culture — all public domain) —
+see `specs/spec.md`'s "Reference implementation scope" for why these are
+deliberately independent sources rather than interpretive traditions of any
+symbol system.
 
-`load-signs` walks the whole `data/` tree (`root.rglob("signs/*.yaml")`,
-etc.), so one command loads every domain — tarot, kabbalah, and bible's
-tradition/source metadata — together:
+`load-signs` walks `data/**/traditions|sources|signs/*.yaml`, so one command
+loads every symbol-system domain — tarot and kabbalah — together. It does
+not touch `data/corpus/`: a corpus document's own `Source` metadata is
+registered by `load-documents` itself, from its colocated YAML. See
+[Corpus Ingestion](corpus-ingestion.md) for the full `load-documents` guide.
 
 Run from the repo root, so `data` resolves to the root `data/` directory:
 
 ```bash
 uv run --project api mythrix load-signs data --json
 
-uv run --project api mythrix load-documents data/bible/documents/douay-rheims-bible.txt \
-  --tradition douay-rheims --source-slug douay-rheims-bible --json
+uv run --project api mythrix load-documents data/corpus --json
 ```
 
-Both commands are idempotent — safe to re-run. The document load embeds the
-full Bible text (~5.6MB, ~35000 chunks), so expect this step to take a while
-on CPU-only local Ollama embedding.
+Both commands are idempotent — safe to re-run. The document load embeds
+several thousand chunks total, dominated by the full Bible text (~5.6MB), so
+expect this step to take a while on CPU-only local Ollama embedding.
 
 ## Running tests
 

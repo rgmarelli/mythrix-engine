@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Guido Marelli
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { fetchQuery, streamAgentTurn } from '../api/client';
 import { executeInstruction } from '../api/instructions';
 import type {
@@ -295,22 +295,25 @@ export function useTabs(capabilities: AgentCapabilities | null = null) {
     return { options, allCount: scoped.length };
   }, [activeTab.queryResult, activeTab.selectedSourceId, activeTab.interpretantSearch]);
 
-  useEffect(() => {
-    if (!rankedHotspots.some((hotspot) => hotspot.regionId === activeTab.selectedRegionId)) {
-      updateTab(activeTab.id, { selectedRegionId: rankedHotspots[0]?.regionId ?? null });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rankedHotspots, activeTab.selectedRegionId, activeTab.id]);
+  // Clamped to what `rankedHotspots` currently shows: `activeTab.selectedRegionId`
+  // alone can go stale the instant a facet/search change drops it from the
+  // list. Derived here instead of synced by a `useEffect` — that sync used to
+  // fire a render, commit a state update, then re-render, and needed an
+  // `eslint-disable` to admit it wasn't reacting to a prop change so much as
+  // computing a value (specs/tmp/web-perf-alignment FR-PERF-03).
+  const effectiveRegionId = rankedHotspots.some((hotspot) => hotspot.regionId === activeTab.selectedRegionId)
+    ? activeTab.selectedRegionId
+    : (rankedHotspots[0]?.regionId ?? null);
 
-  const selectedHotspot = rankedHotspots.find((hotspot) => hotspot.regionId === activeTab.selectedRegionId) ?? null;
+  const selectedHotspot = rankedHotspots.find((hotspot) => hotspot.regionId === effectiveRegionId) ?? null;
   const selectedIndex = selectedHotspot ? rankedHotspots.indexOf(selectedHotspot) : -1;
 
   // The active hotspot's own widened context, if any — looked up by its own
   // regionId (specs/tmp/hotspot-context-expansion-agent), the same lookup
   // pattern `augmentations`/`selectedHotspot` already use. Independent of
   // whichever *other* hotspot's context was most recently widened.
-  const activeExtendedRegion: ExtendedRegionRef = activeTab.selectedRegionId
-    ? (activeTab.extendedRegions[activeTab.selectedRegionId] ?? null)
+  const activeExtendedRegion: ExtendedRegionRef = effectiveRegionId
+    ? (activeTab.extendedRegions[effectiveRegionId] ?? null)
     : null;
 
   // Runs a turn's instructions against the tab the turn was sent from
@@ -369,14 +372,20 @@ export function useTabs(capabilities: AgentCapabilities | null = null) {
     const tab = tabs.find((t) => t.id === tabId);
     if (!trimmed || !tab || tab.agentSending) return;
 
-    const selectedHotspot = tab.queryResult?.hotspots.find((h) => h.regionId === tab.selectedRegionId) ?? null;
+    // `effectiveRegionId`/`selectedHotspot` (closed over from above) are
+    // already this exact tab's UI-selection snapshot: `tabId === activeTabId`
+    // here, always, since this function only ever runs as a direct result of
+    // a UI action on the active tab. Reading `tab.selectedRegionId` instead
+    // would describe the *raw* selection, which can point at a hotspot a
+    // facet/search change has since dropped from the rail — `effectiveRegionId`
+    // is what the rail and reader are actually showing at this moment.
     const uiSelection: AgentContext = {
       semioticSystem: tab.selectedSystem || null,
       sign: tab.selectedSign || null,
       tradition: tab.selectedTradition || null,
       interpretant: tab.selectedInterpretant,
       minScore: tab.minScore,
-      regionId: tab.selectedRegionId,
+      regionId: effectiveRegionId,
       // Human-readable locator (e.g. "Ecclesiasticus 43:1-4") alongside the
       // structural region_id, so the agent's context summary can quote a
       // citation directly instead of only the source_id::ordinals coordinate.

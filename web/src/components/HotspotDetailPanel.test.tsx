@@ -583,10 +583,23 @@ it('shows no AI analysis block when the region has no augmentation', () => {
   expect(screen.queryByText('AI analysis')).not.toBeInTheDocument();
 });
 
-it('shows the augmentation, labelled as generated analysis', () => {
+// `react-markdown` is lazy-loaded (specs/tmp/web-perf-alignment
+// FR-PERF-01/02) via a dynamic import inside `HotspotDetailPanel`'s own
+// module, and `lazy()` caches that import's resolution for the lifetime of
+// the module instance shared by every test in this file. This must stay the
+// first test to render a non-null `augmentation` — once an earlier one has,
+// the chunk is already resolved and the fallback will never appear again.
+it('shows the markdown loading fallback before the lazy chunk resolves, then the augmentation text', async () => {
+  const { container } = render(<HotspotDetailPanel {...baseProps({ augmentation: { label: '[R1]', text: 'Sara laughs.' } })} />);
+  expect(container.querySelector('.markdown-loading')).toBeInTheDocument();
+  expect(await screen.findByText('Sara laughs.')).toBeInTheDocument();
+  expect(container.querySelector('.markdown-loading')).not.toBeInTheDocument();
+});
+
+it('shows the augmentation, labelled as generated analysis', async () => {
   render(<HotspotDetailPanel {...baseProps({ augmentation: { label: '[R1]', text: 'Sara laughs.' } })} />);
   expect(screen.getByText('AI analysis')).toBeInTheDocument();
-  expect(screen.getByText('Sara laughs.')).toBeInTheDocument();
+  expect(await screen.findByText('Sara laughs.')).toBeInTheDocument();
 });
 
 it('places the analysis above the verbatim segments so it cannot read as source text', () => {
@@ -601,7 +614,7 @@ it('places the analysis above the verbatim segments so it cannot read as source 
   expect(analysis!.compareDocumentPosition(segments!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 });
 
-it('renders the augmentation as markdown rather than literal syntax', () => {
+it('renders the augmentation as markdown rather than literal syntax', async () => {
   const text = [
     'The passage expresses a mix of emotions:',
     '',
@@ -611,6 +624,7 @@ it('renders the augmentation as markdown rather than literal syntax', () => {
 
   const { container } = render(<HotspotDetailPanel {...baseProps({ augmentation: { label: '[R1]', text } })} />);
 
+  await waitFor(() => expect(container.querySelector('.augmented-body li')).toBeInTheDocument());
   expect(container.querySelectorAll('.augmented-body li')).toHaveLength(2);
   expect(container.querySelector('.augmented-body strong')?.textContent).toBe('Joy');
   expect(screen.queryByText(/\*\*Joy\*\*/)).not.toBeInTheDocument();

@@ -1,14 +1,16 @@
 // SPDX-FileCopyrightText: 2026 Guido Marelli
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { useState } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import type { AgentCapabilities, AgentInstruction, CommandSpec, Hotspot } from '../api/types';
 import type { ThreadItem } from '../state/useTabs';
 import { argHintFor, completionOf, matchCommands } from '../utils/commands';
 import { hotspotTitle } from '../utils/hotspot';
 import { REGION_ID_ATTRIBUTE, remarkRegionMarkers } from '../utils/remarkRegionMarkers';
+
+// How close to the bottom (in px) still counts as "at the bottom" for
+// autoscroll purposes — scrollHeight/scrollTop math is rarely exactly 0.
+const NEAR_BOTTOM_PX = 80;
 
 interface Props {
   items: ThreadItem[];
@@ -48,6 +50,38 @@ function RegionMarkerLink(
     </a>
   );
 }
+
+// `react-markdown` and `remark-gfm` pull in the unified/micromark parser
+// stack — not needed to paint the first screen, so both are fetched in one
+// dynamic import rather than sitting in the main bundle. A static
+// `import remarkGfm from 'remark-gfm'` would keep its whole dependency
+// chain in the main chunk regardless of when it runs, so it has to travel
+// inside this same lazy factory, not just alongside it.
+const AiMarkdown = lazy(async () => {
+  const [{ default: ReactMarkdown }, { default: remarkGfm }] = await Promise.all([
+    import('react-markdown'),
+    import('remark-gfm'),
+  ]);
+  function Rendered({
+    text,
+    regionMarkers,
+    onNavigateRegion,
+  }: {
+    text: string;
+    regionMarkers: Record<string, string>;
+    onNavigateRegion: (regionId: string) => void;
+  }) {
+    return (
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, [remarkRegionMarkers, regionMarkers]]}
+        components={{ a: (linkProps) => <RegionMarkerLink {...linkProps} onNavigateRegion={onNavigateRegion} /> }}
+      >
+        {text}
+      </ReactMarkdown>
+    );
+  }
+  return { default: Rendered };
+});
 
 // `/clear` is implemented here and nowhere else (agent.md FR-AG-22), so it
 // keeps working when the capabilities document is unavailable (FR-CAP-15).
@@ -146,6 +180,42 @@ function ConfirmActions({ instructions, onSend }: { instructions: AgentInstructi
   );
 }
 
+// Shown in place of the thread while it holds no items — a new tab, or
+// right after `/clear` (FR-AG-45–FR-AG-46). Degrades to the greeting alone
+// when `capabilities` is unavailable (FR-CAP-14, FR-AG-46), same as the rest
+// of the panel.
+function WelcomeMessage({
+  capabilities,
+  onAccept,
+}: {
+  capabilities: AgentCapabilities | null;
+  onAccept: (name: string) => void;
+}) {
+  const listedCommands = capabilities?.commands.filter((command) => command.listed) ?? [];
+
+  return (
+    <div className="msg ai welcome">
+      <AiAvatar />
+      <div className="bubble">
+        <p>I ground every answer in the corpus — ask about the selected hotspot, or use a command below.</p>
+      </div>
+      {listedCommands.length > 0 && (
+        <div className="welcome-command-list">
+          {listedCommands.map((command) => (
+            <button type="button" className="welcome-command-row" key={command.name} onClick={() => onAccept(command.name)}>
+              <span className="welcome-command-name">
+                {command.name}
+                {command.args ? ` ${command.args}` : ''}
+              </span>
+              <span className="welcome-command-desc">{command.summary}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Docked, floating chat panel grounded in the active hotspot
  * (specs/interfaces/agent.md FR-AG-14–FR-AG-22), now a controlled view onto whichever tab is
  * active (FR-WEB-10): `items`/`isSending` and the
@@ -163,6 +233,26 @@ export function AgentChatPanel({ items, isSending, onSend, onClear, onNavigateRe
   const [inputValue, setInputValue] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
   const [dismissed, setDismissed] = useState(false);
+
+  // Pinned to the bottom by default so a sent message or a streamed reply is
+  // always visible; `onScroll` unpins it the moment the user scrolls away,
+  // so reading back through history isn't interrupted by incoming content.
+  const threadRef = useRef<HTMLDivElement>(null);
+  const stickToBottomRef = useRef(true);
+
+  function handleThreadScroll() {
+    const el = threadRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    stickToBottomRef.current = distanceFromBottom < NEAR_BOTTOM_PX;
+  }
+
+  useEffect(() => {
+    if (!stickToBottomRef.current) return;
+    const el = threadRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [items, isSending]);
 
   // Derived, never stored: the list cannot drift from the text it describes.
   const commands = capabilities?.commands ?? [];
@@ -252,7 +342,8 @@ export function AgentChatPanel({ items, isSending, onSend, onClear, onNavigateRe
         <span>{contextStripText(selectedHotspot)}</span>
       </div>
 
-      <div className="thread">
+      <div className="thread" ref={threadRef} onScroll={handleThreadScroll}>
+        {items.length === 0 && <WelcomeMessage capabilities={capabilities} onAccept={accept} />}
         {items.map((item) => {
           if (item.kind === 'user') {
             return (
@@ -276,12 +367,9 @@ export function AgentChatPanel({ items, isSending, onSend, onClear, onNavigateRe
             <div className="msg ai" key={item.id}>
               <AiAvatar />
               <div className="bubble">
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm, [remarkRegionMarkers, item.regionMarkers]]}
-                  components={{ a: (linkProps) => <RegionMarkerLink {...linkProps} onNavigateRegion={onNavigateRegion} /> }}
-                >
-                  {item.text}
-                </ReactMarkdown>
+                <Suspense fallback={<span className="markdown-loading" aria-hidden="true" />}>
+                  <AiMarkdown text={item.text} regionMarkers={item.regionMarkers} onNavigateRegion={onNavigateRegion} />
+                </Suspense>
               </div>
               <ConfirmActions instructions={item.instructions} onSend={send} />
             </div>

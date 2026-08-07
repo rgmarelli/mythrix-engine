@@ -63,6 +63,9 @@ Refines FR-AG-01–FR-AG-13 for the panel's web-UI-specific behavior; the underl
 - FR-AG-34: When `/summarize` is sent with no active hotspot, the agent replies that a passage must be selected first, deterministically, without invoking the generation model or any tool.
 - FR-AG-35: Trailing text after `/summarize` scopes the summary to that focus; absent trailing text, the currently selected interpretant (if any) scopes it instead; absent both, the summary is unscoped.
 - FR-AG-36: The `/summarize` command's turn is recorded in conversation history like any other turn — the stored user message is the literal text the user sent, not a rewritten or fabricated instruction — so later turns in the thread can refer back to the summary.
+- FR-AG-45: When the active tab's thread holds no items, the panel renders a welcome message in place of the (otherwise empty) thread: a short greeting, followed by every command the capabilities document declares `listed: true` (FR-CAP-06), each shown with its argument syntax and summary. The message is replaced by the ordinary thread the moment the tab's thread gains its first item, and is shown again whenever that condition recurs (a new tab, or after `/clear`, FR-AG-22).
+- FR-AG-46: Each listed command shown in the welcome message is clickable: selecting one fills the composer with that command's name and a trailing space, identically to accepting a completion from the in-composer command list (FR-WEB-22). It does not send the message.
+- FR-AG-47: When the capabilities document is unavailable (FR-CAP-14), the welcome message shows only the greeting — no command list — consistent with how the rest of the panel already treats a missing capabilities document.
 
 ### Entity identity ([ADR-014](../architecture-decisions/adr-014-slug-as-agent-entity-identity.md))
 

@@ -974,3 +974,71 @@ describe('navigateToRegion', () => {
     expect(result.current.rankedHotspots.some((h) => h.regionId === 'src::5-6')).toBe(true);
   });
 });
+
+describe('derived selection (specs/tmp/web-perf-alignment FR-PERF-03)', () => {
+  async function queriedTwoSources() {
+    vi.mocked(fetchQuery).mockResolvedValueOnce({
+      facets: { sources: [], interpretants: [] },
+      hotspots: [
+        makeHotspot({ regionId: 'r-a', source: makeSource({ id: 'src-a' }) }),
+        makeHotspot({ regionId: 'r-b', source: makeSource({ id: 'src-b' }) }),
+      ],
+    });
+    const { result } = renderHook(() => useTabs());
+    act(() => {
+      result.current.setSign('the-sun');
+      result.current.setTradition('rider-waite');
+    });
+    await act(async () => {
+      await result.current.runQuery();
+    });
+    return result;
+  }
+
+  it('falls back to the first remaining ranked hotspot when a facet change drops the current selection', async () => {
+    const result = await queriedTwoSources();
+    act(() => result.current.setRegionId('r-b'));
+    expect(result.current.selectedHotspot?.regionId).toBe('r-b');
+
+    // Filtering to src-a excludes r-b from rankedHotspots. Nothing writes
+    // `activeTab.selectedRegionId` back to r-a — there is no sync effect
+    // anymore — but the *effective* selection (`selectedHotspot`/
+    // `selectedIndex`) must already reflect the fallback, in the same act()
+    // as the filter change.
+    act(() => result.current.setSourceId('src-a'));
+
+    expect(result.current.rankedHotspots.map((h) => h.regionId)).toEqual(['r-a']);
+    expect(result.current.activeTab.selectedRegionId).toBe('r-b');
+    expect(result.current.selectedHotspot?.regionId).toBe('r-a');
+    expect(result.current.selectedIndex).toBe(0);
+  });
+
+  it('sends the effective (clamped) region as agent context, not the stale raw selection', async () => {
+    const result = await queriedTwoSources();
+    act(() => result.current.setRegionId('r-b'));
+    act(() => result.current.setSourceId('src-a'));
+
+    vi.mocked(streamAgentTurn).mockResolvedValueOnce({
+      context: {
+        semioticSystem: null,
+        sign: null,
+        tradition: null,
+        interpretant: null,
+        minScore: null,
+        regionId: null,
+        locator: null,
+        extendedRegionId: null,
+        extendedLocator: null,
+      },
+      replyText: 'ok',
+      instructions: [],
+      threadReset: false,
+    });
+
+    await act(async () => {
+      await result.current.sendAgentMessage('what is this?');
+    });
+
+    expect(vi.mocked(streamAgentTurn).mock.calls[0][2]).toMatchObject({ regionId: 'r-a' });
+  });
+});

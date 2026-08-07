@@ -49,10 +49,7 @@ Non-trivial changes follow four stages under `specs/tmp/<feature-slug>/`:
 
 ## Git
 
-- Follow Conventional Commits.
-- Keep commit messages concise and focused on intent and outcome.
-- Do not include detailed file lists or implementation history unless requested.
-- Obtain explicit user approval before creating commits.
+- Never create a commit without explicit user approval.
 
 ## Tooling
 

@@ -130,7 +130,7 @@ function App() {
         headerText={hotspotRailHeader(rankedHotspots.length, activeTab.hotspotSearch)}
         hasResult={activeTab.queryResult !== null}
         hotspots={rankedHotspots}
-        selectedRegionId={activeTab.selectedRegionId}
+        selectedRegionId={selectedHotspot?.regionId ?? null}
         search={activeTab.hotspotSearch}
         augmentations={augmentations}
         onSearchChange={setHotspotSearch}
