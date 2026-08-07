@@ -64,8 +64,8 @@ it('shows the hotspot title and its matched interpretants in the context strip',
   expect(screen.getByText('reading Ecclesiasticus 43:1 · interpretants: sun')).toBeInTheDocument();
 });
 
-// `react-markdown` is lazy-loaded (specs/tmp/web-perf-alignment FR-PERF-01/02)
-// via a dynamic import inside `AgentChatPanel`'s own module, and `lazy()`
+// `react-markdown` is lazy-loaded via a dynamic import inside
+// `AgentChatPanel`'s own module, and `lazy()`
 // caches that import's resolution for the lifetime of the module instance —
 // which every test in this file shares. This must stay the first test to
 // render an `ai` item: once any earlier test has done so, the chunk is

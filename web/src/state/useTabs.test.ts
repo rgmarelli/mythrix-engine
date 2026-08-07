@@ -289,7 +289,7 @@ describe('runQuery', () => {
   });
 });
 
-describe('extended context persistence (specs/tmp/hotspot-context-expansion-agent)', () => {
+describe('extended context persistence', () => {
   function makeExtension(overrides: Partial<{ regionId: string; locator: string }> = {}) {
     return {
       regionId: 'r-a-extended',
@@ -975,7 +975,7 @@ describe('navigateToRegion', () => {
   });
 });
 
-describe('derived selection (specs/tmp/web-perf-alignment FR-PERF-03)', () => {
+describe('derived selection', () => {
   async function queriedTwoSources() {
     vi.mocked(fetchQuery).mockResolvedValueOnce({
       facets: { sources: [], interpretants: [] },

@@ -75,10 +75,10 @@ export interface Tab {
   // augmentation describes one focus over one result set, so showing it beside
   // a different one would misattribute it.
   augmentations: Record<string, Augmentation>;
-  // Widened contexts, keyed by the hotspot each was computed for
-  // (specs/tmp/hotspot-context-expansion-agent) — one entry per hotspot the
-  // user has widened this tab's context for, so extending hotspot B does not
-  // discard hotspot A's already-widened context (per user decision: option 1,
+  // Widened contexts, keyed by the hotspot each was computed for — one entry
+  // per hotspot the user has widened this tab's context for, so extending
+  // hotspot B does not discard hotspot A's already-widened context (per user
+  // decision: option 1,
   // keep + surface it + a "Clear Context" affordance, not silently reset it).
   // Mirrors `augmentations` above exactly: a map keyed by region, scoped to
   // this tab, reset whenever `queryResult` is replaced.
@@ -179,9 +179,8 @@ export function useTabs(capabilities: AgentCapabilities | null = null) {
   const setHotspotSearch = (value: string) => updateActiveTab({ hotspotSearch: value });
   const setRegionId = (value: string | null) => updateActiveTab({ selectedRegionId: value });
 
-  // Records or clears the widened context for one specific hotspot
-  // (specs/tmp/hotspot-context-expansion-agent) — extending or clearing
-  // hotspot B never touches hotspot A's own entry.
+  // Records or clears the widened context for one specific hotspot —
+  // extending or clearing hotspot B never touches hotspot A's own entry.
   function setExtendedRegion(regionId: string, region: ExtendedRegionRef) {
     updateActiveTab((t) => {
       if (region === null) {
@@ -300,7 +299,7 @@ export function useTabs(capabilities: AgentCapabilities | null = null) {
   // list. Derived here instead of synced by a `useEffect` — that sync used to
   // fire a render, commit a state update, then re-render, and needed an
   // `eslint-disable` to admit it wasn't reacting to a prop change so much as
-  // computing a value (specs/tmp/web-perf-alignment FR-PERF-03).
+  // computing a value.
   const effectiveRegionId = rankedHotspots.some((hotspot) => hotspot.regionId === activeTab.selectedRegionId)
     ? activeTab.selectedRegionId
     : (rankedHotspots[0]?.regionId ?? null);
@@ -309,8 +308,8 @@ export function useTabs(capabilities: AgentCapabilities | null = null) {
   const selectedIndex = selectedHotspot ? rankedHotspots.indexOf(selectedHotspot) : -1;
 
   // The active hotspot's own widened context, if any — looked up by its own
-  // regionId (specs/tmp/hotspot-context-expansion-agent), the same lookup
-  // pattern `augmentations`/`selectedHotspot` already use. Independent of
+  // regionId, the same lookup pattern `augmentations`/`selectedHotspot`
+  // already use. Independent of
   // whichever *other* hotspot's context was most recently widened.
   const activeExtendedRegion: ExtendedRegionRef = effectiveRegionId
     ? (activeTab.extendedRegions[effectiveRegionId] ?? null)

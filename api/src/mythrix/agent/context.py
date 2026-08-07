@@ -39,8 +39,8 @@ class AgentContext(BaseModel):
     locator: str | None = None
     # The active hotspot's widened structural coordinate/citation, once the
     # web viewer's Add Context action has grown it past its match-derived
-    # span (`specs/tmp/hotspot-context-expansion-agent`). Absent whenever the
-    # user hasn't widened the active hotspot's context. Additive to
+    # span. Absent whenever the user hasn't widened the active hotspot's
+    # context. Additive to
     # `region_id`/`locator` rather than a replacement for them: those two
     # remain the hotspot's own identity everywhere else (thread-reset,
     # `visible_regions` correlation) and are never overwritten by this pair.
@@ -148,9 +148,8 @@ def render_context_summary(context: AgentContext) -> str:
     if context.region_id:
         # `extended_region_id`/`extended_locator` substitute in place of
         # `region_id`/`locator` here rather than adding a sentence of their
-        # own (specs/tmp/hotspot-context-expansion-agent) — the prompt's
-        # rule count and shape are unchanged; only the value the model sees
-        # for "the active hotspot" widens.
+        # own — the prompt's rule count and shape are unchanged; only the
+        # value the model sees for "the active hotspot" widens.
         active_region_id = context.extended_region_id or context.region_id
         active_locator = context.extended_locator or context.locator
         lines.append(f"Active hotspot: {active_region_id}.")

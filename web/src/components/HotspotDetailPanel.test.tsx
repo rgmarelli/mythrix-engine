@@ -583,9 +583,9 @@ it('shows no AI analysis block when the region has no augmentation', () => {
   expect(screen.queryByText('AI analysis')).not.toBeInTheDocument();
 });
 
-// `react-markdown` is lazy-loaded (specs/tmp/web-perf-alignment
-// FR-PERF-01/02) via a dynamic import inside `HotspotDetailPanel`'s own
-// module, and `lazy()` caches that import's resolution for the lifetime of
+// `react-markdown` is lazy-loaded via a dynamic import inside
+// `HotspotDetailPanel`'s own module, and `lazy()` caches that import's
+// resolution for the lifetime of
 // the module instance shared by every test in this file. This must stay the
 // first test to render a non-null `augmentation` — once an earlier one has,
 // the chunk is already resolved and the fallback will never appear again.

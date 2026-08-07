@@ -358,9 +358,8 @@ def test_summarize_command_with_active_hotspot_fetches_and_summarizes_determinis
 
 
 def test_summarize_command_prefers_the_extended_region_over_the_base_hotspot() -> None:
-    """specs/tmp/hotspot-context-expansion-agent FR-HCE-05: once the user has
-    widened the active hotspot's context, `/summarize` scopes to the widened
-    span, not the narrower original hotspot."""
+    """Once the user has widened the active hotspot's context, `/summarize`
+    scopes to the widened span, not the narrower original hotspot."""
     sessions = SessionStore()
 
     response = run_chat_turn(

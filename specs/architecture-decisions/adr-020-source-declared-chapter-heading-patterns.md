@@ -70,14 +70,13 @@ one level deeper, to the boundary-detection *pattern* within the
   occurrence-index boundary) precise enough for that specific source.
 - Cost: per-source curator effort. Someone has to read the raw text, write
   and tune the pattern, and validate the resulting chapter count against the
-  source's own table of contents — not automatic, and not free. (Already
-  reflected as a concrete task in `plan.md`'s Risks for *The Golden Bough*'s
-  known false positives.)
+  source's own table of contents — not automatic, and not free, as *The
+  Golden Bough*'s known false positives (see Context) demonstrated.
 - Cost: the occurrence-index boundary fields are positional, not
   content-addressed — an unrelated future hand-edit to a source's `.txt`
   that happens to add or remove an earlier pattern match silently shifts
-  what a declared occurrence index points at (already recorded in
-  `plan.md`'s Risks; no mitigation proposed there beyond curator review).
+  what a declared occurrence index points at. No mitigation beyond curator
+  review is proposed here.
 - Scoped to the new `chapter_section` scheme only; `scripture_verse`,
   `numbered_section`, and `paragraph` are unaffected and keep their current,
   engine-fixed matching rules.

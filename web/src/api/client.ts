@@ -107,9 +107,9 @@ export async function fetchSegments(
 }
 
 // One Add Context activation over `[startOrdinal, endOrdinal]` — the
-// server-side boundary logic behind the Add Context action
-// (specs/tmp/hotspot-context-expansion-agent), replacing this app's own
-// client-side edge-probing/gap-detection logic. `loadedCount` is how many
+// server-side boundary logic behind the Add Context action, replacing this
+// app's own client-side edge-probing/gap-detection logic. `loadedCount` is
+// how many
 // segments the caller currently holds in that range — fewer than the range's
 // full span means an internal gap remains, which this activation fills
 // (and only that); otherwise it extends the window by one segment past each

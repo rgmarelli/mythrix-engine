@@ -186,11 +186,10 @@ def test_sign_intersemiotic_interpretants_round_trip(
 
 
 def test_region_round_trip_anchors_matches_to_their_segments(waite_source: Source) -> None:
-    """T8: the settled `Region`/`Segment`/`Match` shape (FR-RK-08–FR-RK-10) — a
+    """The settled `Region`/`Segment`/`Match` shape (FR-RK-08–FR-RK-10) — a
     region's `segments` carry each match-carrying verse's text once, and
     every match (concept or exact) carries the `segment_ordinal` of the
-    specific verse it hit, matching plan.md's worked Genesis 21:5/21:6
-    contract."""
+    specific verse it hit, using the worked Genesis 21:5/21:6 example."""
     genesis_source = waite_source.model_copy(update={"id": "en_drb", "domain": "scripture", "title": "DRB"})
     segment_5 = Segment(ordinal=104, locator="Genesis 21:5", text="And Abraham was a hundred years old.")
     segment_6 = Segment(ordinal=105, locator="Genesis 21:6", text="And Sara said: God hath made a laughter for me.")

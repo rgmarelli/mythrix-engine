@@ -48,7 +48,7 @@ names.** Concretely:
   writer, always (FR-AG-37).
 - A tool result carries an entity's slug under an identity key, and its display
   name under a separate display key, distinguishable by key alone (FR-AG-38,
-  FR-AG-40). Display names are not removed — the model still needs them to write
+  FR-AG-40a). Display names are not removed — the model still needs them to write
   prose, and a deterministically composed reply (FR-AG-07) still needs them to
   address the user in the words the viewer shows.
 - Context backfill reads identity keys only, never the arguments the model

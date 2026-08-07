@@ -2,7 +2,7 @@
 
 - **Status**: Accepted
 - **Date**: 2026-07-24
-- **Realized by**: `Settings.retrieval_match_pool_size`, `Settings.retrieval_min_score` (`api/src/mythrix/core/config.py`); [retrieval.md](../retrieval/retrieval.md) FR-RT-08, FR-RT-14
+- **Realized by**: `Settings.retrieval_match_pool_size`, `Settings.retrieval_min_score` (`api/src/mythrix/core/config.py`); [retrieval.md](../retrieval/retrieval.md) FR-RT-14 for the match floor. `retrieval_match_pool_size` has no live FR of its own — its only spec reference, FR-RT-08, was retired by [ADR-013](adr-013-region-rollup-sole-query-shape.md) without a replacement requirement being written; the setting itself is unaffected and still in force.
 
 ## Context
 

@@ -192,8 +192,8 @@ def regions_extend_context(
 ) -> ExtendedRegion:
     """One Add Context activation over `[start_ordinal, end_ordinal]` — the
     server-side boundary logic behind the web UI's Add Context action
-    (`specs/retrieval/context-expansion.md`, `specs/tmp/hotspot-context-expansion-agent`).
-    Fills an internal gap first when one exists (`loaded_count`, the number
+    (`specs/retrieval/context-expansion.md`). Fills an internal gap first
+    when one exists (`loaded_count`, the number
     of segments the caller currently holds in this range, is fewer than the
     range's full span) and only that; otherwise extends the window by one
     segment past each edge that can still extend. Same coordinate-read

@@ -25,14 +25,12 @@
 ## Features
 * [ ] **Augmentation: Clarify context.** Augmentation uses a context expansion feature that mentions fragments that can be "hidden" from the user. This is confusing, so we need to add clarification in the UI.
 
-# Improvement
+## Improvement
 * [ ] **Architecture: Improve session management.** Enhance session management scalability by adopting a stateless design. This can be achieved either by delegating session handling to the client side or integrating a centralized shared store (e.g., Redis). Avoid local, in-memory session persistence.
-
-* [ ] **Adopt Conventional Commits specification across the repository.** 
 
 * [ ] **Semiotic Models Update.**. Improve current sample models, add astrology models, and expand sources.
 
-* [ ] **Choose a default LLM.**.
+* [ ] **Auto-select a generation model in code**, instead of requiring `MYTHRIX_GENERATION_MODEL` to be set manually — detect an available local Ollama model at startup rather than asking the operator to name one.
 
 * [ ] **Improve settings**, e.g., model settings, documentation, etc.
 

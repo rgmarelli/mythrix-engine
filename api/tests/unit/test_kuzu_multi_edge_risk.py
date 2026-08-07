@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Guido Marelli
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""T8 — blocking risk check (see tasks.md, plan.md Risks).
+"""Blocking risk check for INTERSEMIOTIC's multi-edge design.
 
 The alternative/competing-claims design for INTERSEMIOTIC (FR-DM-03) — e.g. two attribution
 systems assigning a tarot card to different Hebrew letters — depends on Kùzu allowing
