@@ -180,7 +180,7 @@ def test_render_context_summary_empty_when_nothing_set() -> None:
     assert render_context_summary(AgentContext()) == ""
 
 
-# --- extended context (specs/tmp/hotspot-context-expansion-agent) ---------
+# --- extended context ------------------------------------------------------
 
 
 def test_detect_thread_reset_unaffected_by_extended_region_id_alone() -> None:
@@ -211,8 +211,7 @@ def test_apply_ui_selection_takes_incoming_extended_fields_when_set() -> None:
 def test_render_context_summary_substitutes_the_extended_region_for_the_base_one() -> None:
     """The extended coordinate/locator replace the base ones in the exact
     same two-line shape the prompt already had — no added sentence, no new
-    rule for the model to parse (the prompt itself is untouched;
-    specs/tmp/hotspot-context-expansion-agent)."""
+    rule for the model to parse (the prompt itself is untouched)."""
     context = AgentContext(
         region_id="waite::0-1",
         locator="Genesis 1:1",

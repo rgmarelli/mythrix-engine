@@ -121,8 +121,7 @@ export function HotspotDetailPanel({
     setContextError(null);
     try {
       // The backend fills any internal gap first and only that; edge growth
-      // happens once no gap remains (FR-CE-02/03,
-      // specs/tmp/hotspot-context-expansion-agent) — `current.length` tells
+      // happens once no gap remains (FR-CE-02/03) — `current.length` tells
       // it whether the caller's current range is already gap-free.
       const extended = await extendContext(sourceId, minOrdinal, maxOrdinal, current.length);
       setSegments(sortByOrdinal(extended.segments));

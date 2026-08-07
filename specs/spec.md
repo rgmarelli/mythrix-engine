@@ -27,7 +27,7 @@ A domain-agnostic knowledge graph of signs, cross-referenced against real docume
 - Multi-sign or spread-style queries (e.g. interpreting several signs together in one request).
 - Conversational or free-text natural-language request parsing on the query path — v1 resolves a query from structured parameters only. The conversational agent ([interfaces/agent.md](interfaces/agent.md)) is a separate, additive layer and does not change this, with one narrow, explicitly-scoped exception: the ad-hoc interpretant query path ([interfaces/agnostic-query.md](interfaces/agnostic-query.md), [ADR-010](architecture-decisions/adr-010-agnostic-adhoc-interpretant-query.md)), reachable only via an explicit `/query` command and its matching confirmation command, parsed deterministically rather than by the generation model, and never from incidental conversation. Region augmentation ([interfaces/augmentation.md](interfaces/augmentation.md)) retrieves nothing at all: its free-text focus is an instruction to the generation model only and never reaches the query path.
 - Hardening against adversarial input / prompt injection beyond baseline mitigations (data-not-instructions framing, citation-id validation). v1 assumes curator-supplied, not arbitrary, source documents.
-- Verifying that LLM paraphrases are faithful to their cited source, beyond confirming the citation marker refers to real, in-context material. Faithfulness/entailment checking is future work.
+- Verifying that LLM paraphrases are faithful to their cited source, beyond the fact-checker's own per-sentence supported/unsupported classification against that turn's evidence ([ADR-025](architecture-decisions/adr-025-post-hoc-fact-checker-replaces-self-citation.md)). Deeper automated faithfulness/entailment checking is future work.
 - Concurrent multi-process write access to the graph store or vector store (see [interfaces/api.md](interfaces/api.md) for the specific CLI/API exclusion).
 
 Subsystem-specific non-goals (e.g. no BM25 ranking, no cross-tradition comparison UI, no mutating agent tools) are recorded in each subsystem's own spec under §6.
@@ -182,21 +182,21 @@ The corpus document is not Waite's own text (see [corpus.md](retrieval/corpus.md
 |---|---|---|---|
 | `FR-DM` | Domain Model | [domain/domain-model.md](domain/domain-model.md) | FR-DM-01–FR-DM-05 |
 | `FR-SD` | Structured Data | [domain/structured-data.md](domain/structured-data.md) | FR-SD-01–FR-SD-05 |
-| `FR-CO` | Corpus | [retrieval/corpus.md](retrieval/corpus.md) | FR-CO-01–FR-CO-07 |
+| `FR-CO` | Corpus | [retrieval/corpus.md](retrieval/corpus.md) | FR-CO-01–FR-CO-18 |
 | `FR-RT` | Retrieval | [retrieval/retrieval.md](retrieval/retrieval.md) | FR-RT-01–FR-RT-20, less FR-RT-07–FR-RT-09 (retired) |
 | `FR-RK` | Ranking | [retrieval/ranking.md](retrieval/ranking.md) | FR-RK-01–FR-RK-10 |
-| `FR-CE` | Context Expansion | [retrieval/context-expansion.md](retrieval/context-expansion.md) | FR-CE-01–FR-CE-12 |
-| `FR-API` | Backend API | [interfaces/api.md](interfaces/api.md) | FR-API-01–FR-API-04 |
-| `FR-WEB` | Web Viewer | [interfaces/web-viewer.md](interfaces/web-viewer.md) | FR-WEB-01–FR-WEB-24 |
-| `FR-AG` | Conversational Agent | [interfaces/agent.md](interfaces/agent.md) | FR-AG-01–FR-AG-32 |
+| `FR-CE` | Context Expansion | [retrieval/context-expansion.md](retrieval/context-expansion.md) | FR-CE-01–FR-CE-15 |
+| `FR-API` | Backend API | [interfaces/api.md](interfaces/api.md) | FR-API-01–FR-API-05 |
+| `FR-WEB` | Web Viewer | [interfaces/web-viewer.md](interfaces/web-viewer.md) | FR-WEB-01–FR-WEB-31 |
+| `FR-AG` | Conversational Agent | [interfaces/agent.md](interfaces/agent.md) | FR-AG-01–FR-AG-47, less FR-AG-19 (retired), plus FR-AG-21a, FR-AG-21b, FR-AG-40a |
 | `FR-AQ` | Agnostic (Ad-hoc) Interpretant Query | [interfaces/agnostic-query.md](interfaces/agnostic-query.md) | FR-AQ-01–FR-AQ-22 |
 | `FR-CAP` | Agent Capabilities | [interfaces/agent-capabilities.md](interfaces/agent-capabilities.md) | FR-CAP-01–FR-CAP-16 |
 | `FR-AU` | Region Augmentation | [interfaces/augmentation.md](interfaces/augmentation.md) | FR-AU-01–FR-AU-41 |
 | `CON-SYS` | System-wide constraints | this document, §7 | CON-SYS-01 |
 
-188 active requirements in total.
+235 active requirements in total.
 
-`FR-RT-07`, `FR-RT-08`, and `FR-RT-09` were retired when region rollup became the sole query result shape ([ADR-013](architecture-decisions/adr-013-region-rollup-sole-query-shape.md)). Unlike the retirements below, they are marked in place in [retrieval.md](retrieval/retrieval.md) rather than removed: the surrounding identifiers stay live and renumbering them would invalidate references in accepted, immutable ADRs. The identifiers are not reused.
+`FR-RT-07`, `FR-RT-08`, and `FR-RT-09` were retired when region rollup became the sole query result shape ([ADR-013](architecture-decisions/adr-013-region-rollup-sole-query-shape.md)). Unlike the retirements below, they are marked in place in [retrieval.md](retrieval/retrieval.md) rather than removed: the surrounding identifiers stay live and renumbering them would invalidate references in accepted, immutable ADRs. The identifiers are not reused. `FR-AG-19` (the Tarot "cards" feature's structured chat rendering) is marked in place the same way, in [agent.md](interfaces/agent.md).
 
 A prior flat-numbered scheme (`FR1`–`FR102`) was superseded by the identifiers above; six items from that scheme (`FR14`, `FR15`, `FR25`, `FR26`, `FR54`, `FR78`) were retired outright — superseded by the conversational agent's summarize tool replacing an earlier synthesized-summary design — and carry no identifier in the current scheme.
 

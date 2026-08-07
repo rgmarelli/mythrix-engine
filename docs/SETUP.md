@@ -68,7 +68,7 @@ relative to whatever directory a command happens to be run from — so these
 two exports are optional and only needed to point at a different location;
 `embedding_model` defaults to `nomic-embed-text`; `generation_model` has no
 default and must be set explicitly — this is deliberate, since installed
-Ollama models vary machine to machine, per `plan.md`'s design.)
+Ollama models vary machine to machine.)
 
 ## 4. Load the reference dataset
 
@@ -123,6 +123,5 @@ This is now a single fast test (`test_synthesis_chain_ollama.py`, one small
 `invoke()` call). The full-corpus end-to-end acceptance tests (`the-tower`
 query, `the-sun` convergence) were removed — each re-ingested the complete
 ~1700-chunk Bible on every run, 40+ minutes total, judged not worth
-maintaining as routine coverage. See `specs/symbol-interpretation-core/tasks.md`
-(T25, T39) and `docs/TODO.md`'s Verification section for the historical
-record of what those runs found before removal.
+maintaining as routine coverage. See git history for what those runs found
+before removal.

@@ -1,8 +1,8 @@
 # ADR-007 — Rank-based fusion within a concept; geometric mean for pair scores
 
-- **Status**: Accepted
+- **Status**: Accepted; pair scoring superseded by [ADR-013](adr-013-region-rollup-sole-query-shape.md)
 - **Date**: 2026-07-24
-- **Realized by**: [retrieval.md](../retrieval/retrieval.md) FR-RT-07, FR-RT-08; [corpus.md](corpus.md) FR-CO-03
+- **Realized by**: [retrieval.md](../retrieval/retrieval.md) FR-RT-07, FR-RT-08 (both retired, see [ADR-013](adr-013-region-rollup-sole-query-shape.md)); [corpus.md](../retrieval/corpus.md) FR-CO-03
 
 ## Context
 

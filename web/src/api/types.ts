@@ -127,7 +127,7 @@ export interface HotspotQueryResult {
   hotspots: Hotspot[];
 }
 
-// --- Hotspot context expansion (specs/tmp/hotspot-context-expansion-agent) ---
+// --- Hotspot context expansion ---
 // Wire/view-model pair for `GET /api/regions/extend` — the server-side
 // boundary logic behind the detail panel's Add Context action. Unlike
 // `Region`/`Hotspot`, this is not a ranked retrieval hit: no score,
@@ -151,7 +151,7 @@ export interface ExtendedRegion {
 }
 
 // A widened hotspot context, as lifted up to tab-level state so it survives
-// navigating away and back to that hotspot (specs/tmp/hotspot-context-expansion-agent).
+// navigating away and back to that hotspot.
 // `null` clears it (nothing grew past the hotspot's own original span, or the
 // user explicitly cleared it via "Clear Context"). Carries the full displayed
 // state, not just the coordinate/locator sent to the agent, so returning to a
@@ -175,8 +175,8 @@ export interface AgentContextWire {
   region_id: string | null;
   locator: string | null;
   // The active hotspot's widened structural coordinate/citation, once Add
-  // Context has grown it (specs/tmp/hotspot-context-expansion-agent) — null
-  // whenever the user hasn't widened the active hotspot's context. Additive
+  // Context has grown it — null whenever the user hasn't widened the active
+  // hotspot's context. Additive
   // to `region_id`/`locator`, never a replacement: those remain the
   // hotspot's own identity.
   extended_region_id: string | null;

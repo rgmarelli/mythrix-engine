@@ -6,7 +6,7 @@
 
 ## Context
 
-The web viewer's Add Context action (`specs/retrieval/context-expansion.md`) lets a user widen a hotspot's displayed reading context past its original, match-derived span. Until now this state lived and died in the detail panel component alone — it was never sent to the backend, so the conversational agent's `/summarize` command and its own context description always scoped to the hotspot's original, narrower `region_id`, regardless of how much context the user had visibly loaded on screen (`specs/tmp/hotspot-context-expansion-agent`).
+The web viewer's Add Context action (`specs/retrieval/context-expansion.md`) lets a user widen a hotspot's displayed reading context past its original, match-derived span. Until now this state lived and died in the detail panel component alone — it was never sent to the backend, so the conversational agent's `/summarize` command and its own context description always scoped to the hotspot's original, narrower `region_id`, regardless of how much context the user had visibly loaded on screen.
 
 The natural-looking fix — once the widened window is computed server-side (`GET /api/regions/extend-context`, `specs/retrieval/context-expansion.md` FR-CE-13) — is to have the browser simply send the widened coordinate as the turn's `region_id`, in place of the hotspot's own. This turns out to conflict with two things `region_id` is already load-bearing for:
 

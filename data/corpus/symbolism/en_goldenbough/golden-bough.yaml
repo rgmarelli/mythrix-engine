@@ -1,10 +1,11 @@
-# Validated via `mythrix load-documents --dry-run` (T9): detects exactly the
+# Validated via `mythrix load-documents --dry-run`: detects exactly the
 # 69 real chapters (I-LXIX) against the table of contents, in order, with no
 # false positives — the length bound on chapter_pattern's title class already
-# excludes the inline enumerated list and author-initial citation flagged in
-# plan.md's Risks (both run well past 60 characters). subsection_pattern
-# correctly isolates each chapter's own numbered subsections (e.g. Chapter
-# 1's "Diana and Virbius" / "Artemis and Hippolytus" / "Recapitulation").
+# excludes the inline enumerated list and the author-initial citation that
+# would otherwise false-positive (both run well past 60 characters).
+# subsection_pattern correctly isolates each chapter's own numbered
+# subsections (e.g. Chapter 1's "Diana and Virbius" / "Artemis and
+# Hippolytus" / "Recapitulation").
 
 source:
   id: "en_goldenbough"
